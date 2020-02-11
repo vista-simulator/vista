@@ -15,11 +15,21 @@ VISTA Simulator
 
 .. image:: docs/assets/icon_200.png
 
-
 **VISTA** (Virtual Image Synthesis and Transformation for Autonomy) is a **data-driven simulator for training and evaluating full-scale autonomous vehicles**.
 
 For more details on VISTA please refer to our recent publication: `Learning Robust Control Policies for End-to-End
 Autonomous Driving From Data-Driven Simulation <https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8957584>`_
+
+.. code-block:: language
+
+    @article{amini2020learning,
+        title={Learning Robust Control Policies for End-to-End Autonomous Driving from Data-Driven Simulation},
+        author={Amini, Alexander and Gilitschenski, Igor and Phillips, Jacob and Moseyko, Julia and Banerjee, Rohan and Karaman, Sertac and Rus, Daniela},
+        journal={IEEE Robotics and Automation Letters},    
+        year={2020},
+        publisher={IEEE}
+    }
+
 
 
 Features
