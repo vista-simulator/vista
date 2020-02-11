@@ -1,7 +1,6 @@
 =====
-vista
+VISTA Simulator
 =====
-
 
 .. image:: https://img.shields.io/pypi/v/vista.svg
         :target: https://pypi.python.org/pypi/vista
@@ -14,24 +13,23 @@ vista
         :alt: Documentation Status
 
 
+.. image:: docs/assets/icon_200.png
 
 
-Data-driven simulation for training and evaluating full-scale autonomous vehicles
+**VISTA** (Virtual Image Synthesis and Transformation for Autonomy) is a **data-driven simulator for training and evaluating full-scale autonomous vehicles**.
 
-
-* Free software: MIT license
-* Documentation: https://vista.readthedocs.io.
+For more details on VISTA please refer to our recent publication: `Learning Robust Control Policies for End-to-End
+Autonomous Driving From Data-Driven Simulation <https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8957584>`_
 
 
 Features
 --------
+Coming soon! This repository is currently in development and we will be announcing the full release very soon! 
 
-* TODO
 
-Credits
+Misc
 -------
+* Documentation: https://vista.readthedocs.io.
+* Free software: MIT license
+* `Package Template <https://github.com/audreyr/cookiecutter-pypackage>`_
 
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
