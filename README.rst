@@ -1,6 +1,6 @@
-=====
+================
 VISTA Simulator
-=====
+================
 
 .. image:: https://img.shields.io/pypi/v/vista.svg
         :target: https://pypi.python.org/pypi/vista
