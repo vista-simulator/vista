@@ -13,7 +13,7 @@ VISTA Simulator
         :alt: Documentation Status
 
 
-.. image:: docs/assets/icon_200.png
+.. image:: docs/assets/vista-demo.gif
 
 **VISTA** (Virtual Image Synthesis and Transformation for Autonomy) is a **data-driven simulator for training and evaluating full-scale autonomous vehicles**.
 
