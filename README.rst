@@ -20,7 +20,7 @@ VISTA Simulator
 For more details on VISTA please refer to our recent publication: `Learning Robust Control Policies for End-to-End
 Autonomous Driving From Data-Driven Simulation <https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8957584>`_
 
-.. code-block:: language
+.. code-block:: 
 
     @article{amini2020learning,
         title={Learning Robust Control Policies for End-to-End Autonomous Driving from Data-Driven Simulation},
