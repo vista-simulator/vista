@@ -7,10 +7,12 @@ import vista
 
 # Parse Arguments
 parser = argparse.ArgumentParser(description='Run the simulator with random actions')
-parser.add_argument('--trace-path', type=str, nargs='+', default='/home/amini/trace/20190205-102931_blue_prius_devens_rightside', help='Path to the traces to use for simulation')
+parser.add_argument('--trace-path', type=str, nargs='+', help='Path to the traces to use for simulation')
 args = parser.parse_args()
 
 
+# Initialize the simulator
+sim = vista.Simulator(args.trace_path)
 
 
 # Convience reset function at before starting a new episode
@@ -20,9 +22,6 @@ def reset():
     done = False
     return total_reward, done
 
-
-# Initialize the simulator
-sim = vista.Simulator(args.trace_path)
 
 # Main running loop
 while True:
