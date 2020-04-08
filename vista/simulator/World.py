@@ -4,17 +4,16 @@ import numpy as np
 import os
 from scipy.interpolate import interp1d
 import sys
+from ffio import FFReader
 import tensorflow as tf
 
-deepknight_root = os.environ.get('DEEPKNIGHT_ROOT')
-sys.path.insert(0, os.path.join(deepknight_root, 'util/'))
-from Camera import Camera
-from FFWrapper import FFReader
-from LabelSearch import LabelSearch, get_synced_labeled_timestamps
-from MultiFrame import MultiFrame
-import print_util as P
-from TopicNames import TopicNames
-from ViewSynthesis import ViewSynthesis
+# VISTA imports
+from .util import ViewSynthesis
+from .util import Camera
+from .util import LabelSearch, get_synced_labeled_timestamps
+from .util import MultiFrame
+from .util import TopicNames
+from .util import print_util as P
 
 
 class World:
@@ -166,7 +165,7 @@ class World:
         desired_frame_num = worldtime_to_frame[worldtime]
 
         if desired_frame_num < self.stream.frame_num:
-            print "SEEKING SINCE {} < {}".format(desired_frame_num, self.stream.frame_num)
+            print("SEEKING SINCE {} < {}".format(desired_frame_num, self.stream.frame_num))
             desired_seek_sec = self.stream.frame_to_secs(desired_frame_num)
             self.stream.seek(desired_seek_sec)
 
@@ -179,7 +178,7 @@ class World:
 
     def get_timestamp(self, index):
         if index >= len(self.syncedLabeledTimestamps[self.current_trace_index])-1:
-            print "END OF TRACE"
+            print("END OF TRACE")
             self.trace_done = True # Done var will be set to True in deepknight env step
             return self.syncedLabeledTimestamps[self.current_trace_index][-1] # Return last timestamp
         return self.syncedLabeledTimestamps[self.current_trace_index][index]
@@ -201,7 +200,7 @@ class World:
         return translated_frame
 
     def spawn(self, trace_path):
-        print P.INFO("Spawning {}".format(trace_path))
+        print(P.INFO("Spawning {}".format(trace_path)))
 
         # Initialize MultiFrame object
         masterClock = MultiFrame(trace_path)

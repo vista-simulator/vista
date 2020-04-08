@@ -3,12 +3,10 @@ import os
 from scipy.interpolate import interp1d
 import sys
 
-from StateDynamics import StateDynamics
-from Memos import State
-
-deepknight_root = os.environ.get('DEEPKNIGHT_ROOT')
-sys.path.insert(0, os.path.join(deepknight_root, 'util/'))
-from TopicNames import TopicNames
+# VISTA imports
+from .StateDynamics import StateDynamics
+from .Memos import State
+from .util import TopicNames
 
 
 class CarDynamics:

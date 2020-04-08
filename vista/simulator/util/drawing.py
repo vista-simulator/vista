@@ -10,20 +10,21 @@ import numpy as np
 import os
 import pdb
 import sys
-
-deepknight_root = os.environ.get('DEEPKNIGHT_ROOT')
-sys.path.insert(0, os.path.join(deepknight_root, 'simulator'))
-import assets
-assets_path = assets.path
-
-sys.path.insert(0, os.path.join(deepknight_root, 'util/'))
-import Image
+try:
+    import importlib.resources as pkg_resources
+except ImportError: # py < 3.7
+    import importlib_resources as pkg_resources
 
 
-wheelImg = cv2.resize(cv2.imread(os.path.join(assets_path,'img/mit.jpg')), (360,360))
-carImg = cv2.resize(cv2.imread(os.path.join(assets_path,'img/lambo_square.jpg')),(140,300))
-roadImg = cv2.resize(cv2.imread(os.path.join(assets_path,'img/road.jpg')), (500, 300))
-speedImg = cv2.resize(cv2.imread(os.path.join(assets_path,'img/speed.jpg')), (800, 400))
+from . import Image
+resources_root = pkg_resources.files("vista.resources")
+
+with resources_root as rr:
+    wheelImg = cv2.resize(cv2.imread(os.path.join(rr,'img/mit.jpg')), (360,360))
+    carImg = cv2.resize(cv2.imread(os.path.join(rr,'img/lambo_square.jpg')),(140,300))
+    roadImg = cv2.resize(cv2.imread(os.path.join(rr,'img/road.jpg')), (500, 300))
+    speedImg = cv2.resize(cv2.imread(os.path.join(rr,'img/speed.jpg')), (800, 400))
+
 
 '''
 Enumeration of every module that could be drawn in the window.
@@ -192,9 +193,9 @@ def draw_mini_car_on_road(window_size, box, translation, car_rotation, road_widt
         stripe_length = int(window_height/6)
         stripe_gap = 2*stripe_length
         for i in range(0,window_height, stripe_gap):
-            cv2.rectangle(mini_car_on_road, (mini_car_width/8, i),(mini_car_width/4, i+stripe_length),(255,255,255), -1)
+            cv2.rectangle(mini_car_on_road, (mini_car_width//8, i), (mini_car_width//4, i+stripe_length),(255,255,255), -1)
         for i in range(0,window_height, stripe_gap):
-            cv2.rectangle(mini_car_on_road, (window_width - mini_car_width/8, i),(window_width-mini_car_width/4, i+stripe_length),(255,255,255), -1)
+            cv2.rectangle(mini_car_on_road, (window_width - mini_car_width//8, i),(window_width-mini_car_width//4, i+stripe_length),(255,255,255), -1)
 
     return mini_car_on_road
 
@@ -207,13 +208,13 @@ def draw_info_sidebar(window_size, box, info):
     #extract info from dict
     elapsed_time = "Elapsed Time: " + str(round(info['timestamp'] - info['first_time'], 1)) + " sec"
     current_time = "Current Frame: " #+ str(self.current_frame_index)
-    steering_angle = "Steering Angle: " + str(round(info['model_angle'], 1)) + " deg."
-    actual_curv = "Human Curvature: " + str(round(info['human_curvature'], 6))
-    predicted_curv = "Model Curvature: " + str(round(info['model_curvature'], 6)) # TODO be careful if its adjusted to the human
-    distance = "Distance: " + str(round(info['distance'],2)) + ' m'
-    velocity = "Velocity: " + str(round(2.23*info['model_velocity'], 1)) + " mph"
-    translation = "Translation: " + str(round(info['translation'],6)) + " m"
-    rotation = "Rotation: " + str(round(info['rotation'],6)) + " rad"
+    steering_angle = "Steering Angle: " + str(np.round(info['model_angle'], 1)) + " deg."
+    actual_curv = "Human Curvature: " + str(np.round(info['human_curvature'], 6))
+    predicted_curv = "Model Curvature: " + str(np.round(info['model_curvature'], 6)) # TODO be careful if its adjusted to the human
+    distance = "Distance: " + str(np.round(info['distance'],2)) + ' m'
+    velocity = "Velocity: " + str(np.round(2.23*info['model_velocity'], 1)) + " mph"
+    translation = "Translation: " + str(np.round(info['translation'],6)) + " m"
+    rotation = "Rotation: " + str(np.round(info['rotation'],6)) + " rad"
 
     #apply text to array
     cv2.putText(info_sidebar, elapsed_time, (int(width/20),int(height/10)), cv2.FONT_HERSHEY_SIMPLEX, width/500., (255,255,255), 1)

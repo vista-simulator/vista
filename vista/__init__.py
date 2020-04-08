@@ -3,3 +3,5 @@
 __author__ = """Alexander Amini"""
 __email__ = 'amini@mit.edu'
 __version__ = '0.1.0'
+
+from .simulator import Simulator
