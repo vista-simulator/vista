@@ -35,24 +35,21 @@ def reset():
     global steering_curvature
     steering_curvature = 0.0
 
-    print()
     sim.reset()
     total_reward = 0.0
-    steps = 0.0
     done = False
-    return total_reward, steps, done
+    return total_reward, done
 
 
 # Main running loop
 while True:
-    total_reward, steps, done = reset()
+    total_reward, done = reset()
 
     while not done:
         a = steering_curvature
 
         s, r, done, info = sim.step(a)
-        steps += 1
         total_reward += r
 
-        if steps % 100 == 0 or done:
-            print(("[CRASH] " if done else "")+"Step {}: total_reward is {:+0.2f}".format(steps, total_reward))
+        if done:
+            print("[CRASH] Total Reward is {:+0.2f}".format(total_reward))
