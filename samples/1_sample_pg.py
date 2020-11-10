@@ -23,23 +23,16 @@ import time
 import cv2
 from scipy.interpolate import interp1d
 from scipy.misc import derivative
-#######################
-root = os.environ.get('DEEPKNIGHT_ROOT')
 
-sys.path.insert(0,os.path.join(root,'simulator'))
-from gym_deepknight.envs import DeepknightEnv
-
-sys.path.insert(0,os.path.join(root,'util'))
-from Camera import Camera
-import Image
 import print_util as P
 
-parser = argparse.ArgumentParser(description='train sim')
-parser.add_argument('--trace', default=[], nargs='+')
+import vista
 
+# Parse Arguments
+parser = argparse.ArgumentParser(description='Train a new policy in VISTA using policy gradients')
+parser.add_argument('--trace-path', type=str, nargs='+', help='Path to the traces to use for simulation')
 args = parser.parse_args()
 
-INPUT_IMG_SHAPE = (250, 400, 3)
 
 def preprocess(image, camera):
     if image is not None:
