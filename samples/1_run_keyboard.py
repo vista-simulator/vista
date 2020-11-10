@@ -7,7 +7,7 @@ import vista
 
 # Parse Arguments
 parser = argparse.ArgumentParser(description='Run the simulator with random actions')
-parser.add_argument('--trace-path', type=str, nargs='+', default='/home/amini/trace/20190205-102931_blue_prius_devens_rightside', help='Path to the traces to use for simulation')
+parser.add_argument('--trace-path', type=str, nargs='+', help='Path to the traces to use for simulation')
 args = parser.parse_args()
 
 

@@ -16,7 +16,7 @@ except ImportError: # py < 3.7
 
 from . import Camera
 
-resources_root = pkg_resources.files("vista.resources")
+resources_root = pkg_resources.path("vista.resources", "")
 with resources_root as rr:
     roadImg = cv2.resize(cv2.imread(os.path.join(rr,'img/road.jpg')), (500, 300))
     car_hood_path = os.path.join(rr, 'img/camera_front_hood_black.png')
