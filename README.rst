@@ -30,6 +30,25 @@ Autonomous Driving From Data-Driven Simulation <https://ieeexplore.ieee.org/stam
         publisher={IEEE}
     }
 
+Usage
+-----
+To use the VISTA simulator, you can import the package directly after installing. 
+
+.. code-block::
+
+    import vista
+    
+    sim = vista.Simulator("/path/to/trace")
+    
+    while True: 
+        action = # sample an action to execute
+        observation, reward, done, info = sim.step(action)
+
+For more examples on using the VISTA simulator please refer to the :code:`samples` directory for sample script on running VISTA with random  or keyboard policies, or training a policy gradient agent from scratch. 
+
+.. code-block::
+
+    python samples/0_run_random.py --trace-path /path/to/trace
 
 
 Features
