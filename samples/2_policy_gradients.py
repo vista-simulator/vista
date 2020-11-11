@@ -40,38 +40,44 @@ def preprocess(image, camera):
         return cv2.resize(image[i1:i2, j1:j2], (192, 74))
     return image
 
-def discount_rewards(r):
-    gamma = .9
-    """ take 1D float array of rewards and compute discounted reward """
-    discounted_r = np.zeros_like(r)
-    running_add = 0
-    for t in reversed(range(0, len(r))):
-        if r[t] == 0: running_add = 0
-        running_add = running_add * gamma + r[t]
-        discounted_r[t] = running_add
-    normalized_r = (discounted_r)/discounted_r.var()
-    return normalized_r
 
-def _discount_and_norm_rewards(rs, gamma=0.95):
-    # discount episode rewards
-    discounted_ep_rs = np.zeros_like(rs)
-    running_add = 0
-    for t in reversed(range(0, len(rs))):
-        running_add = running_add * gamma + rs[t]
-        discounted_ep_rs[t] = running_add
 
-    # normalize episode rewards
-    discounted_ep_rs -= np.mean(discounted_ep_rs)
-    discounted_ep_rs /= np.std(discounted_ep_rs)
-    return discounted_ep_rs.reshape((-1,1))
+class Memory:
+    def __init__(self):
+        self.clear()
 
+    # Resets/restarts the memory buffer
+    def clear(self):
+        self.observations = []
+        self.actions = []
+        self.rewards = []
+
+    # Add observations, actions, rewards to memory
+    def add_to_memory(self, new_observation, new_action, new_reward):
+        self.observations.append(new_observation)
+        self.actions.append(new_action)
+        self.rewards.append(new_reward)
+
+    def discount_and_norm_rewards(self, gamma=0.95):
+        # discount episode rewards
+        discounted_ep_rs = np.zeros_like(self.rewards)
+        running_add = 0
+        for t in reversed(range(0, len(self.rewards))):
+            running_add = running_add * gamma + self.rewards[t]
+            discounted_ep_rs[t] = running_add
+
+        # normalize episode rewards
+        discounted_ep_rs -= np.mean(discounted_ep_rs)
+        discounted_ep_rs /= np.std(discounted_ep_rs)
+        return discounted_ep_rs.reshape((-1,1))
+
+
+memory = Memory()
 
 sim = vista.Simulator(args.trace_path)
 
 model = imp.load_source("model", 'model.py').Model(sess=sim.sess, trainable=True)
 
-camera_obj = sim.camera
-# init_op = tf.variables_initializer([v for v in tf.global_variables() if v.name.split(':')[0] in set(model.sess.run(tf.report_uninitialized_variables()))])
 init_op = tf.compat.v1.variables_initializer([v for v in tf.compat.v1.global_variables() if not tf.compat.v1.is_variable_initialized(v).eval(session=sim.sess)])
 model.sess.run(init_op)
 
@@ -81,28 +87,19 @@ save_dir = os.path.join('save', str(t) +'_'+ "pg_delta_save")
 log_dir = os.path.join('log', str(t) +'_'+ "pg_delta_log")
 if not os.path.exists(save_dir): #create if not existing
     os.makedirs(save_dir)
-# if not os.path.exists(CONFIG["train"].save_dir): #create if not existing
-#     os.makedirs(CONFIG["train"].save_dir)
 
 model.init_saver()
 model.init_summaries(log_dir)
 
-xs = [] # state_t
-ys = [] # action_t
-ys_prev = [] # action_{t-1}
-rs = [] # reward_t
-action_prev = 0.0 # previous action
 step = 0.0
 dist = 0.0
 summary_steps = 0.0
 best_overall = 0
 
-batch_size = 24 # CONFIG['train'].mem_buffer_batch_size
-
 print("\n\nStarting Training\n\n")
 
 full_observation = sim.reset()
-cropped_observation = preprocess(full_observation, camera_obj)
+cropped_observation = preprocess(full_observation, sim.camera)
 max_ep_reward = 0
 reward_mean = None
 alpha = 0.95
@@ -118,8 +115,7 @@ while i_episode < 1500 :
     if crash and not done:
         # crashed before reaching the end of the trace
         i_episode += 1
-        xs, ys, ys_prev, rs = [], [], [], []    # empty episode data
-        action_prev = 0.0
+        memory.clear()
         step = 0.0
         dist = 0.0
     else:
@@ -129,7 +125,7 @@ while i_episode < 1500 :
 
     # current_env_index = reset_current_env(env_list)
     full_observation = sim.reset()
-    cropped_observation = preprocess(full_observation, camera_obj)
+    cropped_observation = preprocess(full_observation, sim.camera)
 
     EVAL = True if i_episode % 10 == 0 or FINAL else False
     if EVAL: print("==== STARTING EVALUATION EPISODE ====")
@@ -138,7 +134,6 @@ while i_episode < 1500 :
 
         feed = {
             model.tf_xs: [cropped_observation],
-            model.tf_ys_prev: [[action_prev]],
             model.keep_prob: 1.0,
         }
         if EVAL:
@@ -148,18 +143,14 @@ while i_episode < 1500 :
 
 
         next_full_observation, reward, crash, info = sim.step(action) #step the previous frame with this action
-        next_cropped_observation = preprocess(next_full_observation, camera_obj)
+        next_cropped_observation = preprocess(next_full_observation, sim.camera)
 
-        xs.append(cropped_observation)
-        ys.append([action])
-        ys_prev.append([action_prev])
-        rs.append(reward)
+        memory.add_to_memory(cropped_observation, [action], reward)
         step += 1
 
         if crash:
             dist += info['distance']
-            rs = np.array(rs)
-            ep_rs_sum = np.sum(rs)
+            ep_rs_sum = sum(memory.rewards) # np.sum(rs)
 
             reward_mean = alpha*reward_mean+(1-alpha)*(ep_rs_sum) if reward_mean is not None else ep_rs_sum
             print("episode: {:4.0f} \t step: {:4.0f} \t dist: {:5.1f} \t reward: {:7.2f} \t reward/step: {:5.2f} \t running {:5.2f}".format(i_episode, step, dist, ep_rs_sum, ep_rs_sum/step, reward_mean))
@@ -186,23 +177,12 @@ while i_episode < 1500 :
 
                 break
 
-            discounted_ep_rs_norm = _discount_and_norm_rewards(rs)
-
-            xs = np.stack(xs)
-            ys = np.array(ys)
-            ys_prev = np.array(ys_prev)
-            if len(xs) > 5000:
-                idx = np.random.choice(xs.shape[0], 5000)
-                xs = xs[idx]
-                ys = ys[idx]
-                ys_prev = ys_prev[idx]
-                discounted_ep_rs_norm = discounted_ep_rs_norm[idx]
+            discounted_ep_rs_norm = memory.discount_and_norm_rewards()
 
             # train on episode
             feed = {
-                model.tf_xs: xs,  # shape=[None, 74, 192, 3]
-                model.tf_ys: ys,  # shape=[None, 1]
-                model.tf_ys_prev: ys_prev,
+                model.tf_xs: np.array(memory.observations),  # shape=[None, 74, 192, 3]
+                model.tf_ys: np.array(memory.actions),  # shape=[None, 1]
                 model.tf_rs: discounted_ep_rs_norm,  # shape=[None, 1]
                 model.rewards_ep: [[ep_rs_sum]],
                 model.keep_prob: 1.0,
@@ -213,7 +193,7 @@ while i_episode < 1500 :
             summary_steps += step
             model.summary_writer.add_summary( model.sess.run(model.distances_ep_summary, {model.distance_ep: [[dist]]}), summary_steps)
 
-            xs, ys, ys_prev, rs = [], [], [], []    # empty episode data
+            memory.clear()
             break
 
         if dist > MAX_EPISODE_DISTANCE:
@@ -230,14 +210,12 @@ while i_episode < 1500 :
                 model.write_checkpoint(save_dir, name="model-FINAL")
                 FINAL = False
                 break
-                # exit()
 
-            # solved the enviornment (?)
-            xs, ys, ys_prev, rs = [], [], [], []    # empty episode data
+            memory.clear()
             step = 0.0
             dist = 0.0
-            FINAL = True; break
+            FINAL = True
+            break
 
-        action_prev = action
         full_observation = next_full_observation
         cropped_observation = next_cropped_observation
