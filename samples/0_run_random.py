@@ -15,7 +15,7 @@ args = parser.parse_args()
 sim = vista.Simulator(args.trace_path)
 
 
-# Convience reset function at before starting a new episode
+# Convenience reset function at before starting a new episode
 def reset():
     sim.reset()
     total_reward = 0.0

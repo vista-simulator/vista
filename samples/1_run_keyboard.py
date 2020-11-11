@@ -30,7 +30,7 @@ listener = keyboard.Listener(on_press=on_press)
 listener.start()
 
 
-# Convience reset function at before starting a new episode
+# Convenience reset function at before starting a new episode
 def reset():
     global steering_curvature
     steering_curvature = 0.0
