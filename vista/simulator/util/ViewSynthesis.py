@@ -141,9 +141,6 @@ class ViewSynthesis:
                 new_img_coords2 = tf.divide(new_img_coords2, new_img_coords2[2])
                 query_pts2 = tf.transpose(tf.reverse(new_img_coords2[0:2,:], axis=[0]))
 
-
-
-
                 flattened_query_pts = tf.reshape(query_pts, [1, cam_h*cam_w, 2])
 
                 new_image = self.__interpolate_bilinear_new(img_batch, flattened_query_pts)

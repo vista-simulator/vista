@@ -17,7 +17,7 @@ except ImportError: # py < 3.7
 
 
 from . import Image
-resources_root = pkg_resources.files("vista.resources")
+resources_root = pkg_resources.path("vista.resources", "")
 
 with resources_root as rr:
     wheelImg = cv2.resize(cv2.imread(os.path.join(rr,'img/mit.jpg')), (360,360))

@@ -1,0 +1,12 @@
+name: vista
+channels:
+  - defaults
+dependencies:
+  - python=3.7
+  - tensorflow-gpu=1.15
+  - pynput
+  - opencv
+  - gym
+  - colorama
+  - pip
+prefix: /home/amini/miniconda3/envs/vista

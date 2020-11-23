@@ -16,7 +16,7 @@ except ImportError: # py < 3.7
 
 from . import Camera
 
-resources_root = pkg_resources.files("vista.resources")
+resources_root = pkg_resources.path("vista.resources", "")
 with resources_root as rr:
     roadImg = cv2.resize(cv2.imread(os.path.join(rr,'img/road.jpg')), (500, 300))
     car_hood_path = os.path.join(rr, 'img/camera_front_hood_black.png')
@@ -114,7 +114,10 @@ def draw_noodle(curvature, camera, max_dist=30):
 
     z_vals = np.linspace(0, np.clip(abs(radius), 3, max_dist), 20) #future values of the curve to find noodle points for
     y_vals = (d - C*z_vals)/B #assumes A is zero
-    x_vals =  np.sqrt(radius**2 - z_vals**2 - (y_vals-d)**2) - abs(radius)
+    x_sq_r = radius**2 - z_vals**2 - (y_vals-d)**2
+    x_vals = np.sqrt(x_sq_r[x_sq_r > 0]) - abs(radius)
+    y_vals = y_vals[x_sq_r > 0]
+    z_vals = z_vals[x_sq_r > 0]
 
     if radius < 0:
         x_vals *= -1
