@@ -8,7 +8,6 @@ from ffio import FFReader
 import tensorflow as tf
 
 # VISTA imports
-from .util import ViewSynthesis
 from .util import Camera
 from .util import LabelSearch, get_synced_labeled_timestamps
 from .util import MultiFrame
@@ -87,7 +86,6 @@ class World:
         new_trace = np.random.choice(trace_reset_probs.shape[0], 1, p=trace_reset_probs)
         return new_trace[0]
 
-
     def find_curvature_reset(self, curv_reset_probs):
         new_sample = np.random.choice(curv_reset_probs.shape[0], 1, p=curv_reset_probs)
         return new_sample[0]
@@ -118,7 +116,7 @@ class World:
         smoothing_factor = 0.001
         curv_reset_probs = 1.0/(hist_density[bins-1]+smoothing_factor)
         curv_reset_probs /= np.sum(curv_reset_probs)
-        #
+
         # ''' HARDCODING RESET TO END OF TRACE FOR TESTING PURPOSES'''
         # end_reset_probs = np.zeros(np.size(curv_reset_probs))
         # end_reset_probs[-10] = 1.0

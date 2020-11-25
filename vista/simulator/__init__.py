@@ -53,7 +53,7 @@ class Simulator(gym.Env):
         if obs_size is None:
             obs_size = (self.camera.get_height(), self.camera.get_width())
         self.camera.resize(*obs_size)
-        VS = ViewSynthesis(self.camera, sess=self.sess).get_as_py_func()
+        VS = ViewSynthesis(self.camera, sess=self.sess).get_as_py_func
 
         for env in env_path:
             world = World(env, self.sess, TopicNames.camera_front, self.camera, VS)
