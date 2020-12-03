@@ -129,7 +129,7 @@ class ViewSynthesis:
         self.scene.add(self.render_camera, pose=camera_pose)
         # print("tic4", time.time()-tic4)
 
-        color, depth = self.renderer.render(self.scene)
+        color, depth = self.renderer.render(self.scene, flags=pyrender.constants.RenderFlags.FLAT)
 
         return color, depth
 
