@@ -69,16 +69,16 @@ class ViewSynthesis:
         self.K[1,2] = camera.get_height()/2.
         self.K_inv = np.linalg.inv(self.K) # camera.get_K_inv()
         self.world_rays = np.matmul(self.K_inv, self.homogeneous_coords)
-
         self.scene = pyrender.Scene(ambient_light=[1.,1.,1.], bg_color=[0,0,0])
         self.render_camera = pyrender.IntrinsicsCamera(
-            fx=camera._fx, fy=camera._fy, cx=camera._cx, cy=camera._cy, znear=0.0001, zfar=1000000)
+            fx=camera._fx, fy=camera._fy, cx=camera._cx, cy=camera._cy, znear=0.01, zfar=100000)
         self.renderer = pyrender.OffscreenRenderer(camera.get_width(), camera.get_height())
 
         self.mesh = pyrender.Mesh([pyrender.Primitive(
             positions=self.world_rays.T,
             indices=self.mesh_faces.T,
-            color_0=np.ones((self.world_rays.shape[1], 4))
+            color_0=np.ones((self.world_rays.shape[1], 4)),
+            mode=pyrender.constants.GLTF.TRIANGLES,
         )])
 
         self.scene.add(self.mesh, name="env")
@@ -107,7 +107,7 @@ class ViewSynthesis:
         world_coords = np.multiply(-depth, self.world_rays)
 
         self.mesh.primitives[0].positions = world_coords.T
-        self.mesh.primitives[0].color_0[:, :3] = image.reshape(-1,3) / 255.
+        self.mesh.primitives[0].color_0[:, :3] = image[:,::-1].reshape(-1,3) / 255.
 
         # color_0 = np.ones((self.world_rays.shape[1], 4))
         # color_0[:,:3] = image.reshape(-1,3) / 255.
