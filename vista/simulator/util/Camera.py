@@ -12,10 +12,12 @@ import pathlib
 
 rig_path = os.path.join(pathlib.Path(__file__).parent.absolute(), 'RIG.xml')
 
+
 def ignore_case(tree):
     t = ET.tostring(tree)
     t = t.lower()
     return ET.fromstring(t)
+
 
 tree = ET.parse(rig_path)
 root = ignore_case(tree.getroot())
@@ -41,7 +43,9 @@ class Camera(object):
             ValueError: If `name` is not found in the rig file.
         """
         if name not in cameras.keys():
-            raise ValueError("Camera.py> %s is not a valid camera within RIG.xml".format(name))
+            raise ValueError(
+                "Camera.py> %s is not a valid camera within RIG.xml".format(
+                    name))
 
         self.name = name
         cam = cameras[self.name]
@@ -60,17 +64,19 @@ class Camera(object):
         self._cx = float(props['cx'])
         self._cy = float(props['cy'])
 
-        self._distortion = np.array( [float(x) for x in props['distortion'].split(" ")] )
+        self._distortion = np.array(
+            [float(x) for x in props['distortion'].split(" ")])
 
-        self._quaternion = np.array( [float(x) for x in props['quaternion'].split(" ")] ).reshape(4,1)
-        self._position = np.array( [float(x) for x in props['position'].split(" ")] ).reshape(3,1)
+        self._quaternion = np.array(
+            [float(x) for x in props['quaternion'].split(" ")]).reshape(4, 1)
+        self._position = np.array(
+            [float(x) for x in props['position'].split(" ")]).reshape(3, 1)
         self._yaw = float(props['yaw']) if 'yaw' in props else None
 
-        self._roi = np.array( [int(x) for x in props['roi'].split(" ")] )
-        self._roi_angle = float(props['roi_angle'])*np.pi/180.
+        self._roi = np.array([int(x) for x in props['roi'].split(" ")])
+        self._roi_angle = float(props['roi_angle']) * np.pi / 180.
 
         self.__compute_other_forms()
-
 
     def resize(self, height, width):
         """ Scales the camera object and adjusts the internal parameters such
@@ -84,8 +90,8 @@ class Camera(object):
             None
         """
 
-        scale_y = float(height)/self._height
-        scale_x = float(width)/self._width
+        scale_y = float(height) / self._height
+        scale_x = float(width) / self._width
 
         # Update height and width
         self._width = int(width)
@@ -101,12 +107,13 @@ class Camera(object):
 
         # ROI
         roi = [float(x) for x in self._roi]
-        roi = [roi[0]*scale_y, roi[1]*scale_x,
-               roi[2]*scale_y, roi[3]*scale_x]
+        roi = [
+            roi[0] * scale_y, roi[1] * scale_x, roi[2] * scale_y,
+            roi[3] * scale_x
+        ]
         self._roi = [int(x) for x in roi]
 
         self.__compute_other_forms()
-
 
     def crop(self, i1, j1, i2, j2):
         """ Crops a camera object to a given region of interest specified by
@@ -137,8 +144,10 @@ class Camera(object):
         self._cy -= i2
 
         # ROI
-        self._roi = [self._roi[0]-i1, self._roi[1]-j1,
-                     self._roi[2]-i2, self._roi[3]-j2]
+        self._roi = [
+            self._roi[0] - i1, self._roi[1] - j1, self._roi[2] - i2,
+            self._roi[3] - j2
+        ]
         self._roi = [int(x) for x in self._roi]
 
         self.__compute_other_forms()
@@ -152,8 +161,7 @@ class Camera(object):
         return self._height
 
     def get_width(self):
-        """Get the raw pixel width of i        <PROPERTY Name="roi_angle" Hint="angle of ROI" Value="-19.7"/>
-mages captured by the camera
+        """Get the raw pixel width of images captured by the camera
 
         Returns:
             int: Width in pixels
@@ -199,7 +207,9 @@ mages captured by the camera
             int: Yaw of the camera [rads]
         """
         if self._yaw is None:
-            raise ValueError("camera {}, does not have a yaw in the rig file".format(self.name))
+            raise ValueError(
+                "camera {}, does not have a yaw in the rig file".format(
+                    self.name))
         return self._yaw
 
     def get_ground_plane(self):
@@ -231,9 +241,9 @@ mages captured by the camera
         if axis == 'ij':
             return self._roi
         elif axis == 'xy':
-            return [ self._roi[i] for i in [1,2,3,0] ]
+            return [self._roi[i] for i in [1, 2, 3, 0]]
         else:
-            raise ValueError("invalid axis: "+axis)
+            raise ValueError("invalid axis: " + axis)
 
     def get_roi_angle(self):
         """ Get the angle of the region of interest.
@@ -261,7 +271,8 @@ mages captured by the camera
 
         """
         dims = (int(self._roi_height), int(self._roi_width))
-        return dims if self._roi_angle<np.pi/4. else dims[::-1]
+        return dims if self._roi_angle < np.pi / 4. else dims[::-1]
+
     def __compute_other_forms(self):
         self.__compute_intrinsic_matrix()
         self.__compute_ground_plane()
@@ -269,43 +280,45 @@ mages captured by the camera
 
     def __compute_intrinsic_matrix(self):
 
-        self._K = np.array([
-            [self._fx,   0,          self._cx],
-            [0,          self._fy,   self._cy],
-            [0,          0,          1      ]
-        ])
+        self._K = np.array([[self._fx, 0, self._cx], [0, self._fy, self._cy],
+                            [0, 0, 1]])
         self._K_inv = np.linalg.inv(self._K)
 
     def __compute_ground_plane(self):
         q = self._quaternion.flatten().tolist()
         p = self._position
 
-        normal = [ 2.*(q[1]*q[2] + q[3]*q[1]),  1-2.*(q[0]*q[0] + q[2]*q[2]),  2.*(q[0]*q[1] - q[2]*q[3]) ]
+        normal = [
+            2. * (q[1] * q[2] + q[3] * q[1]), 1 - 2. *
+            (q[0] * q[0] + q[2] * q[2]), 2. * (q[0] * q[1] - q[2] * q[3])
+        ]
         intercept = np.dot(p.T, normal)
 
         self._ground_plane = [normal[0], normal[1], normal[2], intercept[0]]
 
     def __compute_roi(self):
         t = self._roi_angle
-        (i1,j1,i2,j2) = self._roi
+        (i1, j1, i2, j2) = self._roi
         W = j2 - j1
         H = i2 - i1
-        self._roi_width = (1./(np.cos(t)**2-np.sin(t)**2)) * (  W * np.cos(t) - H * abs(np.sin(t)))
-        self._roi_height = (1./(np.cos(t)**2-np.sin(t)**2)) * (- W * abs(np.sin(t)) + H * np.cos(t))
-        if t < 0: #reverse persective
+        self._roi_width = (1. / (np.cos(t)**2 - np.sin(t)**2)) * (
+            W * np.cos(t) - H * abs(np.sin(t)))
+        self._roi_height = (1. / (np.cos(t)**2 - np.sin(t)**2)) * (
+            -W * abs(np.sin(t)) + H * np.cos(t))
+        if t < 0:  #reverse persective
             self._roi_points = [
-                (abs(self._roi_height*np.cos(t)), 0),
-                (H, abs(self._roi_width*np.cos(t))),
-                (abs(self._roi_width*np.sin(t)), W),
-                (0, abs(self._roi_height*np.sin(t))),
+                (abs(self._roi_height * np.cos(t)), 0),
+                (H, abs(self._roi_width * np.cos(t))),
+                (abs(self._roi_width * np.sin(t)), W),
+                (0, abs(self._roi_height * np.sin(t))),
             ]
         else:
             self._roi_points = [
-                (abs(self._roi_width*np.sin(t)), 0),
-                (H, abs(self._roi_height*np.sin(t))),
-                (abs(self._roi_height*np.cos(t)), W),
-                (0, abs(self._roi_width*np.cos(t))),
+                (abs(self._roi_width * np.sin(t)), 0),
+                (H, abs(self._roi_height * np.sin(t))),
+                (abs(self._roi_height * np.cos(t)), W),
+                (0, abs(self._roi_width * np.cos(t))),
             ]
-        self._roi_points = [(i+i1,j+j1) for (i,j) in self._roi_points]
-        self._roi_points = [(j, i) for (i,j) in self._roi_points]
+        self._roi_points = [(i + i1, j + j1) for (i, j) in self._roi_points]
+        self._roi_points = [(j, i) for (i, j) in self._roi_points]
         self._roi_points = np.int32([self._roi_points])

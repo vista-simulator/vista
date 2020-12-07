@@ -7,7 +7,7 @@ import vista
 def main(args):
 
     # Initialize the simulator
-    sim = vista.Simulator(args.trace_path)
+    sim = vista.Simulator(args.trace_path, obs_size=(250, 400))
 
     # Main running loop
     while True:
