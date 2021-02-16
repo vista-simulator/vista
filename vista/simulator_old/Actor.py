@@ -1,4 +1,4 @@
-'''World to handle trace data/frames.'''
+'''Actor to handle trace data/frames.'''
 
 import numpy as np
 import os
@@ -16,7 +16,7 @@ from .util import print_util as P
 from .util import ViewSynthesis
 
 
-class World:
+class Actor: # formerly World
     def __init__(self, trace_path, which_camera, camera):
         self.trace_path = trace_path
 
@@ -70,7 +70,7 @@ class World:
 
         self.reset()  # Randomly resets to a trace in provided path
 
-    def reset(self):
+    def reset(self):   #moved to Car
         """ Resets the environment due to the end of a RL episode. """
         # print "RESETTING WORLD"
 
@@ -98,7 +98,7 @@ class World:
         self.trace_done = False
         self.isCrashed = False
 
-    def find_trace_reset(self):
+    def find_trace_reset(self):   #moved to core.Trace
         trace_reset_probs = np.zeros(len(self.syncedLabeledFrames))
         for i in range(len(self.syncedLabeledFrames)):
             trace = self.syncedLabeledFrames[i]
@@ -108,12 +108,12 @@ class World:
             trace_reset_probs.shape[0], 1, p=trace_reset_probs)
         return new_trace[0]
 
-    def find_curvature_reset(self, curv_reset_probs):
+    def find_curvature_reset(self, curv_reset_probs):  #moved to core.Trace
         new_sample = np.random.choice(
             curv_reset_probs.shape[0], 1, p=curv_reset_probs)
         return new_sample[0]
 
-    def get_interp_functions(self):
+    def get_interp_functions(self):  #moved to core.Trace
         # Human inverse_r from filtered odometry #TODO: move to better place, all sensors should be handled in world but can be accessed from env
         speed = np.genfromtxt(
             os.path.join(self.trace_path, TopicNames.speed + '.csv'),
@@ -134,7 +134,7 @@ class World:
 
         return f_position, f_speed, f_curvature
 
-    def get_curv_reset_probs(self, trace_index, f_curvature):
+    def get_curv_reset_probs(self, trace_index, f_curvature):  #moved to core.Trace
         # Computing probablities for resetting to places with higher curvature for current trace
         current_timestamps = self.syncedLabeledTimestamps[
             self.current_trace_index]
@@ -226,7 +226,7 @@ class World:
 
         return translated_frame
 
-    def spawn(self, trace_path):
+    def spawn(self, trace_path):   #moved to core.Trace.getSyncedLabeledFrames
         print(P.INFO("Spawning {}".format(trace_path)))
 
         # Initialize MultiFrame object

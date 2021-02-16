@@ -38,6 +38,7 @@ class ViewSynthesis:
             baseline=0.42567,  # [m]
             mode=DepthModes.FIXED_PLANE):
 
+
         self.camera = camera
         self.dims = (self.camera.get_height(), self.camera.get_width())
         self.baseline = baseline

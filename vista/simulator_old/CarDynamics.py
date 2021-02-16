@@ -70,8 +70,9 @@ class CarDynamics:
 
         self.ego_dynamics.step(model_curvature, model_velocity, delta_t)
 
-        next_valid_timestamp, self.human_dynamics = self.world.get_next_valid_timestamp(
-            human=self.human_dynamics, desired_ego=self.ego_dynamics)
+        next_valid_timestamp, self.human_dynamics = \
+            self.world.get_next_valid_timestamp(
+                human=self.human_dynamics, desired_ego=self.ego_dynamics)
 
         translation_x, translation_y, theta = self.compute_relative_transform()
         self.relative_state.update(translation_x, translation_y, theta)
@@ -96,9 +97,10 @@ class CarDynamics:
         """ TODO
         """
 
-        ego_x_state, ego_y_state, ego_theta_state = self.ego_dynamics.numpy()
-        human_x_state, human_y_state, human_theta_state = self.human_dynamics.numpy(
-        )
+        ego_x_state, ego_y_state, ego_theta_state = \
+            self.ego_dynamics.numpy()
+        human_x_state, human_y_state, human_theta_state = \
+            self.human_dynamics.numpy()
 
         c = np.cos(human_theta_state)
         s = np.sin(human_theta_state)

@@ -102,8 +102,9 @@ class Simulator(gym.Env):
         return frame
 
     def step(self, action):
-        action = np.array(action).reshape(-1,
-                                          )  # force action to be column vector
+        # force action to be column vector
+        action = np.array(action).reshape(-1)
+
         curvature = action[0]
         velocity = action[1] if action.shape[0] > 1 else None
 
