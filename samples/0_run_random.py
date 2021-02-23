@@ -7,26 +7,29 @@ import vista
 def main(args):
 
     # Initialize the simulator
-    sim = vista.Simulator(args.trace_path, obs_size=(250, 400))
+    world = vista.World(args.trace_path)
+    agent = world.spawn_agent()
+    camera = agent.spawn_camera()
 
     # Main running loop
     while True:
-        total_reward, done = reset(sim)
+        total_reward, done = reset(world)
 
         while not done:
             # Sample a random steering curvature action
             a = np.random.randn() / 500.
 
-            s, r, done, info = sim.step(a)
+            s, r, done, info = agent.step(a)
+
             total_reward += r
 
             if done:
                 print("[CRASH] Total Reward is {:+0.2f}".format(total_reward))
 
 
-def reset(sim):
+def reset(world):
     """ Convience reset function at before starting a new episode """
-    sim.reset()
+    world.reset()
     total_reward = 0.0
     done = False
     return total_reward, done
