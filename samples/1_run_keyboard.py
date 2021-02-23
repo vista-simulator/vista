@@ -11,14 +11,16 @@ steering_curvature = 0.0
 def main(args):
 
     # Initialize the simulator
-    sim = vista.Simulator(args.trace_path)
+    world = vista.World(args.trace_path)
+    agent = world.spawn_agent()
+    camera = agent.spawn_camera()
 
     # Main running loop
     while True:
-        total_reward, done = reset(sim)
+        total_reward, done = reset(world)
 
         while not done:
-            s, r, done, info = sim.step(steering_curvature)
+            s, r, done, info = agent.step(steering_curvature)
             total_reward += r
 
             if done:
@@ -39,12 +41,12 @@ listener = keyboard.Listener(on_press=on_press)
 listener.start()
 
 
-def reset(sim):
+def reset(world):
     """ Convience reset function at before starting a new episode """
     global steering_curvature
     steering_curvature = 0.0
 
-    sim.reset()
+    world.reset()
     total_reward = 0.0
     done = False
     return total_reward, done
