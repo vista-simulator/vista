@@ -282,6 +282,12 @@ class Car(Entity):
         for sensor in self.sensors:
             sensor.reset()
 
+        observations = {}
+        for sensor in self.sensors:
+            observations[sensor.id] = sensor.capture(self.first_time)
+        return observations
+
+
     def __repr__(self, indent=2):
         tab = " " * indent
 
