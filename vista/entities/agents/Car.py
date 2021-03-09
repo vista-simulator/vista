@@ -146,6 +146,7 @@ class Car(Entity):
                        delta_t=next_time - time)
 
             dist = np.linalg.norm(human.numpy()[:2] - desired_ego.numpy()[:2])
+            time = next_time
             if dist < closest_dist:
                 closest_dist = dist
                 index += 1

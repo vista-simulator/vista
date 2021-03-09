@@ -117,8 +117,9 @@ class ViewSynthesis:
 
         # Compute new camera pose based on the requested viewpoint args
         camera_pose = np.eye(4)
-        camera_pose[:3, :3] = self._create_rotation_matrix(theta)
-        camera_pose[:3, 3] = [translation_x, 0, translation_y]
+        cam_theta, cam_x, cam_y = self._to_ogl_coordinate(theta, translation_x, translation_y)
+        camera_pose[:3, :3] = self._create_rotation_matrix(cam_theta)
+        camera_pose[:3, 3] = [cam_x, 0, cam_y]
 
         # Clear scene and fill with new contents
         self.scene.clear()
@@ -159,11 +160,14 @@ class ViewSynthesis:
             print(time.time() - tic)
             return coords, mesh_tri
 
-
     def _create_rotation_matrix(self, theta):
         s, c = np.sin(theta), np.cos(theta)
-        R = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+        R = np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]])
         return R
+
+    def _to_ogl_coordinate(self, theta, x, y):
+        # OpenGL z-axis inverted, theta (x-z-plane) and translation_y (z)
+        return -theta, x, -y
 
 
 if __name__ == "main":
