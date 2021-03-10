@@ -44,6 +44,7 @@ class Car(Entity):
 
         # Additional attributes of the vehicle
         self.car_width = 2  # meters
+        self.car_length = 4
         self.wheel_base = 2.8
         self.steering_ratio = 17.6
         self.reward = 0.0
@@ -99,8 +100,6 @@ class Car(Entity):
         observations = {}
         for sensor in self.sensors:
             observations[sensor.id] = sensor.capture(next_valid_timestamp)
-
-        self.render(observations[self.sensors[0].id], info)
 
         done = self.isCrashed
 
