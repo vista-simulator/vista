@@ -65,6 +65,8 @@ class Camera(BaseSensor):
 
         # Initialize stream
         video = os.path.join(self.trace.trace_path, self.which_camera + '.avi')
+        if hasattr(self, 'stream'): # NOTE: need to close first otherwise it breaks pipe
+            self.stream.close()
         self.stream = FFReader(video, custom_size=(250, 400), verbose=False)
 
         seek_sec = self.stream.frame_to_secs(

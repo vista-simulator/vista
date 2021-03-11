@@ -1,13 +1,23 @@
+import os
 import numpy as np
 import gym
+import cv2
 from shapely.geometry import box as Box
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import vista
 
 
-class BaseEnv(MultiAgentEnv):
+class BaseEnv(gym.Env, MultiAgentEnv):
+    lower_curvature_bound = -1 / 3.
+    upper_curvature_bound = 1 / 3.
+    metadata = {
+        'render.modes': ['rgb_array'],
+        'video.frames_per_second': 10
+    }
+
     def __init__(self, trace_paths, n_agents=1):
+        trace_paths = [os.path.abspath(os.path.expanduser(tp)) for tp in trace_paths]
         self.world = vista.World(trace_paths)
         for i in range(n_agents):
             agent = self.world.spawn_agent()
@@ -19,7 +29,23 @@ class BaseEnv(MultiAgentEnv):
 
         self.collision_overlap_threshold = 0.2
 
-        # TODO: add action space
+        # NOTE: only support the same observation space across all agents now
+        cam = self.world.agents[0].sensors[0].camera
+        self.observation_space = gym.spaces.Box(
+            low=0,
+            high=255,
+            shape=(cam.get_height(), cam.get_width(), 3),
+            dtype=np.uint8)
+
+        # TODO: include velocity/acceleration
+        self.action_space = gym.spaces.Box(
+                low=np.array([self.lower_curvature_bound]),
+                high=np.array([self.upper_curvature_bound]),
+                shape=(1,),
+                dtype=np.float64)
+
+        # NOTE: check how this affects learning
+        self.reward_range = [0., 100.]
 
     def reset(self, **kwargs):
         # reset reference agent
@@ -49,24 +75,39 @@ class BaseEnv(MultiAgentEnv):
                 sensor.reset()
 
         # get sensor measurement
-        observations = []
+        observation = []
         for agent in self.world.agents:
             obs = agent.sensors[0].capture(agent.first_time) # NOTE: only support one sensor now
-            observations.append(obs)
+            observation.append(obs)
 
         # wrap data
-        observations = self.wrap_data(observations)
+        observation = {k: v for k, v in zip(self.agent_ids, observation)}
+        self.observation = observation
 
-        return observations
+        return observation
 
     def step(self, action):
-        raise NotImplementedError
+        # get agent step results
+        observation, reward, done, info = dict(), dict(), dict(), dict()
+        for agent_id, agent, act in zip(self.agent_ids, self.world.agents, action.values()):
+            obs, rew, d, info_ = agent.step(act)
+            observation[agent_id] = obs[agent.sensors[0].id]
+            reward[agent_id] = rew
+            done[agent_id] = d
+            info[agent_id] = info_
+        self.observation = observation
+        # check agents' collision
+        polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
+        crash = self.check_collision(polys)
+        done = {k: v or c for (k, v), c in zip(done.items(), crash)}
+        done['__all__'] = np.any(list(done.values()))
+        
+        return observation, reward, done, info
 
     def render(self, mode='rgb_array'):
-        raise NotImplementedError
-
-    def wrap_data(self, data):
-        return {k: v for k, v in zip(self.agent_ids, data)}
+        img = np.concatenate(list(self.observation.values()), axis=1)
+        img = img[:,:,::-1]
+        return img
 
     def reset_agent(self, agent, sync_with_ref=True, ref_agent=None):
         agent.relative_state.reset()
@@ -169,10 +210,15 @@ class BaseEnv(MultiAgentEnv):
 
         return translation_x, translation_y, theta
 
+    def close(self):
+        for agent in self.world.agents:
+            agent.viewer = None
+            agent.sensors[0].stream.close()
+
 
 if __name__ == "__main__":
-    import os
     import argparse
+    from wrappers import MultiAgentMonitor
 
     # parse argument
     parser = argparse.ArgumentParser(description='Run wrapper test.')
@@ -190,6 +236,7 @@ if __name__ == "__main__":
 
     # initialize simulator
     env = BaseEnv(args.trace_paths, args.n_agents)
+    env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run
     for ep in range(5):
@@ -203,5 +250,6 @@ if __name__ == "__main__":
                 act[k] = env.action_space.sample()
             obs, rew, done, info = env.step(act)
             ep_rew += np.mean(list(rew.values()))
+            done = np.any(list(done.values()))
             ep_steps += 1
         print('[{}th episodes] {} steps {} reward'.format(ep, ep_steps, ep_rew))
