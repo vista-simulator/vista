@@ -41,6 +41,7 @@ class ResNet(TorchModelV2, nn.Module):
             self.value_func = nn.Sequential(*self.value_func)
 
     def forward(self, input_dict, state, seq_lens):
+        self.convnet.train(mode=input_dict.get("is_training", False)) # NOTE: important for bn
         obs = input_dict["obs"].float().permute(0, 3, 1, 2)
         feat = self.convnet(obs)
         feat = feat.flatten(start_dim=1)

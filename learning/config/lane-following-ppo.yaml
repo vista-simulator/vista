@@ -58,3 +58,7 @@ lane-following-ppo:
       fcnet_activation: relu
       custom_model_config:
         resnet_layer: 18
+      custom_action_dist: TorchBeta # prevent inf logprob
+      custom_action_dist_config:
+        low: -0.3
+        high: 0.3

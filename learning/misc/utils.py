@@ -1,7 +1,7 @@
 import re
 import yaml
 import copy
-from functools import partial
+from functools import partial, partialmethod
 from importlib import import_module
 from ray.tune.registry import register_env
 from ray.rllib.models import ModelCatalog
@@ -82,9 +82,21 @@ def register_custom_model(model_config):
     Model = getattr(models, model_config['custom_model'])
     ModelCatalog.register_custom_model(model_config['custom_model'], Model)
 
+    action_dist_config = model_config.pop('custom_action_dist_config')
+    ActDist = getattr(models, model_config['custom_action_dist'])
+    ActDist = partialclass(ActDist, **action_dist_config)
+    ModelCatalog.register_custom_action_dist(model_config['custom_action_dist'], ActDist)
+
 
 def set_callbacks(exp, agent_ids):
     """ Set callbacks to a callback class by string. """
     _callbacks = getattr(callbacks, exp['config']['callbacks'])
     _callbacks = partial(_callbacks, agent_ids=agent_ids)
     exp['config']['callbacks'] = _callbacks
+
+
+def partialclass(cls, *args, **kwargs):
+    class NewCls(cls):
+        __init__ = partialmethod(cls.__init__, *args, **kwargs)
+
+    return NewCls
