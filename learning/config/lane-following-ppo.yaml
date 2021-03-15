@@ -39,7 +39,7 @@ lane-following-ppo:
     lr_schedule: null
     num_sgd_iter: 8
     train_batch_size: 32000
-    sgd_minibatch_size: 256
+    sgd_minibatch_size: 512 # larger batch size is better
     # value function
     vf_loss_coeff: 1.0
     vf_clip_param: 1000.0
