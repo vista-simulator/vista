@@ -6,6 +6,7 @@ from shapely.geometry import box as Box
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import vista
+from .mesh_lib import MeshLib
 
 
 class BaseEnv(gym.Env, MultiAgentEnv):
@@ -16,7 +17,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         'video.frames_per_second': 10
     }
 
-    def __init__(self, trace_paths, n_agents=1):
+    def __init__(self, trace_paths, n_agents=1, mesh_dir=None):
         trace_paths = [os.path.abspath(os.path.expanduser(tp)) for tp in trace_paths]
         self.world = vista.World(trace_paths)
         for i in range(n_agents):
@@ -28,6 +29,10 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.agent_ids = ['agent_{}'.format(i) for i in range(self.n_agents)]
 
         self.collision_overlap_threshold = 0.2
+
+        if self.n_agents > 1:
+            assert mesh_dir is not None, "Specify mesh_dir if n_agents > 1"
+            self.mesh_lib = MeshLib(mesh_dir)
 
         # NOTE: only support the same observation space across all agents now
         cam = self.world.agents[0].sensors[0].camera
@@ -74,10 +79,17 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             for sensor in agent.sensors:
                 sensor.reset()
 
+        # reset mesh library (this assigns mesh to each agents)
+        if self.n_agents > 1:
+            self.mesh_lib.reset(self.n_agents)
+
         # get sensor measurement
         observation = []
-        for agent in self.world.agents:
-            obs = agent.sensors[0].capture(agent.first_time) # NOTE: only support one sensor now
+        for i, agent in enumerate(self.world.agents):
+            other_agents = {_ai: self.world.agents[_ai] for _ai in range(self.n_agents) if _ai != i}
+            other_agents = self.convert_to_scene_node(agent, other_agents)
+            # NOTE: only support one sensor now
+            obs = agent.sensors[0].capture(agent.first_time, other_agents=other_agents)
             observation.append(obs)
 
         # wrap data
@@ -87,14 +99,23 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         return observation
 
     def step(self, action):
-        # get agent step results
+        # update agents' dynamics (take action in the environment)
         observation, reward, done, info = dict(), dict(), dict(), dict()
+        next_valid_timestamp_list = []
         for agent_id, agent, act in zip(self.agent_ids, self.world.agents, action.values()):
-            obs, rew, d, info_ = agent.step(act)
-            observation[agent_id] = obs[agent.sensors[0].id]
+            rew, d, info_, next_valid_timestamp = agent.step_dynamics(act)
             reward[agent_id] = rew
             done[agent_id] = d
             info[agent_id] = info_
+            next_valid_timestamp_list.append(next_valid_timestamp)
+        # get agents' sensory measurement
+        for i, agent_id in enumerate(self.agent_ids):
+            agent = self.world.agents[i]
+            next_valid_timestamp = next_valid_timestamp_list[i]
+            other_agents = {_ai: self.world.agents[_ai] for _ai in range(self.n_agents) if _ai != i}
+            other_agents = self.convert_to_scene_node(agent, other_agents)
+            obs = agent.step_sensors(next_valid_timestamp, other_agents=other_agents)
+            observation[agent_id] = obs[agent.sensors[0].id]
         self.observation = observation
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
@@ -210,6 +231,22 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
         return translation_x, translation_y, theta
 
+    def convert_to_scene_node(self, ego_agent, other_agents):
+        other_agents_nodes = []
+        for i, agent in other_agents.items():
+            # compute relative pose to ego agent
+            trans_x, trans_y, theta = self.compute_relative_transform( \
+                agent.ego_dynamics, ego_agent.human_dynamics)
+            trans_x, trans_y, theta = trans_x, -trans_y, -theta # NOTE: to OpenGL coordinate
+            rot = np.array([0, 1, 0, theta])
+            rot = rot / np.linalg.norm(rot) # unit vector for quaternion
+            trans = np.array([trans_x, 0, trans_y])
+            # convert to scene node
+            agent_node = self.mesh_lib.get_mesh_node(i, trans, rot)
+            other_agents_nodes.append(agent_node)
+
+        return other_agents_nodes
+
     def close(self):
         for agent in self.world.agents:
             agent.viewer = None
@@ -218,7 +255,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
 if __name__ == "__main__":
     import argparse
-    from wrappers import MultiAgentMonitor
+    from .wrappers import MultiAgentMonitor
 
     # parse argument
     parser = argparse.ArgumentParser(description='Run wrapper test.')
@@ -232,11 +269,16 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help='Number of agents in the scene.')
+    parser.add_argument(
+        '--mesh-dir',
+        type=str,
+        default=None,
+        help='Directory of agents\' meshes.')
     args = parser.parse_args()
 
     # initialize simulator
-    env = BaseEnv(args.trace_paths, args.n_agents)
-    env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
+    env = BaseEnv(args.trace_paths, args.n_agents, args.mesh_dir)
+    # env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run
     for ep in range(5):
@@ -249,6 +291,8 @@ if __name__ == "__main__":
             for k in env.agent_ids:
                 act[k] = env.action_space.sample()
             obs, rew, done, info = env.step(act)
+            cv2.imwrite('test.png', env.render()[:,:,::-1])
+            import pdb; pdb.set_trace()
             ep_rew += np.mean(list(rew.values()))
             done = np.any(list(done.values()))
             ep_steps += 1

@@ -22,18 +22,20 @@ class Camera(BaseSensor):
         # Reset the sensor based on the position of the parent
         self.reset()
 
-    def capture(self, timestamp):
+    def capture(self, timestamp, other_agents=[]):
         frame = self.get_frame_from_time(timestamp)
         translated_frame = self.synthesize_frame(frame,
-                                                 self.parent.relative_state)
+                                                 self.parent.relative_state,
+                                                 other_agents=other_agents)
         return translated_frame
 
-    def synthesize_frame(self, frame, relative_state):
+    def synthesize_frame(self, frame, relative_state, other_agents=[]):
         translated_frame = self.view_synthesizer(
             theta=relative_state.theta,
             translation_x=relative_state.translation_x,
             translation_y=relative_state.translation_y,
-            image=frame)[0]
+            image=frame,
+            other_agents=other_agents)[0]
         translated_frame = np.uint8(translated_frame)
 
         return translated_frame

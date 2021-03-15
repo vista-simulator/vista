@@ -60,6 +60,12 @@ class Car(Entity):
         return camera
 
     def step(self, action, delta_t=1 / 30.):
+        step_reward, done, info, next_valid_timestamp = self.step_dynamics(action, delta_t)
+        observations = self.step_sensors(next_valid_timestamp)
+
+        return observations, step_reward, done, info
+
+    def step_dynamics(self, action, delta_t=1 / 30.):
         # Force action to be column vector
         action = np.array(action).reshape(-1)
 
@@ -97,20 +103,18 @@ class Car(Entity):
                            self.trace.f_distance(self.first_time)
         info["done"] = self.isCrashed
 
-        observations = {}
-        for sensor in self.sensors:
-            observations[sensor.id] = sensor.capture(next_valid_timestamp)
-
         done = self.isCrashed
 
         step_reward = 1.0 if not done else 0.0  # simple reward function +1 if not crashed
         self.reward += step_reward
 
-        if self.trace_done:
-            translated_frame = self.reset()
+        return step_reward, done, info, next_valid_timestamp
 
-        return observations, step_reward, done, info
-
+    def step_sensors(self, next_valid_timestamp, other_agents=[]):
+        observations = {}
+        for sensor in self.sensors:
+            observations[sensor.id] = sensor.capture(next_valid_timestamp, other_agents=other_agents)
+        return observations
 
     def get_timestamp(self, index):
 

@@ -98,11 +98,12 @@ class ViewSynthesis:
         return depth_img
 
     def synthesize(self,
-                       theta,
-                       translation_x,
-                       translation_y,
-                       image,
-                       depth=None):
+                   theta,
+                   translation_x,
+                   translation_y,
+                   image,
+                   depth=None,
+                   other_agents=[]):
         if depth is None:
             depth = self.depth
 
@@ -125,6 +126,10 @@ class ViewSynthesis:
         self.scene.clear()
         self.scene.add(copy.deepcopy(self.mesh), name="env")
         self.scene.add(self.render_camera, pose=camera_pose)
+
+        # Add other agents to the scene
+        for other_agent in other_agents:
+            self.scene.add_node(other_agent)
 
         # Render!
         color, depth = self.renderer.render(
