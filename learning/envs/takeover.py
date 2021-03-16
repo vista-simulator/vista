@@ -5,15 +5,16 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from .base_env import BaseEnv
 
 
-class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
+class Takeover(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
-                 respawn_distance=15, **kwargs):
-        super(ObstacleAvoidance, self).__init__(trace_paths, n_agents=2, 
+                 respawn_distance=15, speed_scale_range=[0.0, 0.8], **kwargs):
+        super(Takeover, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
         assert task_mode in ['episodic', 'infinite_horizon_dense', 'infinite_horizon_sparse']
         self.task_mode = task_mode
         self.respawn_distance = respawn_distance
+        self.speed_scale_range = speed_scale_range
 
         # always use curvature only as action
         self.action_space = gym.spaces.Box(
@@ -21,8 +22,6 @@ class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
                 high=np.array([self.upper_curvature_bound]),
                 shape=(1,),
                 dtype=np.float64)
-
-        self.static_action = np.array([0, 0])
 
         assert self.n_agents == 2, 'Only support 2 agents for now'
 
@@ -33,11 +32,16 @@ class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
         return observations
 
     def step(self, action):
-        # augment static action
-        for agent_id in self.agent_ids:
+        # augment nominal action
+        for agent_id, agent in zip(self.agent_ids, self.world.agents):
             if agent_id == self.ref_agent_id:
                 continue
-            action[agent_id] = self.static_action
+            # nominal curvature but slower speed
+            current_timestamp = agent.get_current_timestamp()
+            human_curvature = agent.trace.f_curvature(current_timestamp)
+            human_velocity = agent.trace.f_speed(current_timestamp)
+            action[agent_id] = np.array([human_curvature, \
+                np.random.uniform(*self.speed_scale_range) * human_velocity])
         # step environment
         observation, reward, done, info = map(self.wrap_data, super().step(action))
         self.observation = self.wrap_data(self.observation)
@@ -97,7 +101,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # initialize simulator
-    env = ObstacleAvoidance(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[6,12])
+    env = Takeover(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[6,10])
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run

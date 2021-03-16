@@ -38,6 +38,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             assert mesh_dir is not None, "Specify mesh_dir if n_agents > 1"
             self.mesh_lib = MeshLib(mesh_dir)
 
+        self.crash_to_others = [False] * self.n_agents
+
         # NOTE: only support the same observation space across all agents now
         cam = self.world.agents[self.ref_agent_idx].sensors[0].camera
         self.observation_space = gym.spaces.Box(
@@ -73,7 +75,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             resample_tries = 0
             while not collision_free and resample_tries < max_resample_tries:
                 self.reset_agent(agent, ref_agent=self.ref_agent)
-                self.random_init_agent_in_the_front(agent, *self.init_agent_range)
+                self.random_init_agent_in_the_front(agent, *self.init_agent_range, self.ref_agent.human_dynamics)
                 self.update_trace_and_first_time(agent)
 
                 poly = self.agent2poly(agent, self.ref_agent.human_dynamics)
@@ -137,14 +139,24 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.observation = observation
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
-        crash = self.check_collision(polys)
-        done = {k: v or c for (k, v), c in zip(done.items(), crash)}
+        self.crash_to_others = self.check_collision(polys)
+        done = {k: v or c for (k, v), c in zip(done.items(), self.crash_to_others)}
         done['__all__'] = np.any(list(done.values()))
         
         return observation, reward, done, info
 
     def render(self, mode='rgb_array'):
-        img = np.concatenate(list(self.observation.values()), axis=1)
+        obs_show = []
+        for i, obs in enumerate(self.observation.values()):
+            if self.crash_to_others[i]:
+                text = 'Crash to others'
+            elif self.world.agents[i].isCrashed:
+                text = 'Exceed Max Trans/Rot'
+            else:
+                text = 'Running'
+            img = cv2.putText(obs, text, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2).get()
+            obs_show.append(img)
+        img = np.concatenate(obs_show, axis=1)
         img = img[:,:,::-1]
         return img
 
@@ -173,7 +185,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             agent.trace.syncedLabeledFrames[agent.current_trace_index][
                 agent.trace.which_camera][agent.current_frame_index])  # MODIFIED
 
-    def random_init_agent_in_the_front(self, agent, min_dist, max_dist):
+    def random_init_agent_in_the_front(self, agent, min_dist, max_dist, ref_dynamics):
         """ Randomly initialize agent in the front (w.r.t. the first/reference 
             agent, which is initialized with zeros) within the range of min and 
             max distance. """
@@ -192,7 +204,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                 delta_t=next_time-time
             )
             time = next_time
-            dist_match = (np.linalg.norm(agent.human_dynamics.numpy()[:2]) - dist) >= 0
+            rel_state = self.compute_relative_transform(agent.human_dynamics, ref_dynamics)
+            dist_match = (np.linalg.norm(rel_state[:2]) - dist) >= 0
             index += 1
         agent.current_frame_index = index - 1
 
@@ -200,8 +213,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         dtheta = np.random.uniform(-0.05, 0.05)
         agent.ego_dynamics.theta_state = agent.human_dynamics.theta_state + dtheta
 
-        lat_bound = (agent.trace.road_width - agent.car_width) / 2.
-        lat_shift = np.random.uniform(-lat_bound, lat_bound)
+        lat_shift = np.random.choice([-1, 1]) * np.random.uniform(agent.car_width / 2., agent.car_width)
         dx = lat_shift * np.cos(agent.ego_dynamics.theta_state)
         dy = lat_shift * np.sin(agent.ego_dynamics.theta_state)
         agent.ego_dynamics.x_state = agent.human_dynamics.x_state + dx
@@ -267,6 +279,23 @@ class BaseEnv(gym.Env, MultiAgentEnv):
     def agent_sensors_setup(self, agent_i):
         agent = self.world.agents[agent_i]
         camera = agent.spawn_camera()
+
+    def check_agent_in_lane_center(self, agent):
+        dx = agent.relative_state.translation_x 
+        dy = agent.relative_state.translation_y
+        dtheta = agent.relative_state.theta
+        human_theta = agent.human_dynamics.numpy()[2]
+        d = np.sqrt(dx**2 + dy**2)
+        lat_shift = d * np.cos(human_theta)
+        in_lane_center = (np.abs(dtheta) <= 0.05) and (np.abs(lat_shift) <= agent.car_width * 0.5)
+        return in_lane_center
+
+    def check_agent_pass_other(self, agent, other_agent):
+        origin_dist = agent.trace.f_distance(agent.first_time)
+        dist = agent.trace.f_distance(agent.get_current_timestamp()) - origin_dist
+        other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
+        passed = (dist - other_dist) > ((other_agent.car_length + agent.car_length) / 2.)
+        return passed
 
     def close(self):
         for agent in self.world.agents:

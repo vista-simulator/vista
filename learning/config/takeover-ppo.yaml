@@ -1,6 +1,6 @@
-obstacle-avoidance-ppo:
+takeover-ppo:
   local_dir: ~/tmp
-  env: ObstacleAvoidance
+  env: Takeover
   run: PPO
   num_samples: 1
   checkpoint_freq: 50
@@ -23,6 +23,7 @@ obstacle-avoidance-ppo:
       init_agent_range: [6, 12]
       task_mode: episodic
       respawn_distance: 15
+      speed_scale_range: [0.0, 0.8]
       wrappers: [PreprocessObservation]
       wrappers_config:
         PreprocessObservation:
