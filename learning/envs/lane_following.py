@@ -6,8 +6,8 @@ from .base_env import BaseEnv
 
 
 class LaneFollowing(BaseEnv, MultiAgentEnv):
-    def __init__(self, trace_paths):
-        super(LaneFollowing, self).__init__(trace_paths, n_agents=1)
+    def __init__(self, trace_paths, **kwargs):
+        super(LaneFollowing, self).__init__(trace_paths, n_agents=1, **kwargs)
 
         # always use curvature only as action
         self.action_space = gym.spaces.Box(
