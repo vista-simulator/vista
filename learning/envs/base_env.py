@@ -69,13 +69,16 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
             # randomly init non-reference agents in the front of reference agent
             collision_free = False
-            while not collision_free:
+            max_resample_tries = 10
+            resample_tries = 0
+            while not collision_free and resample_tries < max_resample_tries:
                 self.reset_agent(agent, ref_agent=self.ref_agent)
                 self.random_init_agent_in_the_front(agent, *self.init_agent_range)
                 self.update_trace_and_first_time(agent)
 
                 poly = self.agent2poly(agent, self.ref_agent.human_dynamics)
                 collision_free = not np.any(self.check_collision(polys + [poly]))
+                resample_tries += 1
             polys.append(poly)
 
         # reset sensors (should go after agent dynamics reset, which affects video stream reset)
@@ -181,7 +184,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         index = agent.current_frame_index
         time = agent.get_timestamp(index)
         dist_match = False
-        while not dist_match:
+        while not dist_match and not agent.trace_done:
             next_time = agent.get_timestamp(index)
             agent.human_dynamics.step(
                 curvature=agent.trace.f_curvature(time),

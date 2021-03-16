@@ -114,6 +114,11 @@ class Car(Entity):
         observations = {}
         for sensor in self.sensors:
             observations[sensor.id] = sensor.capture(next_valid_timestamp, other_agents=other_agents)
+
+        # NOTE: this implementation will cause issue if agent has memory. Also it accumulates reward
+        # accross episode. Need a way to connect trace ending and starting point.
+        if self.trace_done:
+            translated_frame = self.reset()
         return observations
 
     def get_timestamp(self, index):
