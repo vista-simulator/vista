@@ -3,6 +3,7 @@ import numpy as np
 import gym
 import cv2
 from shapely.geometry import box as Box
+from shapely import affinity
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import vista
@@ -230,6 +231,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         car_length = agent.car_length
         car_width = agent.car_width
         poly = Box(x-car_width/2., y-car_length/2., x+car_width/2., y+car_length/2.)
+        poly = affinity.rotate(poly, np.degrees(theta))
 
         return poly
 
