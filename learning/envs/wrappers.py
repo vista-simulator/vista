@@ -247,4 +247,5 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
                 out.append(cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy))
         else:
             out = cv2.resize(observation[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
+        self.observation_for_render = out
         return out
