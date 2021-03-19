@@ -25,6 +25,8 @@ class Takeover(BaseEnv, MultiAgentEnv):
 
         assert self.n_agents == 2, 'Only support 2 agents for now'
 
+        self.perturb_heading_in_random_init = False # otherwise nominal traj following will fail
+
     def reset(self, **kwargs):
         observations = super().reset(**kwargs)
         observations = self.wrap_data(observations)
@@ -112,10 +114,15 @@ if __name__ == "__main__":
         ep_steps = 0
         while not done:
             act = dict()
-            for k in env.agent_ids:
-                act[k] = env.action_space.sample()
+            for _i, k in enumerate(env.agent_ids):
+                if True: # follow human trajectory
+                    ts = env.world.agents[_i].get_current_timestamp()
+                    act[k] = env.world.agents[_i].trace.f_curvature(ts)
+                else: # random action
+                    act[k] = env.action_space.sample()
             obs, rew, done, info = env.step(act)
             ep_rew += np.mean(list(rew.values()))
             done = np.any(list(done.values()))
             ep_steps += 1
+            # print(ep_steps, ep_rew) # DEBUG
         print('[{}th episodes] {} steps {} reward'.format(ep, ep_steps, ep_rew))

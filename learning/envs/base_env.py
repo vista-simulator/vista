@@ -34,6 +34,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
         self.collision_overlap_threshold = collision_overlap_threshold
         self.init_agent_range = init_agent_range
+        self.perturb_heading_in_random_init = True # set False for car following nominal traj 
 
         if self.n_agents > 1:
             assert mesh_dir is not None, "Specify mesh_dir if n_agents > 1"
@@ -119,7 +120,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         # update agents' dynamics (take action in the environment)
         observation, reward, done, info = dict(), dict(), dict(), dict()
         next_valid_timestamp_list = []
-        for agent_id, agent, act in zip(self.agent_ids, self.world.agents, action.values()):
+        for agent_id, agent in zip(self.agent_ids, self.world.agents):
+            act = action[agent_id]
             rew, d, info_, next_valid_timestamp = agent.step_dynamics(act)
             reward[agent_id] = rew
             done[agent_id] = d
@@ -211,7 +213,10 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         agent.current_frame_index = index - 1
 
         # randomly shift in lateral direction and rotate agent's heading
-        dtheta = np.random.uniform(-0.05, 0.05)
+        if self.perturb_heading_in_random_init:
+            dtheta = np.random.uniform(-0.05, 0.05)
+        else:
+            dtheta = 0
         agent.ego_dynamics.theta_state = agent.human_dynamics.theta_state + dtheta
 
         lat_shift = np.random.choice([-1, 1]) * np.random.uniform(agent.car_width / 2., agent.car_width)
