@@ -29,7 +29,7 @@ class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
     def reset(self, **kwargs):
         observations = super().reset(**kwargs)
         observations = self.wrap_data(observations)
-        self.observation = self.wrap_data(self.observation) # for render
+        self.observation_for_render = self.wrap_data(self.observation_for_render) # for render
         return observations
 
     def step(self, action):
@@ -40,7 +40,7 @@ class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
             action[agent_id] = self.static_action
         # step environment
         observation, reward, done, info = map(self.wrap_data, super().step(action))
-        self.observation = self.wrap_data(self.observation)
+        self.observation_for_render = self.wrap_data(self.observation_for_render)
         # modify reward function and done
         other_agents = [_a for _i, _a in enumerate(self.world.agents) if _i != self.ref_agent_idx]
         passed = [self.check_agent_pass_other(self.ref_agent, _a) for _a in other_agents]

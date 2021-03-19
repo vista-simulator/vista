@@ -122,7 +122,7 @@ class _MultiAgentMonitor(gym.Wrapper):
             self.update_patch(self.ax_birdseye, 'patch:{}'.format(agent_id), patch)
         
         # update observation
-        for agent_id, obs in self.observation.items():
+        for agent_id, obs in self.observation_for_render.items():
             i = self.agent_ids.index(agent_id)
             if self.crash_to_others[i]:
                 text = 'Crash Into Another Car'

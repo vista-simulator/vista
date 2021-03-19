@@ -112,7 +112,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
         # wrap data
         observation = {k: v for k, v in zip(self.agent_ids, observation)}
-        self.observation = observation
+        self.observation_for_render = observation
 
         return observation
 
@@ -139,7 +139,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                 observation[agent_id] = obs[agent.sensors[0].id]
             else:
                 observation[agent_id] = None
-        self.observation = observation
+        self.observation_for_render = observation
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
         self.crash_to_others = self.check_collision(polys)
@@ -150,7 +150,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
     def render(self, mode='rgb_array'):
         obs_show = []
-        for i, obs in enumerate(self.observation.values()):
+        for i, obs in enumerate(self.observation_for_render.values()):
             if self.crash_to_others[i]:
                 text = 'Crash to others'
             elif self.world.agents[i].isCrashed:
