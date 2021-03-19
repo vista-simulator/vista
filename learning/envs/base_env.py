@@ -294,7 +294,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         human_theta = agent.human_dynamics.numpy()[2]
         d = np.sqrt(dx**2 + dy**2)
         lat_shift = d * np.cos(human_theta)
-        in_lane_center = (np.abs(dtheta) <= 0.05) and (np.abs(lat_shift) <= agent.car_width * 0.5)
+        in_lane_center = (np.abs(dtheta) <= 0.05) and (np.abs(lat_shift) <= (agent.car_width / 8))
         return in_lane_center
 
     def check_agent_pass_other(self, agent, other_agent):
