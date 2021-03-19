@@ -124,5 +124,4 @@ if __name__ == "__main__":
             ep_rew += np.mean(list(rew.values()))
             done = np.any(list(done.values()))
             ep_steps += 1
-            # print(ep_steps, ep_rew) # DEBUG
         print('[{}th episodes] {} steps {} reward'.format(ep, ep_steps, ep_rew))

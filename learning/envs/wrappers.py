@@ -76,9 +76,6 @@ class _MultiAgentMonitor(gym.Wrapper):
                 self.ax_car_states[agent_id].imshow(self.fit_img_to_ax(self.ax_car_states[agent_id], \
                     self.cat_speedometer_steering_wheel(self.img_steering_wheel, self.img_speedometer)))
 
-    def _debug_imwrite(self): # DEBUG
-        cv2.imwrite('test.png', self.fig2img(self.fig)[:,:,::-1])
-
     def reset(self, **kwargs):
         # regular reset
         observation = super().reset(**kwargs)
