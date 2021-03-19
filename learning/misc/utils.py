@@ -79,6 +79,7 @@ def register_custom_model(model_config):
     """ Register custom model in rllib. """
     if 'custom_model' not in model_config.keys():
         return 
+    model_config = copy.copy(model_config) # don't modify original model config
     Model = getattr(models, model_config['custom_model'])
     ModelCatalog.register_custom_model(model_config['custom_model'], Model)
 
