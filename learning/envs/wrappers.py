@@ -249,3 +249,28 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             out = cv2.resize(observation[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
         self.observation_for_render = out
         return out
+
+
+class StackObservation(gym.ObservationWrapper, MultiAgentEnv):
+    def __init__(self, env, frame_stack=5):
+        super(StackObservation, self).__init__(env)
+        assert len(env.observation_space.shape) == 3
+        ori_c = env.observation_space.shape[2]
+        self.observation_space = gym.spaces.Box(
+            low=np.dstack([env.observation_space.low] * frame_stack),
+            high=np.dstack([env.observation_space.high] * frame_stack),
+            dtype=env.observation_space.dtype,
+            shape=list(env.observation_space.shape[:2]) + [ori_c * frame_stack]
+        )
+        self.frame_stack = frame_stack
+        self.frame_deque = dict()
+        for agent_id in self.controllable_agents.keys():
+            self.frame_deque[agent_id] = deque(maxlen=frame_stack)
+
+    def observation(self, observation):
+        for k, obs in observation.items():
+            self.frame_deque[k].append(obs)
+            while len(self.frame_deque[k]) < self.frame_deque[k].maxlen:
+                self.frame_deque[k].append(obs)
+            observation[k] = np.concatenate([v for v in self.frame_deque[k]], axis=2)
+        return observation

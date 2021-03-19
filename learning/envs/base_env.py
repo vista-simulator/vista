@@ -60,6 +60,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         # NOTE: check how this affects learning
         self.reward_range = [0., 100.]
 
+        self.controllable_agents = {k:v for k, v in zip(self.agent_ids, self.world.agents)}
+
     def reset(self, **kwargs):
         # reset reference agent
         self.reset_agent(self.ref_agent, sync_with_ref=False)

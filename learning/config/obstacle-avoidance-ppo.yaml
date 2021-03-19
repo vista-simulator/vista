@@ -21,6 +21,7 @@ obstacle-avoidance-ppo:
       trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
       mesh_dir: ~/data/vista_mesh_lib/
       init_agent_range: [6, 12]
+      collision_overlap_threshold: 0.05
       task_mode: episodic
       respawn_distance: 15
       wrappers: [PreprocessObservation]

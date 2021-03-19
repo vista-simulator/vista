@@ -26,6 +26,8 @@ class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
 
         assert self.n_agents == 2, 'Only support 2 agents for now'
 
+        self.controllable_agents = {self.ref_agent_id: self.ref_agent}
+
     def reset(self, **kwargs):
         observations = super().reset(**kwargs)
         observations = self.wrap_data(observations)

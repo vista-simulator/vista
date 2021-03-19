@@ -7,14 +7,17 @@ from .base_env import BaseEnv
 
 class Takeover(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
-                 respawn_distance=15, speed_scale_range=[0.0, 0.8], **kwargs):
+                 respawn_distance=15, speed_scale_range=[0.0, 0.8], 
+                 motion_model='random_speed', **kwargs):
         super(Takeover, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
         assert task_mode in ['episodic', 'infinite_horizon_dense', 'infinite_horizon_sparse']
+        assert motion_model in ['random_speed', 'constant_speed']
         self.task_mode = task_mode
         self.respawn_distance = respawn_distance
         self.speed_scale_range = speed_scale_range
+        self.motion_model = motion_model
 
         # always use curvature only as action
         self.action_space = gym.spaces.Box(
@@ -27,10 +30,14 @@ class Takeover(BaseEnv, MultiAgentEnv):
 
         self.perturb_heading_in_random_init = False # otherwise nominal traj following will fail
 
+        self.controllable_agents = {self.ref_agent_id: self.ref_agent}
+
     def reset(self, **kwargs):
         observations = super().reset(**kwargs)
         observations = self.wrap_data(observations)
         self.observation_for_render = self.wrap_data(self.observation_for_render) # for render
+        if self.motion_model == 'constant_speed':
+            self.constant_speed = np.random.uniform(0., 6.) # make sure not faster than ego car
         return observations
 
     def step(self, action):
@@ -42,8 +49,11 @@ class Takeover(BaseEnv, MultiAgentEnv):
             current_timestamp = agent.get_current_timestamp()
             human_curvature = agent.trace.f_curvature(current_timestamp)
             human_velocity = agent.trace.f_speed(current_timestamp)
-            action[agent_id] = np.array([human_curvature, \
-                np.random.uniform(*self.speed_scale_range) * human_velocity])
+            if self.motion_model == 'random_speed':
+                speed = np.random.uniform(*self.speed_scale_range) * human_velocity
+            else:
+                speed = self.constant_speed
+            action[agent_id] = np.array([human_curvature, speed])
         # step environment
         observation, reward, done, info = map(self.wrap_data, super().step(action))
         self.observation_for_render = self.wrap_data(self.observation_for_render)

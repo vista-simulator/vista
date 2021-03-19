@@ -21,14 +21,18 @@ takeover-ppo:
       trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
       mesh_dir: ~/data/vista_mesh_lib/
       init_agent_range: [6, 12]
+      collision_overlap_threshold: 0.05
       task_mode: episodic
+      motion_model: constant_speed # motion model for other non-controllable agents
       respawn_distance: 15
-      speed_scale_range: [0.0, 0.8]
-      wrappers: [PreprocessObservation]
+      speed_scale_range: [0.0, 0.8] # only used for random speed motion model
+      wrappers: [PreprocessObservation, StackObservation]
       wrappers_config:
         PreprocessObservation:
           fx: 1
           fy: 1
+        StackObservation:
+          frame_stack: 5
     observation_filter: NoFilter
     callbacks: BasicCallbacks
     # policies
@@ -60,7 +64,7 @@ takeover-ppo:
       vf_share_layers: true
       custom_model: BasicCNN
       conv_filters: [
-        [3, 24, 5, 2],
+        [15, 24, 5, 2],
         [24, 36, 5, 2], 
         [36, 48, 3, 2], 
         [48, 64, 3, 1], 
