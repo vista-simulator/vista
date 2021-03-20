@@ -64,7 +64,8 @@ class _MultiAgentMonitor(gym.Wrapper):
             self.ax_obs[agent_id] = self.fig.add_subplot(this_gs)
             self.artists['im:{}'.format(agent_id)] = self.ax_obs[agent_id].imshow(
                 self.fit_img_to_ax(self.ax_obs[agent_id], \
-                    np.zeros(self.observation_space.shape, dtype=self.observation_space.dtype)))
+                    np.zeros(list(self.observation_space.shape[:2]) + [3], \
+                        dtype=self.observation_space.dtype)))
             self.ax_obs[agent_id].set_xticks([])
             self.ax_obs[agent_id].set_yticks([])
             self.ax_obs[agent_id].set_title('Init', color='white', size=20, weight='bold')
@@ -132,7 +133,7 @@ class _MultiAgentMonitor(gym.Wrapper):
                 text = 'Running'
             self.ax_obs[agent_id].set_title(text, color='white', size=20, weight='bold')
             self.artists['im:{}'.format(agent_id)].set_data(self.fit_img_to_ax(
-                self.ax_obs[agent_id], obs[:,:,::-1]))
+                self.ax_obs[agent_id], obs[:,:,-3:][:,:,::-1])) # handle stacked frames
 
         # add speed and steering wheel
         for i, agent_id in enumerate(self.agents_with_sensor.keys()):
@@ -210,6 +211,7 @@ class _MultiAgentMonitor(gym.Wrapper):
 class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
     def __init__(self, env, directory, video_callable=None, force=False, resume=False,
                  write_upon_reset=False, uid=None, mode=None):
+        self._env = env
         env = _MultiAgentMonitor(env)
         super(MultiAgentMonitor, self).__init__(env, directory, video_callable, 
             force, resume, write_upon_reset, uid, mode)
@@ -220,6 +222,9 @@ class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
         self._after_step(observation['agent_0'], reward['agent_0'], done['__all__'], info['agent_0'])
 
         return observation, reward, done, info
+    
+    def close(self):
+        self._env.close() # to avoid max recursion in __del__
 
 
 class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
