@@ -84,7 +84,24 @@ def main():
     # Run
     export_path = os.path.join(config_dir, 'model.pkl')
     if args.export:
-        torch.save(agent.get_policy().model.state_dict(), export_path)
+        state_dict = agent.get_policy().model.state_dict()
+
+        # make compatible with e2ed
+        new_state_dict = dict()
+        for key, value in state_dict.items():
+            if key.startswith('convnet.'):
+                key = key.replace('convnet.', 'module.extractors.fcamera.features.')
+                new_state_dict[key] = value
+            elif key.startswith('fcnet.'):
+                key = key.replace('fcnet.', 'module.transform.')
+                new_state_dict[key] = value
+            elif key.startswith('action_fc.'):
+                key = key.replace('action_fc.', 'module.transform.4.')
+                new_state_dict[key] = value
+
+        saved_data = {'model': new_state_dict}
+        
+        torch.save(saved_data, export_path)
     else:
         test_exported_model(agent, config, export_path)
 
