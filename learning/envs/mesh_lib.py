@@ -32,10 +32,13 @@ class MeshLib(object):
         meshes = []
         meshes_dim = []
         for fpath in fpaths:
-            tm = trimesh.load(fpath)
-            mesh, mesh_dim = self._temp_process(tm)
-            meshes.append(mesh)
-            meshes_dim.append(mesh_dim)
+            try:
+                tm = trimesh.load(fpath)
+                mesh, mesh_dim = self.preprocess(tm)
+                meshes.append(mesh)
+                meshes_dim.append(mesh_dim)
+            except:
+                print('Failed to load/process mesh {}'.format(fpath))
         if len(meshes) == 0:
             raise AttributeError("No mesh in the directory")
         
@@ -59,23 +62,9 @@ class MeshLib(object):
         self.agents_meshes = [copy.deepcopy(self.meshes[idx]) for idx in idcs]
         self.agents_meshes_dim = [copy.copy(self.meshes_dim[idx]) for idx in idcs]
 
-    def _temp_process(self, tm):
-        """[TEMPORARY] hacky way to handle the bugatti mesh"""
+    def preprocess(self, tm):
+        """ preprocess mesh """
         tm = list(tm.geometry.values()) # for trimesh.scene
-
-        # remove unwanted scene component
-        if True:
-            tm.remove(tm[-1]) 
-            tm.remove(tm[-1]) 
-            tm.remove(tm[34]) 
-            tm.remove(tm[22])
-
-            new_tm = []
-            for _tm in tm:
-                pts = np.array(_tm.vertices)
-                if np.all(pts.min(0) > -10) and np.all(pts.max(0) < 10):
-                    new_tm.append(_tm)
-            tm = new_tm
 
         # calibrate mesh; shift and scale assuming car dimension (width, length) is roughly (2, 4)
         all_pts = np.concatenate([np.array(_tm.vertices) for _tm in tm], axis=0)
@@ -85,11 +74,9 @@ class MeshLib(object):
         pts_midpoint = (pts_min + pts_max) / 2.
         xzy_shift = [-pts_midpoint[0], -pts_max[1], -pts_midpoint[2]] # zero-height is camera height
         scale = 1. / (pts_range[0] / 2.) # car width = 2, didn't check car length = 4
-        rot = self.get_yaw_transform(0.15) # compensate the mesh that is a bit oriented toward left
         for i in range(len(tm)):
             tm[i].apply_translation(xzy_shift)
             tm[i].apply_scale(scale)
-            tm[i].apply_transform(rot)
         mesh_dim = [pts_range[0] * scale, pts_range[2] * scale]
 
         # convert trimesh to pyrender mesh
@@ -110,3 +97,62 @@ class MeshLib(object):
             [0, 0,  0, 1]
         ])
         return rot
+
+
+def main():
+    import cv2
+    import argparse
+    from vista.util import Camera
+
+    parser = argparse.ArgumentParser(description='Run meshlib test.')
+    parser.add_argument(
+        'mesh_dir',
+        type=str,
+        help='Directory to meshes.')
+    parser.add_argument(
+        'out_dir',
+        type=str,
+        help='Directory to rendered outputs.')
+    args = parser.parse_args()
+
+    if not os.path.isdir(args.out_dir):
+        os.makedirs(args.out_dir)
+
+    mesh_lib = MeshLib(args.mesh_dir)
+
+    scene = pyrender.Scene(ambient_light=[.1, .1, .1])
+    light = pyrender.DirectionalLight([255, 255, 255], 10)
+    scene.add(light)
+
+    camera = Camera('camera_front')
+    camera.resize(250, 400)
+    render_camera = pyrender.IntrinsicsCamera(
+        fx=camera._fx,
+        fy=camera._fy,
+        cx=camera._cx,
+        cy=camera._cy,
+        znear=0.01,
+        zfar=100000)
+    scene.add(render_camera)
+
+    renderer = pyrender.OffscreenRenderer(camera.get_width(),
+                                          camera.get_height())
+
+    for i, mesh in enumerate(mesh_lib.meshes):
+        mesh_node = pyrender.Node(mesh=mesh, translation=[0,0,-5])
+        scene.add_node(mesh_node)
+
+        color, depth = renderer.render(scene)
+        if False:
+            cv2.imshow('rendered RGB', color)
+            cv2.waitKey(0)
+
+        fpath = os.path.basename(os.path.dirname(mesh_lib.fpaths[i])) + '.png'
+        fpath = os.path.join(args.out_dir, fpath)
+        cv2.imwrite(fpath, color)
+
+        scene.remove_node(mesh_node)
+
+
+if __name__ == '__main__':
+    main()

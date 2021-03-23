@@ -94,11 +94,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
         # reset mesh library (this assigns mesh to each agents)
         if self.n_agents > 1:
-            self.mesh_lib.reset(self.n_agents)
-            # assign car width and length based on mesh size
-            for i, agent in enumerate(self.world.agents):
-                agent.car_width = self.mesh_lib.agents_meshes_dim[i][0]
-                agent.car_length = self.mesh_lib.agents_meshes_dim[i][1]
+            self.reset_mesh_lib()
 
         # get sensor measurement
         observation = []
@@ -305,6 +301,13 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
         passed = (dist - other_dist) > ((other_agent.car_length + agent.car_length) / 2.)
         return passed
+
+    def reset_mesh_lib(self):
+        self.mesh_lib.reset(self.n_agents)
+        # assign car width and length based on mesh size
+        for i, agent in enumerate(self.world.agents):
+            agent.car_width = self.mesh_lib.agents_meshes_dim[i][0]
+            agent.car_length = self.mesh_lib.agents_meshes_dim[i][1]
 
     def close(self):
         for agent in self.world.agents:

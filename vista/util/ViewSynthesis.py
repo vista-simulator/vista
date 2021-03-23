@@ -139,12 +139,13 @@ class ViewSynthesis:
             self.scene.remove_node(env_node)
 
             # Add other agents to the scene
-            self.scene.ambient_light = [.1, .1, .1]
+            self.scene.ambient_light = [np.random.uniform(0.05, 0.3)] * 3
             for other_agent in other_agents:
                 self.scene.add_node(other_agent)
 
             # Add light
-            light = pyrender.DirectionalLight([255, 255, 255], 10)
+            light_intensity = np.random.uniform(5, 15) # domain randomization
+            light = pyrender.DirectionalLight([255, 255, 255], light_intensity)
             self.scene.add(light)
 
             # Render car
@@ -153,10 +154,11 @@ class ViewSynthesis:
             # Overlay
             mask = np.any(color_agent != 0, axis=2, keepdims=True).astype(np.uint8)
 
-            recoloring_factor = 0.5
+            recoloring_factor = np.random.uniform(0.2, 0.7) # domain randomization
             color_agent_mean = (color_agent * mask).sum(0).sum(0) / mask.sum()
             color_bg_mean = color_bg.mean(0).mean(0)
             recolor_agent = color_agent + (color_bg_mean - color_agent_mean) * recoloring_factor
+            recolor_agent = np.clip(recolor_agent, 0, 255)
 
             color = (1 - mask) * color_bg + mask * recolor_agent
         else:

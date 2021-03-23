@@ -55,6 +55,7 @@ class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
                 if passed_this:
                     self.random_init_agent_in_the_front(agent, self.respawn_distance, 
                         self.respawn_distance, self.ref_agent.human_dynamics)
+                    self.reset_mesh_lib() # NOTE: reset all agents
                     # NOTE: no collision check as we only consider 2 agents
             if self.task_mode == 'infinite_horizon_sparse':
                 reward[self.ref_agent_id] = np.sum(passed)
