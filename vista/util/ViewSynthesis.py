@@ -13,6 +13,7 @@ import trimesh
 from . import Camera
 
 MAX_DIST = 10000.
+USE_LIGHTING = True
 
 
 class DepthModes(Enum):
@@ -127,13 +128,46 @@ class ViewSynthesis:
         self.scene.add(copy.deepcopy(self.mesh), name="env")
         self.scene.add(self.render_camera, pose=camera_pose)
 
-        # Add other agents to the scene
-        for other_agent in other_agents:
-            self.scene.add_node(other_agent)
+        if USE_LIGHTING:
+            # Render background
+            self.scene.ambient_light = [1., 1., 1.] # doesn't matter for FLAT rendering
+            color_bg, depth_bg = self.renderer.render(
+                self.scene, flags=pyrender.constants.RenderFlags.FLAT)
 
-        # Render!
-        color, depth = self.renderer.render(
-            self.scene, flags=pyrender.constants.RenderFlags.FLAT)
+            # remove background
+            env_node = [n for n in list(self.scene.nodes) if n.name == 'env'][0]
+            self.scene.remove_node(env_node)
+
+            # Add other agents to the scene
+            self.scene.ambient_light = [.1, .1, .1]
+            for other_agent in other_agents:
+                self.scene.add_node(other_agent)
+
+            # Add light
+            light = pyrender.DirectionalLight([255, 255, 255], 10)
+            self.scene.add(light)
+
+            # Render car
+            color_agent, depth_agent = self.renderer.render(self.scene)
+
+            # Overlay
+            mask = np.any(color_agent != 0, axis=2, keepdims=True).astype(np.uint8)
+
+            recoloring_factor = 0.5
+            color_agent_mean = (color_agent * mask).sum(0).sum(0) / mask.sum()
+            color_bg_mean = color_bg.mean(0).mean(0)
+            recolor_agent = color_agent + (color_bg_mean - color_agent_mean) * recoloring_factor
+
+            color = (1 - mask) * color_bg + mask * recolor_agent
+        else:
+            # Add other agents to the scene
+            for other_agent in other_agents:
+                self.scene.add_node(other_agent)
+
+            # Render
+            color, depth = self.renderer.render(
+                self.scene, flags=pyrender.constants.RenderFlags.FLAT)
+
         return color, depth
 
     def _get_homogeneous_image_coords(self, camera, get_mesh=False):
