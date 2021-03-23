@@ -83,8 +83,8 @@ def main():
     # Overwrite some config with arguments
     config['num_workers'] = args.num_workers
     config['num_gpus'] = args.num_gpus
-    if args.takeover is not None:
-        config['env_config']['task_mode'] = args.takeover
+    if args.task_mode is not None:
+        config['env_config']['task_mode'] = args.task_mode
 
     # Register custom model
     misc.register_custom_env(config['env'])
@@ -105,7 +105,7 @@ def main():
 
     # Evaluation
     save_dir = os.path.expanduser(config_dir)
-    test(agent, args.episodes, save_dir)
+    test(args, agent, args.episodes, save_dir)
 
     # End ray
     ray.shutdown()
