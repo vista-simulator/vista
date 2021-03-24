@@ -14,6 +14,7 @@ from . import Camera
 
 MAX_DIST = 10000.
 USE_LIGHTING = True
+LIGHTING_DR = False
 
 
 class DepthModes(Enum):
@@ -139,12 +140,18 @@ class ViewSynthesis:
             self.scene.remove_node(env_node)
 
             # Add other agents to the scene
-            self.scene.ambient_light = [np.random.uniform(0.05, 0.3)] * 3
+            if LIGHTING_DR:
+                self.scene.ambient_light = [np.random.uniform(0.05, 0.3)] * 3
+            else:
+                self.scene.ambient_light = [.1, .1, .1]
             for other_agent in other_agents:
                 self.scene.add_node(other_agent)
 
             # Add light
-            light_intensity = np.random.uniform(5, 15) # domain randomization
+            if LIGHTING_DR:
+                light_intensity = np.random.uniform(5, 15) # domain randomization
+            else:
+                light_intensity = 10
             light = pyrender.DirectionalLight([255, 255, 255], light_intensity)
             self.scene.add(light)
 
