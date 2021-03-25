@@ -125,6 +125,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             done[agent_id] = d
             info[agent_id] = info_
             next_valid_timestamp_list.append(next_valid_timestamp)
+        self.info_for_render = info
         # get agents' sensory measurement
         for i, agent_id in enumerate(self.agent_ids):
             agent = self.world.agents[i]

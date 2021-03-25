@@ -136,13 +136,15 @@ class _MultiAgentMonitor(gym.Wrapper):
                 self.ax_obs[agent_id], obs[:,:,-3:][:,:,::-1])) # handle stacked frames
 
         # add speed and steering wheel
-        for i, agent_id in enumerate(self.agents_with_sensor.keys()):
-            agent = self.world.agents[i]
-
+        for agent_id, agent in self.agents_with_sensor.items():
             current_timestamp = self.get_timestamp_readonly(agent, current=True)
-            curvature = agent.trace.f_curvature(current_timestamp)
-            steering_angle = agent.curvature_to_steering(curvature)
-            speed = agent.trace.f_speed(current_timestamp)
+            if hasattr(self, 'info_for_render'):
+                steering_angle = self.info_for_render[agent_id]['model_angle']
+                speed = self.info_for_render[agent_id]['model_velocity']
+            else:
+                curvature = agent.trace.f_curvature(current_timestamp)
+                steering_angle = agent.curvature_to_steering(curvature)
+                speed = agent.trace.f_speed(current_timestamp)
 
             rows, cols = self.img_steering_wheel.shape[:2]
             M = cv2.getRotationMatrix2D((cols/2, rows/2), steering_angle, 1)
