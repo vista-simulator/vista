@@ -12,7 +12,7 @@ placing-obstacle-ppo:
     num_cpus: 20
     num_gpus: 1
   config:
-    num_workers: 10
+    num_workers: 8
     num_gpus: 0.2
     num_gpus_per_worker: 0.08
     framework: torch
@@ -60,5 +60,5 @@ placing-obstacle-ppo:
       fcnet_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_action_dist_config:
-        low: -0.3
-        high: 0.3
+        low: [-0.05, -1.]
+        high: [0.05, 1.]

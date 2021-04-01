@@ -21,15 +21,10 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
         self.env_agent_id = 'env_agent_0'
 
         # action space is defined by how we can place obstacles
-        # self.action_space = gym.spaces.Box(
-        #         low=np.array([-0.05, -self.ref_agent.car_width / 2.]),
-        #         high=np.array([0.05, self.ref_agent.car_width / 2.]),
-        #         shape=(2,),
-        #         dtype=np.float64)
-        self.action_space = gym.spaces.Box( # DEBUG
-                low=np.array([-self.ref_agent.car_width / 2.]),
-                high=np.array([self.ref_agent.car_width / 2.]),
-                shape=(1,),
+        self.action_space = gym.spaces.Box(
+                low=np.array([-0.05, -self.ref_agent.car_width / 2.]),
+                high=np.array([0.05, self.ref_agent.car_width / 2.]),
+                shape=(2,),
                 dtype=np.float64)
 
         # setup observation space
@@ -105,8 +100,7 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
 
     def step(self, action):
         # env agent takes action only when the static agent is passed and required to be reinit
-        # dtheta, lat_shift = action[self.env_agent_id]
-        lat_shift = action[self.env_agent_id][0]; dtheta = 0 # DEBUG
+        dtheta, lat_shift = action[self.env_agent_id]
         if lat_shift >= 0:
             lat_shift += self.ref_agent.car_width / 2.
         else:
@@ -133,6 +127,7 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
             in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
             passed = [self.check_agent_pass_other(self.ref_agent, _a) for _a in other_agents]
             agent_succeed = np.all(passed) and in_lane_center
+        print('hi') # DEBUG
         self.passed = passed # used for reinit static agent in the next step
         # get step results for env agent
         observation = self.wrap_env_data(self.get_scene_state())

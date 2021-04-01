@@ -127,8 +127,10 @@ class TorchBeta(TorchDistributionWrapper):
         self.inputs = torch.clamp(self.inputs, log(SMALL_NUMBER),
                                   -log(SMALL_NUMBER))
         self.inputs = torch.log(torch.exp(self.inputs) + 1.0) + 1.0
-        self.low = low
-        self.high = high
+        low = [low] if not isinstance(low, list) else low
+        high = [high] if not isinstance(high, list) else high
+        self.low = torch.FloatTensor(low).to(self.inputs)
+        self.high = torch.FloatTensor(high).to(self.inputs)
         alpha, beta = torch.chunk(self.inputs, 2, dim=-1)
         # Note: concentration0==beta, concentration1=alpha (!)
         self.dist = torch.distributions.Beta(
@@ -159,6 +161,12 @@ class TorchBeta(TorchDistributionWrapper):
 
     def _unsquash(self, values: TensorType) -> TensorType:
         return (values - self.low) / (self.high - self.low)
+
+    def kl(self, other: ActionDistribution) -> TensorType: # NOTE: diagonal beta
+        return torch.distributions.kl.kl_divergence(self.dist, other.dist).sum(-1)
+
+    def entropy(self) -> TensorType: # NOTE: diagonal beta
+        return self.dist.entropy().sum(-1)
 
     @staticmethod
     @override(ActionDistribution)
