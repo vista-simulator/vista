@@ -1,0 +1,64 @@
+placing-obstacle-ppo:
+  local_dir: ~/tmp
+  env: PlacingObstacle
+  run: PPO
+  num_samples: 1
+  checkpoint_freq: 50
+  checkpoint_at_end: true
+  stop:
+    episode_reward_mean: 99999
+    timesteps_total: 3e6 # 3M
+  ray_resources:
+    num_cpus: 20
+    num_gpus: 1
+  config:
+    num_workers: 10
+    num_gpus: 0.2
+    num_gpus_per_worker: 0.08
+    framework: torch
+    # environment
+    env_config:
+      trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
+      mesh_dir: ~/data/vista_mesh_lib/
+      model_path: ~/results/202103w4/obstacle-avoidance-ppo-episodic-stricter/PPO_ObstacleAvoidance_b868c_00000_ca02231_0_2021-03-23_20-13-13/checkpoint_000094/checkpoint-94
+      init_agent_range: [6, 12]
+      collision_overlap_threshold: 0.05
+      task_mode: episodic
+      respawn_distance: 15
+      wrappers: []
+      wrappers_config: null
+    observation_filter: MeanStdFilter
+    callbacks: BasicCallbacks
+    # policies
+    multiagent:
+      policies: [default_policy]
+      policies_to_train: [default_policy]
+      policy_mapping_fn: all_to_default
+    # MDP-related
+    gamma: 0.99
+    rollout_fragment_length: 200
+    # sgd-related
+    lr: 0.0002
+    lr_schedule: null
+    num_sgd_iter: 8
+    train_batch_size: 64
+    sgd_minibatch_size: 16
+    # value function
+    vf_loss_coeff: 1.0
+    vf_clip_param: 1000.0
+    # PPO-specific
+    entropy_coeff: 0.01
+    entropy_coeff_schedule: null
+    lambda: 0.95
+    kl_coeff: 0.2
+    kl_target: 0.01
+    clip_param: 0.3
+    # model
+    model:
+      vf_share_layers: true
+      fcnet_hiddens: [205, 64, 16]
+      fcnet_activation: relu
+      custom_action_dist: TorchBeta # prevent inf logprob
+      custom_action_dist_config:
+        low: -0.3
+        high: 0.3

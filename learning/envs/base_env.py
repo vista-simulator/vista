@@ -191,9 +191,20 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         """ Randomly initialize agent in the front (w.r.t. the first/reference 
             agent, which is initialized with zeros) within the range of min and 
             max distance. """
-        # sample between min and max distance
+        # sample distance, delta heading, and lateral shift
         dist = np.random.uniform(min_dist, max_dist)
 
+        if self.perturb_heading_in_random_init:
+            dtheta = np.random.uniform(-0.05, 0.05)
+        else:
+            dtheta = 0
+
+        lat_shift = np.random.choice([-1, 1]) * np.random.uniform(agent.car_width / 2., agent.car_width)
+
+        # place agent
+        self.place_agent(agent, ref_dynamics, dist, dtheta, lat_shift)
+
+    def place_agent(self, agent, ref_dynamics, dist, dtheta, lat_shift):
         # find the closest frame/index with the sampled distance
         index = agent.current_frame_index
         time = agent.get_timestamp(index)
@@ -211,14 +222,9 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             index += 1
         agent.current_frame_index = index - 1
 
-        # randomly shift in lateral direction and rotate agent's heading
-        if self.perturb_heading_in_random_init:
-            dtheta = np.random.uniform(-0.05, 0.05)
-        else:
-            dtheta = 0
+        # shift in lateral direction and rotate agent's heading
         agent.ego_dynamics.theta_state = agent.human_dynamics.theta_state + dtheta
 
-        lat_shift = np.random.choice([-1, 1]) * np.random.uniform(agent.car_width / 2., agent.car_width)
         dx = lat_shift * np.cos(agent.ego_dynamics.theta_state)
         dy = lat_shift * np.sin(agent.ego_dynamics.theta_state)
         agent.ego_dynamics.x_state = agent.human_dynamics.x_state + dx

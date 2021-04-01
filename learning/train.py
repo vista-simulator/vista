@@ -69,9 +69,20 @@ def main():
     if args.local_mode:
         exp['config']['num_workers'] = 0
 
+    # TODO: Copy config file
+
     # Register custom model and environments
     env_creator = misc.register_custom_env(exp['env'])
     misc.register_custom_model(exp['config']['model'])
+
+    # Start ray (earlier to accomodate in-the-env agent)
+    args.temp_dir = os.path.abspath(os.path.expanduser(args.temp_dir))
+    ray.init(
+        local_mode=args.local_mode,
+        _temp_dir=args.temp_dir,
+        include_dashboard=False,
+        num_cpus=exp['ray_resources']['num_cpus'],
+        num_gpus=exp['ray_resources']['num_gpus'])
 
     # Set callbacks (should be prior to setting mult-agent attribute)
     policy_manager = PolicyManager(env_creator, exp['config'])
@@ -102,15 +113,6 @@ def main():
         in exp.keys() else exp['keep_checkpoints_num']
     exp['resources_per_trial'] = None if 'resources_per_trial' not \
         in exp.keys() else exp['resources_per_trial']
-
-    # Start ray
-    args.temp_dir = os.path.abspath(os.path.expanduser(args.temp_dir))
-    ray.init(
-        local_mode=args.local_mode,
-        _temp_dir=args.temp_dir,
-        include_dashboard=False,
-        num_cpus=exp['ray_resources']['num_cpus'],
-        num_gpus=exp['ray_resources']['num_gpus'])
 
     # Run experiment
     tune.run(exp['run'],

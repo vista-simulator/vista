@@ -77,16 +77,19 @@ def register_custom_env(env_name):
 
 def register_custom_model(model_config):
     """ Register custom model in rllib. """
-    if 'custom_model' not in model_config.keys():
-        return 
-    model_config = copy.copy(model_config) # don't modify original model config
-    Model = getattr(models, model_config['custom_model'])
-    ModelCatalog.register_custom_model(model_config['custom_model'], Model)
-
-    action_dist_config = model_config.pop('custom_action_dist_config')
+    try: # TODO: hacky fix for checkpoints that doesn't save this attribute because of pop
+        action_dist_config = model_config.pop('custom_action_dist_config')
+    except:
+        action_dist_config = {'low': -0.3, 'high': 0.3}
     ActDist = getattr(models, model_config['custom_action_dist'])
     ActDist = partialclass(ActDist, **action_dist_config)
     ModelCatalog.register_custom_action_dist(model_config['custom_action_dist'], ActDist)
+
+    if 'custom_model' not in model_config.keys():
+        return 
+    # model_config = copy.copy(model_config) # don't modify original model config
+    Model = getattr(models, model_config['custom_model'])
+    ModelCatalog.register_custom_model(model_config['custom_model'], Model)
 
 
 def set_callbacks(exp, agent_ids):

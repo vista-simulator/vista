@@ -59,13 +59,15 @@ class _MultiAgentMonitor(gym.Wrapper):
 
         self.ax_obs = dict()
         self.ax_car_states = dict()
+        obs_space = self.render_observation_space if hasattr(self, 'render_observation_space')\
+            else self.observation_space
         for i, agent_id in enumerate(self.agents_with_sensor.keys()):
             this_gs = self.gs[:4, 4*i:4*(i+1)]
             self.ax_obs[agent_id] = self.fig.add_subplot(this_gs)
             self.artists['im:{}'.format(agent_id)] = self.ax_obs[agent_id].imshow(
                 self.fit_img_to_ax(self.ax_obs[agent_id], \
-                    np.zeros(list(self.observation_space.shape[:2]) + [3], \
-                        dtype=self.observation_space.dtype)))
+                    np.zeros(list(obs_space.shape[:2]) + [3], \
+                        dtype=obs_space.dtype)))
             self.ax_obs[agent_id].set_xticks([])
             self.ax_obs[agent_id].set_yticks([])
             self.ax_obs[agent_id].set_title('Init', color='white', size=20, weight='bold')
@@ -173,6 +175,7 @@ class _MultiAgentMonitor(gym.Wrapper):
         return img
 
     def get_timestamp_readonly(self, agent, index=0, current=False):
+        # TODO: use the member function in env
         index = agent.current_frame_index if current else index
         index = min(len(agent.trace.syncedLabeledTimestamps[
                 agent.current_segment_index]) - 1, index)
