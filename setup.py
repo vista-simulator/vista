@@ -7,9 +7,6 @@ from setuptools import setup, find_packages
 with open('README.rst') as readme_file:
     readme = readme_file.read()
 
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
-
 requirements = [ ]
 
 setup_requirements = [ ]
@@ -34,7 +31,6 @@ setup(
     description="Data-driven simulation for training and evaluating full-scale autonomous vehicles",
     install_requires=requirements,
     license="MIT license",
-    long_description=readme + '\n\n' + history,
     include_package_data=True,
     keywords='vista',
     name='vista',
