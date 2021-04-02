@@ -26,8 +26,8 @@ class Display:
         self.viewer = None
         self.last_gui_update = time.time()
 
-    def render(self):
-        if self.viewer is None:  # viewer is not yet created, so make the window
+    def render(self, headless=False):
+        if not headless and self.viewer is None:  # viewer is not yet created, so make the window
             for agent in self.world.agents:
                 gui_name = f"{HEADER} {agent.id}"
                 cv2.namedWindow(gui_name, cv2.WINDOW_NORMAL)
@@ -37,12 +37,14 @@ class Display:
 
         for agent in self.world.agents:
             gui = self.__draw_gui(agent)
-            cv2.imshow(f"{HEADER} {agent.id}", gui)
+            if not headless:
+                cv2.imshow(f"{HEADER} {agent.id}", gui)
 
-        gui_delta_t = time.time() - self.last_gui_update
-        timeout_ms = 1000 * max(1 / 1000., 1.0 / self.fps - gui_delta_t)
-        if cv2.waitKey(int(timeout_ms)) == ord(' '):  # pause if space clicked
-            cv2.waitKey()
+        if not headless:
+            gui_delta_t = time.time() - self.last_gui_update
+            timeout_ms = 1000 * max(1 / 1000., 1.0 / self.fps - gui_delta_t)
+            if cv2.waitKey(int(timeout_ms)) == ord(' '):  # pause if space clicked
+                cv2.waitKey()
 
         self.last_gui_update = time.time()
 
