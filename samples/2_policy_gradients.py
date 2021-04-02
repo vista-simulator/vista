@@ -31,6 +31,8 @@ def main(args):
     world = vista.World(args.trace_path)
     agent = world.spawn_agent()
     sensor = agent.spawn_camera()
+    display = vista.Display(world)
+
     model = Model(trainable=True)
     memory = Memory()
 
@@ -77,18 +79,21 @@ def main(args):
                 model.keep_prob: 1.0,
             }
             action = model.compute_action(feed, EVAL)[0][0]
-            next_full_observation, reward, crash, info = agent.step(action)
+            next_full_observation, crash = agent.step(action)
+            display.render()
+
             next_cropped_observation = preprocess(next_full_observation,
                                                   sensor)
 
             # Add to memory
+            reward = 1.0
             memory.add_to_memory(cropped_observation, [action], reward)
             step += 1
 
             # If there was a crash, episode is over. Train with the resulting
             # data if it came from a explorative run (i.e. EVAL==False)
             if crash:
-                dist += info['distance']
+                dist += agent.distance
                 ep_rs_sum = sum(memory.rewards)
 
                 reward_mean = args.alpha * reward_mean + (1 - args.alpha) * (

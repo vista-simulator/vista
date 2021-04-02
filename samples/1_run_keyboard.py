@@ -15,13 +15,18 @@ def main(args):
     agent = world.spawn_agent()
     camera = agent.spawn_camera()
 
+    # Create a graphical display
+    display = vista.Display(world)
+
     # Main running loop
     while True:
         total_reward, done = reset(world)
 
         while not done:
-            s, r, done, info = agent.step(steering_curvature)
-            total_reward += r
+            state, done = agent.step(steering_curvature)
+            display.render()
+
+            total_reward += 1.0
 
             if done:
                 print("[CRASH] Total Reward is {:+0.2f}".format(total_reward))

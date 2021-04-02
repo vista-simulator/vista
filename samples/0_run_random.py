@@ -11,17 +11,21 @@ def main(args):
     agent = world.spawn_agent()
     camera = agent.spawn_camera()
 
+    # Create a graphical display
+    display = vista.Display(world)
+
     # Main running loop
     while True:
         total_reward, done = reset(world)
 
         while not done:
             # Sample a random steering curvature action
-            a = np.random.randn() / 500.
+            action = np.random.randn() / 500.
 
-            s, r, done, info = agent.step(a)
+            state, done = agent.step(action)
+            display.render()
 
-            total_reward += r
+            total_reward += 1.0
 
             if done:
                 print("[CRASH] Total Reward is {:+0.2f}".format(total_reward))
