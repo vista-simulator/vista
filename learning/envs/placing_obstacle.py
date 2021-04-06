@@ -105,6 +105,7 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
         other_agents = [_a for _i, _a in enumerate(self.world.agents) if _i != self.ref_agent_idx]
         for agent, passed_this in zip(other_agents, self.passed):
             self.place_agent(agent, self.ref_agent.human_dynamics, self.respawn_distance, dtheta, lat_shift)
+            # TODO: do we need update_trace_and_first_time
         # run simulation for agents
         any_agent_done = False
         agent_succeed = False
