@@ -13,6 +13,8 @@ from .mesh_lib import MeshLib
 class BaseEnv(gym.Env, MultiAgentEnv):
     lower_curvature_bound = -1 / 3.
     upper_curvature_bound = 1 / 3.
+    lower_velocity_bound = 0.
+    upper_velocity_bound = 10.
     metadata = {
         'render.modes': ['rgb_array'],
         'video.frames_per_second': 10
