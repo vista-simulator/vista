@@ -174,14 +174,6 @@ class _MultiAgentMonitor(gym.Wrapper):
         img = np.asarray(buf)[:,:,:3]
         return img
 
-    def get_timestamp_readonly(self, agent, index=0, current=False):
-        # TODO: use the member function in env
-        index = agent.current_frame_index if current else index
-        index = min(len(agent.trace.syncedLabeledTimestamps[
-                agent.current_segment_index]) - 1, index)
-        return agent.trace.syncedLabeledTimestamps[
-            agent.current_segment_index][index]
-
     def plot_speedometer_pointer(self, image, speed):
         speedometer_max = 100.
         origin = (image.shape[1] // 2, image.shape[0])

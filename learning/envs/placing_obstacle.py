@@ -28,9 +28,7 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
                 dtype=np.float64)
 
         # setup observation space
-        self.road_buffer_size = 200 # unit is frame
-        self.road = deque(maxlen=self.road_buffer_size)
-        self.road_frame_index = deque(maxlen=self.road_buffer_size)
+        self.init_scene_state(200)
 
         self.render_observation_space = self.observation_space
         obs_size = self.road_buffer_size * 2 + 3 # road xy and ref agent xytheta
@@ -42,7 +40,6 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
 
         # get car agent behavior
         self.agent_behavior = self.load_agent(model_path)
-        # self.agent_behavior = lambda _x: np.array([0.0]) # DEBUG
 
         assert self.n_agents == 2, 'Only support 2 agents for now'
         
@@ -127,7 +124,6 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
             in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
             passed = [self.check_agent_pass_other(self.ref_agent, _a) for _a in other_agents]
             agent_succeed = np.all(passed) and in_lane_center
-        print('hi') # DEBUG
         self.passed = passed # used for reinit static agent in the next step
         # get step results for env agent
         observation = self.wrap_env_data(self.get_scene_state())
@@ -137,53 +133,6 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
         info = self.wrap_env_data(agent_infos)
         
         return observation, reward, done, info
-
-    def get_scene_state(self):
-        # TODO: this should be in BaseEnv
-        # update road (in global coordinate)
-        while self.road_frame_index[-1] < (self.ref_agent.current_frame_index + self.road_buffer_size / 2):
-            current_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
-            self.road_frame_index.append(self.road_frame_index[-1] + 1)
-            next_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
-            self.road_dynamics.step(curvature=self.ref_agent.trace.f_curvature(current_timestamp),
-                                    velocity=self.ref_agent.trace.f_speed(current_timestamp),
-                                    delta_t=next_timestamp - current_timestamp)
-            current_timestamp = next_timestamp
-            self.road.append(self.road_dynamics.numpy()[:2])
-
-        # update road in birds eye map (in reference agent coordinate)
-        ref_x, ref_y, ref_theta = self.ref_agent.human_dynamics.numpy()
-        road_in_ref = np.array(self.road) - np.array([ref_x, ref_y])
-        c, s = np.cos(ref_theta), np.sin(ref_theta)
-        R_T = np.array([[c, -s], [s, c]])
-        road_in_ref = np.matmul(road_in_ref, R_T)
-
-        # update agent in birds eye map (in reference agent coordinate)
-        agent_xytheta_in_ref = self.compute_relative_transform(
-            self.ref_agent.ego_dynamics, self.ref_agent.human_dynamics)
-
-        # get scene state
-        aug_road_in_ref = np.concatenate([np.zeros(\
-            (self.road_buffer_size-road_in_ref.shape[0],2)), road_in_ref])
-        scene_state = np.concatenate([aug_road_in_ref.reshape((-1,)), agent_xytheta_in_ref])
-
-        return scene_state
-
-    def reset_scene_state(self):
-        # TODO: should be in BaseEnv
-        self.road_frame_index.clear()
-        self.road_frame_index.append(self.ref_agent.current_frame_index)
-        self.road.clear()
-        self.road.append(self.ref_agent.human_dynamics.numpy()[:2])
-        self.road_dynamics = self.ref_agent.human_dynamics.copy()
-
-    def get_timestamp_readonly(self, agent, index=0, current=False):
-        # TODO: should be in BaseEnv
-        index = agent.current_frame_index if current else index
-        index = min(len(agent.trace.syncedLabeledTimestamps[
-                agent.current_segment_index]) - 1, index)
-        return agent.trace.syncedLabeledTimestamps[
-            agent.current_segment_index][index]
 
     def wrap_env_data(self, data):
         return {self.env_agent_id: data}

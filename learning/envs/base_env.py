@@ -316,6 +316,55 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             agent.car_width = self.mesh_lib.agents_meshes_dim[i][0]
             agent.car_length = self.mesh_lib.agents_meshes_dim[i][1]
 
+    def init_scene_state(self, road_buffer_size):
+        self.road_buffer_size = road_buffer_size # unit is frame
+        self.road = deque(maxlen=self.road_buffer_size)
+        self.road_frame_index = deque(maxlen=self.road_buffer_size)
+
+    def get_scene_state(self):
+        # update road (in global coordinate)
+        while self.road_frame_index[-1] < (self.ref_agent.current_frame_index + self.road_buffer_size / 2):
+            current_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
+            self.road_frame_index.append(self.road_frame_index[-1] + 1)
+            next_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
+            self.road_dynamics.step(curvature=self.ref_agent.trace.f_curvature(current_timestamp),
+                                    velocity=self.ref_agent.trace.f_speed(current_timestamp),
+                                    delta_t=next_timestamp - current_timestamp)
+            current_timestamp = next_timestamp
+            self.road.append(self.road_dynamics.numpy()[:2])
+
+        # update road in birds eye map (in reference agent coordinate)
+        ref_x, ref_y, ref_theta = self.ref_agent.human_dynamics.numpy()
+        road_in_ref = np.array(self.road) - np.array([ref_x, ref_y])
+        c, s = np.cos(ref_theta), np.sin(ref_theta)
+        R_T = np.array([[c, -s], [s, c]])
+        road_in_ref = np.matmul(road_in_ref, R_T)
+
+        # update agent in birds eye map (in reference agent coordinate)
+        agent_xytheta_in_ref = self.compute_relative_transform(
+            self.ref_agent.ego_dynamics, self.ref_agent.human_dynamics)
+
+        # get scene state
+        aug_road_in_ref = np.concatenate([np.zeros(\
+            (self.road_buffer_size-road_in_ref.shape[0],2)), road_in_ref])
+        scene_state = np.concatenate([aug_road_in_ref.reshape((-1,)), agent_xytheta_in_ref])
+
+        return scene_state
+
+    def reset_scene_state(self):
+        self.road_frame_index.clear()
+        self.road_frame_index.append(self.ref_agent.current_frame_index)
+        self.road.clear()
+        self.road.append(self.ref_agent.human_dynamics.numpy()[:2])
+        self.road_dynamics = self.ref_agent.human_dynamics.copy()
+
+    def get_timestamp_readonly(self, agent, index=0, current=False):
+        index = agent.current_frame_index if current else index
+        index = min(len(agent.trace.syncedLabeledTimestamps[
+                agent.current_segment_index]) - 1, index)
+        return agent.trace.syncedLabeledTimestamps[
+            agent.current_segment_index][index]
+
     def close(self):
         for agent in self.world.agents:
             agent.viewer = None
