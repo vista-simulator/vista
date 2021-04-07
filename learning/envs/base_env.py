@@ -2,6 +2,7 @@ import os
 import numpy as np
 import gym
 import cv2
+from collections import deque
 from shapely.geometry import box as Box
 from shapely import affinity
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
@@ -323,7 +324,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.road = deque(maxlen=self.road_buffer_size)
         self.road_frame_index = deque(maxlen=self.road_buffer_size)
 
-    def get_scene_state(self):
+    def get_scene_state(self, ref_dynamics=None, concat=True):
         # update road (in global coordinate)
         while self.road_frame_index[-1] < (self.ref_agent.current_frame_index + self.road_buffer_size / 2):
             current_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
@@ -333,31 +334,38 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                                     velocity=self.ref_agent.trace.f_speed(current_timestamp),
                                     delta_t=next_timestamp - current_timestamp)
             current_timestamp = next_timestamp
-            self.road.append(self.road_dynamics.numpy()[:2])
+            self.road.append(self.road_dynamics.numpy())
 
         # update road in birds eye map (in reference agent coordinate)
-        ref_x, ref_y, ref_theta = self.ref_agent.human_dynamics.numpy()
-        road_in_ref = np.array(self.road) - np.array([ref_x, ref_y])
+        # NOTE: custom ref_dynamics is only used for road_in_ref; self.road still use ref_agent as reference
+        ref_dynamics = self.ref_agent.human_dynamics if ref_dynamics is None else ref_dynamics
+        ref_x, ref_y, ref_theta = ref_dynamics.numpy()
+        road_in_ref = np.array(self.road)
+        road_in_ref[:,:2] -= np.array([ref_x, ref_y])
+        road_in_ref[:,2] -= ref_theta
         c, s = np.cos(ref_theta), np.sin(ref_theta)
         R_T = np.array([[c, -s], [s, c]])
-        road_in_ref = np.matmul(road_in_ref, R_T)
+        road_in_ref[:,:2] = np.matmul(road_in_ref[:,:2], R_T)
 
         # update agent in birds eye map (in reference agent coordinate)
         agent_xytheta_in_ref = self.compute_relative_transform(
-            self.ref_agent.ego_dynamics, self.ref_agent.human_dynamics)
+            self.ref_agent.ego_dynamics, ref_dynamics)
 
         # get scene state
         aug_road_in_ref = np.concatenate([np.zeros(\
-            (self.road_buffer_size-road_in_ref.shape[0],2)), road_in_ref])
+            (self.road_buffer_size-road_in_ref[:,:2].shape[0],2)), road_in_ref[:,:2]]) # NOTE: drop theta state
         scene_state = np.concatenate([aug_road_in_ref.reshape((-1,)), agent_xytheta_in_ref])
 
-        return scene_state
+        if concat:
+            return scene_state
+        else:
+            return road_in_ref, agent_xytheta_in_ref
 
     def reset_scene_state(self):
         self.road_frame_index.clear()
         self.road_frame_index.append(self.ref_agent.current_frame_index)
         self.road.clear()
-        self.road.append(self.ref_agent.human_dynamics.numpy()[:2])
+        self.road.append(self.ref_agent.human_dynamics.numpy())
         self.road_dynamics = self.ref_agent.human_dynamics.copy()
 
     def get_timestamp_readonly(self, agent, index=0, current=False):

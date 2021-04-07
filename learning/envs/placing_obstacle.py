@@ -1,6 +1,5 @@
 import os
 from functools import partial
-from collections import deque
 import gym
 import pickle5 as pickle
 import numpy as np
