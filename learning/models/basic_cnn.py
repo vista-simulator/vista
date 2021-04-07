@@ -5,7 +5,7 @@ from ray.rllib.utils.framework import get_activation_fn
 
 
 class BasicCNN(TorchModelV2, nn.Module):
-    def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+    def __init__(self, obs_space, action_space, num_outputs, model_config, name, **kwargs):
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs,
                               model_config, name)
         nn.Module.__init__(self)

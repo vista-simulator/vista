@@ -7,7 +7,7 @@ from ray.rllib.utils.framework import get_activation_fn
 
 
 class ResNet(TorchModelV2, nn.Module):
-    def __init__(self, obs_space, action_space, num_outputs, model_config, name, resnet_layer=18):
+    def __init__(self, obs_space, action_space, num_outputs, model_config, name, resnet_layer=18, **kwargs):
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs,
                               model_config, name)
         nn.Module.__init__(self)
