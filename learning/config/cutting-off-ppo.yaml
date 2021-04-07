@@ -1,0 +1,77 @@
+cutting-off-ppo:
+  local_dir: ~/tmp
+  env: CuttingOff
+  run: PPO
+  num_samples: 1
+  checkpoint_freq: 50
+  checkpoint_at_end: true
+  stop:
+    episode_reward_mean: 99999
+    timesteps_total: 3e6 # 3M
+  ray_resources:
+    num_cpus: 20
+    num_gpus: 1
+  config:
+    num_workers: 10
+    num_gpus: 0.2
+    num_gpus_per_worker: 0.08
+    framework: torch
+    # environment
+    env_config:
+      trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
+      mesh_dir: ~/data/old_vista_mesh_lib_calib/
+      init_agent_range: [6, 12] # not used
+      collision_overlap_threshold: 0.05
+      respawn_distance: 15
+      wrappers: [PreprocessObservation, StackObservation]
+      wrappers_config:
+        PreprocessObservation:
+          fx: 1
+          fy: 1
+        StackObservation:
+          frame_stack: 5
+    observation_filter: NoFilter
+    callbacks: BasicCallbacks
+    # policies
+    multiagent:
+      policies: [default_policy]
+      policies_to_train: [default_policy]
+      policy_mapping_fn: all_to_default
+    # MDP-related
+    gamma: 0.99
+    rollout_fragment_length: 200
+    # sgd-related
+    lr: 0.0002
+    lr_schedule: null
+    num_sgd_iter: 8
+    train_batch_size: 32000
+    sgd_minibatch_size: 512 # larger batch size is better
+    # value function
+    vf_loss_coeff: 1.0
+    vf_clip_param: 1000.0
+    # PPO-specific
+    entropy_coeff: 0.01
+    entropy_coeff_schedule: null
+    lambda: 0.95
+    kl_coeff: 0.2
+    kl_target: 0.01
+    clip_param: 0.3
+    # model
+    model:
+      vf_share_layers: true
+      custom_model: BasicCNN
+      conv_filters: [
+        [15, 24, 5, 2],
+        [24, 36, 5, 2], 
+        [36, 48, 3, 2], 
+        [48, 64, 3, 1], 
+        [64, 64, 3, 1]
+      ]
+      conv_activation: relu
+      fcnet_hiddens: [3456, 512, 64]
+      fcnet_activation: relu
+      custom_action_dist: TorchBeta # prevent inf logprob
+      custom_model_config:
+        custom_action_dist_config:
+          low: [-0.3, 0.]
+          high: [0.3, 10.]
