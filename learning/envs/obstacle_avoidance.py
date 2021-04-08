@@ -7,7 +7,7 @@ from .base_env import BaseEnv
 
 class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
-                 respawn_distance=15, **kwargs):
+                 respawn_distance=15, with_velocity=False, **kwargs):
         super(ObstacleAvoidance, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -15,12 +15,19 @@ class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
         self.task_mode = task_mode
         self.respawn_distance = respawn_distance
 
-        # always use curvature only as action
-        self.action_space = gym.spaces.Box(
-                low=np.array([self.lower_curvature_bound]),
-                high=np.array([self.upper_curvature_bound]),
-                shape=(1,),
+        # use curvature only or with velocity as action
+        if with_velocity:
+            self.action_space = gym.spaces.Box(
+                low=np.array([self.lower_curvature_bound, self.lower_velocity_bound]),
+                high=np.array([self.upper_curvature_bound, self.upper_velocity_bound]),
+                shape=(2,),
                 dtype=np.float64)
+        else:
+            self.action_space = gym.spaces.Box(
+                    low=np.array([self.lower_curvature_bound]),
+                    high=np.array([self.upper_curvature_bound]),
+                    shape=(1,),
+                    dtype=np.float64)
 
         self.static_action = np.array([0, 0])
 

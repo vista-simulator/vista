@@ -8,7 +8,7 @@ from .base_env import BaseEnv
 class Takeover(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
                  respawn_distance=15, speed_scale_range=[0.0, 0.8], 
-                 motion_model='random_speed', **kwargs):
+                 motion_model='random_speed', with_velocity=False, **kwargs):
         super(Takeover, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -18,13 +18,21 @@ class Takeover(BaseEnv, MultiAgentEnv):
         self.respawn_distance = respawn_distance
         self.speed_scale_range = speed_scale_range
         self.motion_model = motion_model
+        self.with_velocity = with_velocity
 
-        # always use curvature only as action
-        self.action_space = gym.spaces.Box(
-                low=np.array([self.lower_curvature_bound]),
-                high=np.array([self.upper_curvature_bound]),
-                shape=(1,),
+        # use curvature only or with velocity as action
+        if self.with_velocity:
+            self.action_space = gym.spaces.Box(
+                low=np.array([self.lower_curvature_bound, self.lower_velocity_bound]),
+                high=np.array([self.upper_curvature_bound, self.upper_velocity_bound]),
+                shape=(2,),
                 dtype=np.float64)
+        else:
+            self.action_space = gym.spaces.Box(
+                    low=np.array([self.lower_curvature_bound]),
+                    high=np.array([self.upper_curvature_bound]),
+                    shape=(1,),
+                    dtype=np.float64)
 
         assert self.n_agents == 2, 'Only support 2 agents for now'
 
@@ -75,6 +83,15 @@ class Takeover(BaseEnv, MultiAgentEnv):
                 reward[self.ref_agent_id] = np.sum(passed)
             else:
                 pass # use non-crash reward
+        if self.with_velocity:
+            origin_dist = self.ref_agent.trace.f_distance(self.ref_agent.first_time)
+            dist = self.ref_agent.trace.f_distance(self.ref_agent.get_current_timestamp()) - origin_dist
+            fail_to_catch_up = []
+            for other_agent in other_agents:
+                other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
+                too_far_behind = (other_dist - dist) > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
+                fail_to_catch_up.append(too_far_behind)
+            done[self.ref_agent_id] = done[self.ref_agent_id] or np.any(fail_to_catch_up)
         done['__all__'] = done[self.ref_agent_id]
         return observation, reward, done, info
 
