@@ -8,7 +8,8 @@ from .base_env import BaseEnv
 class Takeover(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
                  respawn_distance=15, speed_scale_range=[0.0, 0.8], 
-                 motion_model='random_speed', with_velocity=False, **kwargs):
+                 motion_model='random_speed', with_velocity=False, 
+                 target_velocity=None, **kwargs):
         super(Takeover, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -19,6 +20,7 @@ class Takeover(BaseEnv, MultiAgentEnv):
         self.speed_scale_range = speed_scale_range
         self.motion_model = motion_model
         self.with_velocity = with_velocity
+        self.target_velocity = target_velocity
 
         # use curvature only or with velocity as action
         if self.with_velocity:
@@ -84,6 +86,7 @@ class Takeover(BaseEnv, MultiAgentEnv):
             else:
                 pass # use non-crash reward
         if self.with_velocity:
+            # terminate episode if too far away behind
             origin_dist = self.ref_agent.trace.f_distance(self.ref_agent.first_time)
             dist = self.ref_agent.trace.f_distance(self.ref_agent.get_current_timestamp()) - origin_dist
             fail_to_catch_up = []
@@ -92,6 +95,13 @@ class Takeover(BaseEnv, MultiAgentEnv):
                 too_far_behind = (other_dist - dist) > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
                 fail_to_catch_up.append(too_far_behind)
             done[self.ref_agent_id] = done[self.ref_agent_id] or np.any(fail_to_catch_up)
+
+            # reward to track target speed
+            if self.target_velocity is not None:
+                ref_agent_speed = info[self.ref_agent_id]['model_velocity']
+                velo_rew = 1 - (self.target_velocity - ref_agent_speed) / self.target_velocity
+                velo_rew = np.clip(velo_rew, 0., 1.) * 0.001
+                reward[self.ref_agent_id] += velo_rew
         done['__all__'] = done[self.ref_agent_id]
         return observation, reward, done, info
 
@@ -128,10 +138,21 @@ if __name__ == "__main__":
         type=str,
         default='episodic',
         help='Task mode.')
+    parser.add_argument(
+        '--with-velocity',
+        default=False,
+        action='store_true',
+        help='Include velocity in action space.')
+    parser.add_argument(
+        '--target-velocity',
+        default=None,
+        type=float,
+        help='Target velocity.')
     args = parser.parse_args()
 
     # initialize simulator
-    env = Takeover(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[6,10])
+    env = Takeover(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[6,10],
+        with_velocity=args.with_velocity, target_velocity=args.target_velocity)
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run

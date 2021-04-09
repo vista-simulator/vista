@@ -23,6 +23,7 @@ cutting-off-ppo:
       init_agent_range: [6, 12] # not used
       collision_overlap_threshold: 0.05
       respawn_distance: 15
+      target_velocity: 8
       wrappers: [PreprocessObservation, StackObservation]
       wrappers_config:
         PreprocessObservation:

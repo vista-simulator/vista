@@ -6,11 +6,12 @@ from .base_env import BaseEnv
 
 
 class CuttingOff(BaseEnv, MultiAgentEnv):
-    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, **kwargs):
+    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, target_velocity=None, **kwargs):
         super(CuttingOff, self).__init__(trace_paths, n_agents=3, 
             mesh_dir=mesh_dir, **kwargs)
 
         self.respawn_distance = respawn_distance
+        self.target_velocity = target_velocity
 
         # include velocity
         self.action_space = gym.spaces.Box(
@@ -172,17 +173,37 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
                 action[agent_id] = np.array([curvature, speed])
             else:
                 raise ValueError('Invalid agent ID {}'.format(agent_id))
+        
         # step environment
         observation, reward, done, info = map(self.wrap_data, super().step(action))
         self.observation_for_render = self.wrap_data(self.observation_for_render)
+
         # define reward and terminal condition (passing nominal agent and back to lane)
         other_agents = [_a for _i, _a in enumerate(self.world.agents) if _i != self.ref_agent_idx]
         passed = [self.check_agent_pass_other(self.ref_agent, _a) for _a in other_agents]
         in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
 
         done[self.ref_agent_id] = (in_lane_center and passed[1]) or done[self.ref_agent_id]
-        done['__all__'] = done[self.ref_agent_id]
         reward[self.ref_agent_id] = np.sum(passed) if done[self.ref_agent_id] else 0
+
+        # terminate episode if too far away behind
+        origin_dist = self.ref_agent.trace.f_distance(self.ref_agent.first_time)
+        dist = self.ref_agent.trace.f_distance(self.ref_agent.get_current_timestamp()) - origin_dist
+        fail_to_catch_up = []
+        for other_agent in other_agents:
+            other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
+            too_far_behind = (other_dist - dist) > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
+            fail_to_catch_up.append(too_far_behind)
+        done[self.ref_agent_id] = done[self.ref_agent_id] or np.any(fail_to_catch_up)
+
+        # reward to track target speed
+        if self.target_velocity is not None:
+            ref_agent_speed = info[self.ref_agent_id]['model_velocity']
+            velo_rew = 1 - (self.target_velocity - ref_agent_speed) / self.target_velocity
+            velo_rew = np.clip(velo_rew, 0., 1.) * 0.001
+            reward[self.ref_agent_id] += velo_rew
+
+        done['__all__'] = done[self.ref_agent_id]
 
         return observation, reward, done, info
 
@@ -214,10 +235,16 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help='Directory of agents\' meshes.')
+    parser.add_argument(
+        '--target-velocity',
+        default=None,
+        type=float,
+        help='Target velocity.')
     args = parser.parse_args()
 
     # initialize simulator
-    env = CuttingOff(args.trace_paths, args.mesh_dir, init_agent_range=[6,12], respawn_distance=10)
+    env = CuttingOff(args.trace_paths, args.mesh_dir, init_agent_range=[6,12], 
+        respawn_distance=10, target_velocity=args.target_velocity)
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run
