@@ -276,3 +276,96 @@ class StackObservation(gym.ObservationWrapper, MultiAgentEnv):
                 self.frame_deque[k].append(obs)
             observation[k] = np.concatenate([v for v in self.frame_deque[k]], axis=2)
         return observation
+
+
+class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
+    def __init__(self, env, d_curvature_bound=[-5.,5.], d_velocity_bound=[-15.,15.]):
+        # NOTE: should be outter wrapper
+        super(ContinuousKinematic, self).__init__(env)
+
+        # define action space
+        if self.env.action_space.shape[0] == 1:
+            self.action_space = gym.spaces.Box(
+                    low=np.array([d_curvature_bound[0]]),
+                    high=np.array([d_curvature_bound[1]]),
+                    shape=(1,),
+                    dtype=np.float64)
+        elif self.env.action_space.shape[0] == 2:
+            self.action_space = gym.spaces.Box(
+                    low=np.array([d_curvature_bound[0], d_velocity_bound[0]]),
+                    high=np.array([d_curvature_bound[1], d_velocity_bound[1]]),
+                    shape=(2,),
+                    dtype=np.float64)
+        else:
+            raise ValueError('Action space of shape {} is not supported'.format(self.env.action_space.shape))
+        self.d_curvature_bound = d_curvature_bound
+        self.d_velocity_bound = d_velocity_bound
+
+        # define augmented observation space
+        self.observation_space = gym.spaces.Tuple([
+            self.env.observation_space,
+            gym.spaces.Box( # normalized to -1~1
+                low=-np.ones((2,)),
+                high=np.ones((2,)),
+                shape=(2,),
+                dtype=np.float64)
+        ])
+
+        # track vehicle state
+        self.vehicle_state = {k: [None, None] for k in self.controllable_agents.keys()}
+        self.delta_t = 1 / 30. # TODO: hardcoded
+
+    def reset(self, **kwargs):
+        # regular reset
+        observation = super().reset(**kwargs)
+
+        # augment vehicle state (didn't check if agent is controllable)
+        for agent_id, obs in observation.items():
+            agent_idx = self.agent_ids.index(agent_id)
+            agent = self.world.agents[agent_idx]
+
+            current_ts = self.get_timestamp_readonly(agent, current=True)
+            self.vehicle_state[agent_id][0] = 0. 
+            self.vehicle_state[agent_id][1] = agent.trace.f_speed(current_ts) # start with non-zero velocity
+
+            veh_state_obs = self._standardize_veh_state(*self.vehicle_state[agent_id])
+
+            observation[agent_id] = [obs, veh_state_obs]
+
+        return observation
+
+    def step(self, action):
+        for agent_id, act in action.items():
+            agent = self.controllable_agents[agent_id]
+            action[agent_id] = self._integrator(act, agent_id)
+
+        observation, reward, done, info = super().step(action)
+        
+        # augment vehicle state
+        for agent_id, obs in observation.items():
+            self.vehicle_state[agent_id][0] = info[agent_id]['model_curvature']
+            self.vehicle_state[agent_id][1] = info[agent_id]['model_velocity']
+
+            veh_state_obs = self._standardize_veh_state(*self.vehicle_state[agent_id])
+
+            observation[agent_id] = [obs, veh_state_obs]
+
+        return observation, reward, done, info
+
+    def _integrator(self, act, agent_id):
+        self.vehicle_state[agent_id] += act * self.delta_t
+        self.vehicle_state[agent_id] = np.clip(
+            self.vehicle_state[agent_id],
+            np.array([self.lower_curvature_bound, self.lower_velocity_bound]),
+            np.array([self.upper_curvature_bound, self.upper_velocity_bound])
+        )
+        return self.vehicle_state[agent_id]
+
+    def _standardize_veh_state(self, curvature, velocity):
+        def _standardize(_x, _lb, _ub):
+            _midpt = (_lb + _ub) / 2.
+            _norm = (_ub - _lb) / 2.
+            return (_x - _midpt) / _norm
+        curvature = _standardize(curvature, self.lower_curvature_bound, self.upper_curvature_bound)
+        velocity = _standardize(velocity, self.lower_velocity_bound, self.upper_velocity_bound)
+        return np.array([curvature, velocity])

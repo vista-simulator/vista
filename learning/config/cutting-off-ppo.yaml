@@ -23,14 +23,17 @@ cutting-off-ppo:
       init_agent_range: [6, 12] # not used
       collision_overlap_threshold: 0.05
       respawn_distance: 15
-      target_velocity: 8
-      wrappers: [PreprocessObservation, StackObservation]
+      target_velocity: 12
+      wrappers: [PreprocessObservation, StackObservation, ContinuousKinematic]
       wrappers_config:
         PreprocessObservation:
           fx: 1
           fy: 1
         StackObservation:
           frame_stack: 5
+        ContinuousKinematic:
+          d_curvature_bound: [-5., 5.]
+          d_velocity_bound: [-15., 15.]
     observation_filter: NoFilter
     callbacks: BasicCallbacks
     # policies
@@ -60,7 +63,7 @@ cutting-off-ppo:
     # model
     model:
       vf_share_layers: true
-      custom_model: BasicCNN
+      custom_model: TwoBranch
       conv_filters: [
         [15, 24, 5, 2],
         [24, 36, 5, 2], 
@@ -73,6 +76,8 @@ cutting-off-ppo:
       fcnet_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
-        custom_action_dist_config:
-          low: [-0.3, 0.]
-          high: [0.3, 10.]
+        custom_action_dist_config: # NOTE: should carefully set this if use continuous kinematics
+          low: [-5., -15.]
+          high: [5., 15.]
+        merge_fcnet_hiddens: [66, 64] # first element must be fcnet_hiddens[-1] + 2 (vehicle states)
+        merge_fcnet_activation: relu
