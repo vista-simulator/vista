@@ -8,6 +8,7 @@ from ray.tune.experiment import Experiment
 
 import misc
 from policies import PolicyManager
+from trainers import get_trainer_class
 
 
 def parse_args():
@@ -114,8 +115,11 @@ def main():
     exp['resources_per_trial'] = None if 'resources_per_trial' not \
         in exp.keys() else exp['resources_per_trial']
 
+    # Get trainer
+    trainer = get_trainer_class(exp['run'])
+
     # Run experiment
-    tune.run(exp['run'],
+    tune.run(trainer,
              name=exp_names[0],
              stop=exp['stop'],
              config=exp['config'],

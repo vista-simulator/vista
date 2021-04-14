@@ -13,18 +13,26 @@ from .obstacle_avoidance import ObstacleAvoidance
 
 class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
-                 model_path=None, respawn_distance=15, **kwargs):
+                 model_path=None, respawn_distance=15, constrained=True, **kwargs):
         super(PlacingObstacle, self).__init__(trace_paths, mesh_dir=mesh_dir, 
             task_mode=task_mode, respawn_distance=respawn_distance, **kwargs)
 
         self.env_agent_id = 'env_agent_0'
 
         # action space is defined by how we can place obstacles
-        self.action_space = gym.spaces.Box(
-                low=np.array([-0.05, -self.ref_agent.car_width / 2.]),
-                high=np.array([0.05, self.ref_agent.car_width / 2.]),
-                shape=(2,),
-                dtype=np.float64)
+        self.constrained = constrained
+        if self.constrained:
+            self.action_space = gym.spaces.Box(
+                    low=np.array([-0.05, -self.ref_agent.car_width / 2.]),
+                    high=np.array([0.05, self.ref_agent.car_width / 2.]),
+                    shape=(2,),
+                    dtype=np.float64)
+        else:
+            self.action_space = gym.spaces.Box(
+                    low=np.array([-0.1, -self.ref_agent.car_width]),
+                    high=np.array([0.1, self.ref_agent.car_width]),
+                    shape=(2,),
+                    dtype=np.float64)
 
         # setup observation space
         self.init_scene_state(200)
@@ -97,10 +105,11 @@ class PlacingObstacle(ObstacleAvoidance, MultiAgentEnv):
     def step(self, action):
         # env agent takes action only when the static agent is passed and required to be reinit
         dtheta, lat_shift = action[self.env_agent_id]
-        if lat_shift >= 0:
-            lat_shift += self.ref_agent.car_width / 2.
-        else:
-            lat_shift -= self.ref_agent.car_width / 2.
+        if self.constrained:
+            if lat_shift >= 0:
+                lat_shift += self.ref_agent.car_width / 2.
+            else:
+                lat_shift -= self.ref_agent.car_width / 2.
         other_agents = [_a for _i, _a in enumerate(self.world.agents) if _i != self.ref_agent_idx]
         for agent, passed_this in zip(other_agents, self.passed):
             self.place_agent(agent, self.ref_agent.human_dynamics, self.respawn_distance, dtheta, lat_shift)
