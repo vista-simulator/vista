@@ -305,8 +305,8 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
         self.observation_space = gym.spaces.Tuple([
             self.env.observation_space,
             gym.spaces.Box( # normalized to -1~1
-                low=-np.ones((2,)),
-                high=np.ones((2,)),
+                low=-2*np.ones((2,)), # NOTE: make sure pass boundary check
+                high=2*np.ones((2,)),
                 shape=(2,),
                 dtype=np.float64)
         ])
@@ -365,7 +365,7 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
         def _standardize(_x, _lb, _ub):
             _midpt = (_lb + _ub) / 2.
             _norm = (_ub - _lb) / 2.
-            return (_x - _midpt) / _norm
+            return (_x - _midpt) / (_norm + 1e-8)
         curvature = _standardize(curvature, self.lower_curvature_bound, self.upper_curvature_bound)
         velocity = _standardize(velocity, self.lower_velocity_bound, self.upper_velocity_bound)
         return np.array([curvature, velocity])
