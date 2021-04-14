@@ -121,8 +121,8 @@ def custom_before_loss_init(policy: Policy, obs_space: gym.spaces.Space,
 
     policy.prior_coeff = config['prior_coeff']
     policy.prior = [
-        torch.distributions.normal.Normal(0, 1/8.),
-        torch.distributions.normal.Normal(7./8, 1./16)
+        torch.distributions.normal.Normal(0, 1/8.), # dtheta [-0.1, 0.1] -> [-0.05, 0.05]
+        torch.distributions.normal.Normal(7./8, 1./16) # lat shift [-w, w] -> [w/2, w]
     ]
 
 
