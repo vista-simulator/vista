@@ -135,7 +135,7 @@ class _MultiAgentMonitor(gym.Wrapper):
                 text = 'Running'
             self.ax_obs[agent_id].set_title(text, color='white', size=20, weight='bold')
             self.artists['im:{}'.format(agent_id)].set_data(self.fit_img_to_ax(
-                self.ax_obs[agent_id], obs[:,:,-3:][:,:,::-1])) # handle stacked frames
+                self.ax_obs[agent_id], self.obs_for_render(obs)[:,:,-3:][:,:,::-1])) # handle stacked frames
 
         # add speed and steering wheel
         for agent_id, agent in self.agents_with_sensor.items():
@@ -310,6 +310,7 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
                 shape=(2,),
                 dtype=np.float64)
         ])
+        self.render_observation_space = self.observation_space[0]
 
         # track vehicle state
         self.vehicle_state = {k: [None, None] for k in self.controllable_agents.keys()}
@@ -351,6 +352,9 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
             observation[agent_id] = [obs, veh_state_obs]
 
         return observation, reward, done, info
+
+    def obs_for_render(self, obs):
+        return obs[0]
 
     def _integrator(self, act, agent_id):
         self.vehicle_state[agent_id] += act * self.delta_t
