@@ -15,7 +15,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
     lower_curvature_bound = -1 / 3.
     upper_curvature_bound = 1 / 3.
     lower_velocity_bound = 0.
-    upper_velocity_bound = 10.
+    upper_velocity_bound = 15.
     metadata = {
         'render.modes': ['rgb_array'],
         'video.frames_per_second': 10
@@ -324,17 +324,18 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.road = deque(maxlen=self.road_buffer_size)
         self.road_frame_index = deque(maxlen=self.road_buffer_size)
 
-    def get_scene_state(self, ref_dynamics=None, concat=True):
+    def get_scene_state(self, ref_dynamics=None, concat=True, update=True):
         # update road (in global coordinate)
-        while self.road_frame_index[-1] < (self.ref_agent.current_frame_index + self.road_buffer_size / 2):
-            current_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
-            self.road_frame_index.append(self.road_frame_index[-1] + 1)
-            next_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
-            self.road_dynamics.step(curvature=self.ref_agent.trace.f_curvature(current_timestamp),
-                                    velocity=self.ref_agent.trace.f_speed(current_timestamp),
-                                    delta_t=next_timestamp - current_timestamp)
-            current_timestamp = next_timestamp
-            self.road.append(self.road_dynamics.numpy())
+        if update:
+            while self.road_frame_index[-1] < (self.ref_agent.current_frame_index + self.road_buffer_size / 2):
+                current_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
+                self.road_frame_index.append(self.road_frame_index[-1] + 1)
+                next_timestamp = self.get_timestamp_readonly(self.ref_agent, self.road_frame_index[-1])
+                self.road_dynamics.step(curvature=self.ref_agent.trace.f_curvature(current_timestamp),
+                                        velocity=self.ref_agent.trace.f_speed(current_timestamp),
+                                        delta_t=next_timestamp - current_timestamp)
+                current_timestamp = next_timestamp
+                self.road.append(self.road_dynamics.numpy())
 
         # update road in birds eye map (in reference agent coordinate)
         # NOTE: custom ref_dynamics is only used for road_in_ref; self.road still use ref_agent as reference
