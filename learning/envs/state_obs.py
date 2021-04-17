@@ -34,8 +34,8 @@ def StateObs(task, **kwargs):
                 dtype=np.uint8)
             obs_size = self.road_buffer_size * 2 + 5 * self.n_agents # road xy and agent xytheta + velocity + curvature
             self.observation_space = gym.spaces.Box(
-                low=-50., # NOTE: hardcoded bound for birdseye map range
-                high=50.,
+                low=-100., # NOTE: hardcoded bound for birdseye map range
+                high=100.,
                 shape=(obs_size,),
                 dtype=np.float64)
 
