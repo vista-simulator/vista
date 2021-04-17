@@ -125,8 +125,9 @@ class _MultiAgentMonitor(gym.Wrapper):
             self.update_patch(self.ax_birdseye, 'patch:{}'.format(agent_id), patch)
         
         # update observation
-        for agent_id, obs in self.observation_for_render.items():
+        for agent_id in self.agents_with_sensor.keys():
             i = self.agent_ids.index(agent_id)
+            obs = self.observation_for_render[agent_id]
             if self.crash_to_others[i]:
                 text = 'Crash Into Another Car'
             elif self.world.agents[i].isCrashed:
@@ -373,3 +374,26 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
         curvature = _standardize(curvature, self.lower_curvature_bound, self.upper_curvature_bound)
         velocity = _standardize(velocity, self.lower_velocity_bound, self.upper_velocity_bound)
         return np.array([curvature, velocity])
+
+
+class DistanceReward(gym.Wrapper, MultiAgentEnv):
+    def __init__(self, env, reward_coef=1.0):
+        super(DistanceReward, self).__init__(env)
+        self.prev_distance = None
+        self.reward_coef = reward_coef
+
+    def reset(self, **kwargs):
+        self.prev_distance = {k: 0. for k in self.controllable_agents.keys()}
+        return super().reset(**kwargs)
+
+    def step(self, action):
+        observation, reward, done, info = super().step(action)
+        for k, v in info.items():
+            delta_distance = v['distance'] - self.prev_distance[k]
+            if self.reward_coef in ['inf', np.inf]:
+                reward[k] = delta_distance
+            else:
+                reward[k] += self.reward_coef * delta_distance
+            assert delta_distance >= 0 # sanity check
+            self.prev_distance[k] = v['distance']
+        return observation, reward, done, info

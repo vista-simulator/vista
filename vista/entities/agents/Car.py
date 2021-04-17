@@ -103,7 +103,10 @@ class Car(Entity):
                            self.trace.f_distance(self.first_time)
         info["done"] = self.isCrashed
 
-        done = self.isCrashed
+        self.model_curvature = model_curvature
+        self.model_velocity = model_velocity
+
+        done = self.isCrashed or self.trace_done
 
         step_reward = 1.0 if not done else 0.0  # simple reward function +1 if not crashed
         self.reward += step_reward
@@ -118,7 +121,7 @@ class Car(Entity):
         # NOTE: this implementation will cause issue if agent has memory. Also it accumulates reward
         # accross episode. Need a way to connect trace ending and starting point.
         if self.trace_done:
-            translated_frame = self.reset()
+            pass # otherwise will cause incorrect computation of scene state | translated_frame = self.reset()
         return observations
 
     def get_timestamp(self, index):

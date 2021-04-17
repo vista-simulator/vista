@@ -20,6 +20,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         'render.modes': ['rgb_array'],
         'video.frames_per_second': 10
     }
+    drop_obs_space_def = False
 
     def __init__(self, trace_paths, n_agents=1, mesh_dir=None, 
                  collision_overlap_threshold=0.2,
@@ -46,12 +47,13 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.crash_to_others = [False] * self.n_agents
 
         # NOTE: only support the same observation space across all agents now
-        cam = self.world.agents[self.ref_agent_idx].sensors[0].camera
-        self.observation_space = gym.spaces.Box(
-            low=0,
-            high=255,
-            shape=(cam.get_height(), cam.get_width(), 3),
-            dtype=np.uint8)
+        if not self.drop_obs_space_def:
+            cam = self.world.agents[self.ref_agent_idx].sensors[0].camera
+            self.observation_space = gym.spaces.Box(
+                low=0,
+                high=255,
+                shape=(cam.get_height(), cam.get_width(), 3),
+                dtype=np.uint8)
 
         # TODO: include velocity/acceleration
         self.action_space = gym.spaces.Box(
