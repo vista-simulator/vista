@@ -6,12 +6,14 @@ from .base_env import BaseEnv
 
 
 class CuttingOff(BaseEnv, MultiAgentEnv):
-    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, target_velocity=None, **kwargs):
+    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
+                 target_velocity=None, n_passed_reward=True, **kwargs):
         super(CuttingOff, self).__init__(trace_paths, n_agents=3, 
             mesh_dir=mesh_dir, **kwargs)
 
         self.respawn_distance = respawn_distance
         self.target_velocity = target_velocity
+        self.n_passed_reward = n_passed_reward
 
         # include velocity
         self.action_space = gym.spaces.Box(
@@ -183,8 +185,18 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         passed = [self.check_agent_pass_other(self.ref_agent, _a) for _a in other_agents]
         in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
 
-        done[self.ref_agent_id] = (in_lane_center and passed[1]) or done[self.ref_agent_id]
+        nominal_agent_idx = self.agent_ids.index(self.special_agent_ids['nominal'])
+        done[self.ref_agent_id] = (in_lane_center and passed[nominal_agent_idx]) or done[self.ref_agent_id]
         reward[self.ref_agent_id] = np.sum(passed) if done[self.ref_agent_id] else 0
+        if not self.n_passed_reward:
+            reward[self.ref_agent_id] = float(reward[self.ref_agent_id] > 0)
+        if False: # DEBUG: penalize too close to the cutting off agent
+            if self.cutting_off_cnt > 0: # performing cutting-off
+                cutting_off_agent = self.world.agents[self.agent_ids.index(self.special_agent_ids['cutting_off'])]
+                cutting_off_xy = cutting_off_agent.ego_dynamics.numpy()[:2]
+                ego_xy = self.ref_agent.ego_dynamics.numpy()[:2]
+                ego_to_cutting_off_dist = np.linalg.norm(ego_xy - cutting_off_xy)
+                reward[self.ref_agent_id] += -float(max(0., 1.-ego_to_cutting_off_dist))
 
         # terminate episode if too far away behind
         origin_dist = self.ref_agent.trace.f_distance(self.ref_agent.first_time)

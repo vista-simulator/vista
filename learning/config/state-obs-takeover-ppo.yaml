@@ -5,6 +5,7 @@ state-obs-takeover-ppo:
   num_samples: 1
   checkpoint_freq: 10
   checkpoint_at_end: true
+  restore: ~/results/202104w4/state-obs-takeover-ppo/PPO_StateObs_74a88_00000_b5032d1_0_2021-04-17_01-19-17/checkpoint_000094/checkpoint-94 # DEBUG
   stop:
     episode_reward_mean: 99999
     timesteps_total: 3e6 # 3M
@@ -67,6 +68,7 @@ state-obs-takeover-ppo:
       fcnet_hiddens: [256, 128, 64]
       fcnet_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
-      custom_action_dist_config:
-        low: [-5., -15.]
-        high: [5., 15.]
+      custom_model_config:
+        custom_action_dist_config:
+          low: [-5., -15.]
+          high: [5., 15.]
