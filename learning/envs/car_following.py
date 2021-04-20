@@ -8,11 +8,13 @@ from .takeover import Takeover
 
 class CarFollowing(Takeover, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15,
-                 motion_model='random_speed', speed_scale_range=[0.0, 0.8], **kwargs):
+                 motion_model='random_speed', speed_scale_range=[0.0, 0.8], 
+                 in_range_mul=[1.1, 1.5], **kwargs):
         super(CarFollowing, self).__init__(trace_paths, mesh_dir=mesh_dir, 
             task_mode='episodic', respawn_distance=respawn_distance, 
             speed_scale_range=speed_scale_range, motion_model=motion_model,
             with_velocity=True, **kwargs)
+        self.in_range_mul = in_range_mul
 
     def step(self, action):
         observation, reward, done, info = super().step(action)
@@ -23,7 +25,8 @@ class CarFollowing(Takeover, MultiAgentEnv):
 
         dist_to_other = np.linalg.norm(other_agent.ego_dynamics.numpy()[:2]-self.ref_agent.ego_dynamics.numpy()[:2])
         min_dist = (other_agent.car_length + self.ref_agent.car_length) / 2.
-        in_range = dist_to_other < (min_dist * 1.5) and dist_to_other > (min_dist * 1.1) and not passed
+        in_range = dist_to_other < (min_dist * self.in_range_mul[1]) and \
+            dist_to_other > (min_dist * self.in_range_mul[0]) and not passed
 
         reward[self.ref_agent_id] = 0.01 if in_range and in_lane_center else 0.
         done[self.ref_agent_id] = done[self.ref_agent_id] or passed

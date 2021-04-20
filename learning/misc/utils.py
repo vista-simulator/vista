@@ -83,7 +83,8 @@ def register_custom_model(model_config):
         try:
             action_dist_config = model_config.pop('custom_action_dist_config')
         except:
-            action_dist_config = {'low': -0.3, 'high': 0.3}
+            print('[!!!!!!!!!!!!!!!!!!!!] Use hardcoded action distribution config')
+            action_dist_config = {'low': [-5., -15.], 'high': [5., 15.]}
     ActDist = getattr(models, model_config['custom_action_dist'])
     ActDist = partialclass(ActDist, **action_dist_config)
     ModelCatalog.register_custom_action_dist(model_config['custom_action_dist'], ActDist)

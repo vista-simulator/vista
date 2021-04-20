@@ -7,13 +7,16 @@ from .base_env import BaseEnv
 
 class CuttingOff(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
-                 target_velocity=None, n_passed_reward=True, **kwargs):
+                 target_velocity=None, n_passed_reward=True, car_following_bonus=0., 
+                 **kwargs):
         super(CuttingOff, self).__init__(trace_paths, n_agents=3, 
             mesh_dir=mesh_dir, **kwargs)
 
         self.respawn_distance = respawn_distance
         self.target_velocity = target_velocity
         self.n_passed_reward = n_passed_reward
+        self.car_following_bonus = car_following_bonus
+        self.extra_obs = np.zeros((3,))
 
         # include velocity
         self.action_space = gym.spaces.Box(
@@ -100,6 +103,7 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         # wrap data
         observation = {self.ref_agent_id: observation[self.ref_agent_idx]}
         self.observation_for_render = observation # for render
+        self.extra_obs = np.array([float(False), float(False), float(False)])
 
         # reset road
         self.reset_scene_state()
@@ -129,8 +133,12 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
 
                 pose_to_ref = self.compute_relative_transform(self.ref_agent.ego_dynamics, agent.ego_dynamics)
                 yield_to_ref = pose_to_ref[1] > (-agent.car_length / 2.)
+                commit_to_cutting_off = (self.cutting_off_cnt * speed) > 50
+
+                self.extra_obs = np.array([float(perform_cutting_off), float(yield_to_ref), float(commit_to_cutting_off)])
 
                 speed = self.situation['cutting_off']['base_speed']
+                too_close = dist_to_nominal <= 1.2 * (agent.car_length + nominal_agent.car_length) / 2.
                 if perform_cutting_off:
                     lookahead_dist = 5
                     dt = 1 / 30.
@@ -146,9 +154,10 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
                         tgt_idx = np.argmin(np.abs(dist - lookahead_dist))
                         dx, dy, dtheta = road_in_agent[tgt_idx]
 
-                        commit_to_cutting_off = (self.cutting_off_cnt * speed) > 50
                         if yield_to_ref and not commit_to_cutting_off: # back to original trajectory
                             lat_shift = self.situation['cutting_off']['lat_shift']
+                            if too_close: # slow down when too close to the front car
+                                speed = self.situation['nominal']['base_speed']
                         else:
                             left_or_right = -1 if self.situation['nominal']['lat_shift'] > 0 else 1
                             lat_shift = left_or_right * agent.car_width / 2.
@@ -167,7 +176,6 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
                 else: # follow nominal trajectory
                     current_timestamp = agent.get_current_timestamp()
                     curvature = agent.trace.f_curvature(current_timestamp)
-                    too_close = dist_to_nominal <= 1.2 * (agent.car_length + nominal_agent.car_length) / 2.
                     if too_close: # slow down when too close to the front car
                         speed = self.situation['nominal']['base_speed']
 
@@ -189,22 +197,27 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         done[self.ref_agent_id] = (in_lane_center and passed[nominal_agent_idx]) or done[self.ref_agent_id]
         reward[self.ref_agent_id] = np.sum(passed) if done[self.ref_agent_id] else 0
         if not self.n_passed_reward:
-            reward[self.ref_agent_id] = float(reward[self.ref_agent_id] > 0)
-        if False: # DEBUG: penalize too close to the cutting off agent
-            if self.cutting_off_cnt > 0: # performing cutting-off
-                cutting_off_agent = self.world.agents[self.agent_ids.index(self.special_agent_ids['cutting_off'])]
-                cutting_off_xy = cutting_off_agent.ego_dynamics.numpy()[:2]
-                ego_xy = self.ref_agent.ego_dynamics.numpy()[:2]
-                ego_to_cutting_off_dist = np.linalg.norm(ego_xy - cutting_off_xy)
-                reward[self.ref_agent_id] += -float(max(0., 1.-ego_to_cutting_off_dist))
+            reward[self.ref_agent_id] = float(passed[nominal_agent_idx-1]) if done[self.ref_agent_id] else 0
+        if self.car_following_bonus and (perform_cutting_off and not yield_to_ref or commit_to_cutting_off):
+            in_range_mul = [1.1, 1.5]
+            cutting_off_agent_idx = self.agent_ids.index(self.special_agent_ids['cutting_off'])
+            cutting_off_agent = self.world.agents[cutting_off_agent_idx]
+            dist_to_other = np.linalg.norm(cutting_off_agent.ego_dynamics.numpy()[:2]-self.ref_agent.ego_dynamics.numpy()[:2])
+            min_dist = (cutting_off_agent.car_length + self.ref_agent.car_length) / 2.
+            in_range = dist_to_other < (min_dist * in_range_mul[1]) and \
+                dist_to_other > (min_dist * in_range_mul[0]) and not passed[cutting_off_agent_idx-1]
+            bonus = 1 if in_range else 0.
+            reward[self.ref_agent_id] += self.car_following_bonus * bonus
 
         # terminate episode if too far away behind
-        origin_dist = self.ref_agent.trace.f_distance(self.ref_agent.first_time)
-        dist = self.ref_agent.trace.f_distance(self.ref_agent.get_current_timestamp()) - origin_dist
+        # origin_dist = self.ref_agent.trace.f_distance(self.ref_agent.first_time)
+        # dist = self.ref_agent.trace.f_distance(self.ref_agent.get_current_timestamp()) - origin_dist
         fail_to_catch_up = []
         for other_agent in other_agents:
-            other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
-            too_far_behind = (other_dist - dist) > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
+            # other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
+            # too_far_behind = (other_dist - dist) > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
+            dist_to_other = np.linalg.norm(self.ref_agent.ego_dynamics.numpy()[:2] - other_agent.ego_dynamics.numpy()[:2])
+            too_far_behind = dist_to_other > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
             fail_to_catch_up.append(too_far_behind)
         done[self.ref_agent_id] = done[self.ref_agent_id] or np.any(fail_to_catch_up)
 

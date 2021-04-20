@@ -14,9 +14,11 @@ from . import *
 def StateObs(task, **kwargs):
     task = globals()[task]
     class _StateObs(task, MultiAgentEnv):
-        def __init__(self, **kwargs):
+        def __init__(self, aug_extra_obs=False, **kwargs):
             self.drop_obs_space_def = True
             super(_StateObs, self).__init__(**kwargs)
+
+            self.aug_extra_obs = aug_extra_obs
 
             controllable_agent_ids = list(self.controllable_agents.keys())
             assert len(controllable_agent_ids) == 1 and controllable_agent_ids[0] == self.ref_agent_id, \
@@ -33,6 +35,8 @@ def StateObs(task, **kwargs):
                 shape=(self.fake_cam_height, self.fake_cam_width, 3),
                 dtype=np.uint8)
             obs_size = self.road_buffer_size * 2 + 5 * self.n_agents # road xy and agent xytheta + velocity + curvature
+            if self.aug_extra_obs and hasattr(self, 'extra_obs'):
+                obs_size += self.extra_obs.shape[0]
             self.observation_space = gym.spaces.Box(
                 low=-100., # NOTE: hardcoded bound for birdseye map range
                 high=100.,
@@ -56,6 +60,8 @@ def StateObs(task, **kwargs):
             for agent_id, agent in zip(self.agent_ids, self.world.agents):
                 self.vehicle_states[agent_id] = np.array([get_human_curvature(agent)[0], get_human_speed(agent)[0]])
             observation = self.get_state_obs()
+            if self.aug_extra_obs and hasattr(self, 'extra_obs'):
+                observation[self.ref_agent_id] = np.concatenate([observation[self.ref_agent_id], self.extra_obs])
 
             return observation
 
@@ -66,6 +72,8 @@ def StateObs(task, **kwargs):
             for agent_id, agent in zip(self.agent_ids, self.world.agents):
                 self.vehicle_states[agent_id] = np.array([agent.model_curvature, agent.model_velocity])
             observation = self.get_state_obs()
+            if self.aug_extra_obs and hasattr(self, 'extra_obs'):
+                observation[self.ref_agent_id] = np.concatenate([observation[self.ref_agent_id], self.extra_obs])
             done['__all__'] = done_all
             return observation, reward, done, info
 
