@@ -13,7 +13,7 @@ CUSTOM_ALGORITHMS = {
 
 def get_trainer_class(alg: str, return_config=False) -> type:
     if alg in ALGORITHMS.keys():
-        class_, config = ALGORITHMS[alg]()
+        class_ = ALGORITHMS[alg]()
     elif alg in CUSTOM_ALGORITHMS:
         class_, config = CUSTOM_ALGORITHMS[alg]()
     else:
