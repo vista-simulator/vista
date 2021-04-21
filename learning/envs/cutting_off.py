@@ -8,7 +8,7 @@ from .base_env import BaseEnv
 class CuttingOff(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
                  target_velocity=None, n_passed_reward=True, car_following_bonus=0., 
-                 **kwargs):
+                 cutoff_immediately=False, cutoff_at_reset_prob=None, **kwargs):
         super(CuttingOff, self).__init__(trace_paths, n_agents=3, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -16,6 +16,10 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         self.target_velocity = target_velocity
         self.n_passed_reward = n_passed_reward
         self.car_following_bonus = car_following_bonus
+        self.cutoff_immediately = cutoff_immediately
+        self.cutoff_at_reset_prob = cutoff_at_reset_prob
+        if self.cutoff_at_reset_prob is not None:
+            assert self.cutoff_immediately
         self.extra_obs = np.zeros((3,))
 
         # include velocity
@@ -54,6 +58,11 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
             spawn_mul * ((nominal_car_len + cutting_off_car_len) / 2.)
         self.situation['cutting_off']['cutting_off_dist'] = np.random.uniform(1.5, spawn_mul) * \
             ((nominal_car_len + cutting_off_car_len) / 2.) * np.random.choice([-1, 1], p=[0.2,0.8])
+        if self.cutoff_at_reset_prob is not None:
+            self.sampled_perform_cutoff = np.random.choice([True, False], \
+                p=[self.cutoff_at_reset_prob,1-self.cutoff_at_reset_prob])
+        else:
+            self.sampled_perform_cutoff = False
 
         left_or_right = np.random.choice([-1, 1])
         self.situation['nominal']['lat_shift'] = left_or_right * \
@@ -128,8 +137,14 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
                 nominal_agent = self.world.agents[self.agent_ids.index(self.special_agent_ids['nominal'])]
                 dist_to_nominal = np.linalg.norm(agent.ego_dynamics.numpy()[:2]\
                     - nominal_agent.ego_dynamics.numpy()[:2])
-                perform_cutting_off = (dist_to_nominal <= self.situation['cutting_off']['cutting_off_dist']) \
-                    and (self.situation['cutting_off']['cutting_off_dist'] > 0)
+                if self.cutoff_immediately:
+                    if self.cutoff_at_reset_prob is not None:
+                        perform_cutting_off = self.sampled_perform_cutoff
+                    else:
+                        perform_cutting_off = True
+                else:
+                    perform_cutting_off = (dist_to_nominal <= self.situation['cutting_off']['cutting_off_dist']) \
+                        and (self.situation['cutting_off']['cutting_off_dist'] > 0)
 
                 pose_to_ref = self.compute_relative_transform(self.ref_agent.ego_dynamics, agent.ego_dynamics)
                 yield_to_ref = pose_to_ref[1] > (-agent.car_length / 2.)
@@ -194,10 +209,11 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
 
         nominal_agent_idx = self.agent_ids.index(self.special_agent_ids['nominal'])
-        done[self.ref_agent_id] = (in_lane_center and passed[nominal_agent_idx]) or done[self.ref_agent_id]
-        reward[self.ref_agent_id] = np.sum(passed) if done[self.ref_agent_id] else 0
+        passed_nominal = passed[nominal_agent_idx-1]
+        done[self.ref_agent_id] = (in_lane_center and passed_nominal) or done[self.ref_agent_id]
+        reward[self.ref_agent_id] = np.sum(passed) if passed_nominal and in_lane_center and done[self.ref_agent_id] else 0
         if not self.n_passed_reward:
-            reward[self.ref_agent_id] = float(passed[nominal_agent_idx-1]) if done[self.ref_agent_id] else 0
+            reward[self.ref_agent_id] = float(passed_nominal) if done[self.ref_agent_id] else 0
         if self.car_following_bonus and (perform_cutting_off and not yield_to_ref or commit_to_cutting_off):
             in_range_mul = [1.1, 1.5]
             cutting_off_agent_idx = self.agent_ids.index(self.special_agent_ids['cutting_off'])
