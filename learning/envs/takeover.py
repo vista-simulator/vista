@@ -90,11 +90,14 @@ class Takeover(BaseEnv, MultiAgentEnv):
             origin_dist = self.ref_agent.trace.f_distance(self.ref_agent.first_time)
             dist = self.ref_agent.trace.f_distance(self.ref_agent.get_current_timestamp()) - origin_dist
             fail_to_catch_up = []
+            not_succeed_after_pass = []
             for other_agent in other_agents:
                 other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
                 too_far_behind = (other_dist - dist) > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
                 fail_to_catch_up.append(too_far_behind)
-            done[self.ref_agent_id] = done[self.ref_agent_id] or np.any(fail_to_catch_up)
+                too_far_beyond = (dist - other_dist) > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
+                not_succeed_after_pass.append(too_far_beyond)
+            done[self.ref_agent_id] = done[self.ref_agent_id] or np.any(fail_to_catch_up) or np.any(too_far_beyond)
 
             # reward to track target speed
             if self.target_velocity is not None:

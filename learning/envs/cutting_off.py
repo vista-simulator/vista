@@ -8,7 +8,8 @@ from .base_env import BaseEnv
 class CuttingOff(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
                  target_velocity=None, n_passed_reward=True, car_following_bonus=0., 
-                 cutoff_immediately=False, cutoff_at_reset_prob=None, **kwargs):
+                 cutoff_immediately=False, cutoff_at_reset_prob=None, 
+                 give_pass_reward_immediately=False, **kwargs):
         super(CuttingOff, self).__init__(trace_paths, n_agents=3, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -18,6 +19,7 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         self.car_following_bonus = car_following_bonus
         self.cutoff_immediately = cutoff_immediately
         self.cutoff_at_reset_prob = cutoff_at_reset_prob
+        self.give_pass_reward_immediately = give_pass_reward_immediately
         if self.cutoff_at_reset_prob is not None:
             assert self.cutoff_immediately
         self.extra_obs = np.zeros((3,))
@@ -119,6 +121,8 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
 
         # counter for cutting off
         self.cutting_off_cnt = 0
+        if self.give_pass_reward_immediately:
+            self.passed_car = []
 
         return observation
 
@@ -209,19 +213,34 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
 
         nominal_agent_idx = self.agent_ids.index(self.special_agent_ids['nominal'])
+        cutting_off_agent_idx = self.agent_ids.index(self.special_agent_ids['cutting_off'])
         passed_nominal = passed[nominal_agent_idx-1]
-        done[self.ref_agent_id] = (in_lane_center and passed_nominal) or done[self.ref_agent_id]
-        reward[self.ref_agent_id] = np.sum(passed) if passed_nominal and in_lane_center and done[self.ref_agent_id] else 0
-        if not self.n_passed_reward:
-            reward[self.ref_agent_id] = float(passed_nominal) if done[self.ref_agent_id] else 0
+        passed_cutting_off = passed[cutting_off_agent_idx-1]
+        success = in_lane_center and passed_nominal
+        info[self.ref_agent_id]['success'] = success
+        info[self.ref_agent_id]['passed_cars'] = np.sum(passed)
+        done[self.ref_agent_id] = success or done[self.ref_agent_id]
+        if self.give_pass_reward_immediately:
+            reward[self.ref_agent_id] = 0
+            if passed_nominal and 'nominal' not in self.passed_car:
+                self.passed_car.append('nominal')
+                reward[self.ref_agent_id] += 1
+            if passed_cutting_off and 'cutting_off' not in self.passed_car and self.n_passed_reward:
+                self.passed_car.append('cutting_off')
+                reward[self.ref_agent_id] += 1
+            if success:
+                reward[self.ref_agent_id] += 10
+        else:
+            reward[self.ref_agent_id] = np.sum(passed) if passed_nominal and in_lane_center and done[self.ref_agent_id] else 0
+            if not self.n_passed_reward:
+                reward[self.ref_agent_id] = float(passed_nominal) if done[self.ref_agent_id] else 0
         if self.car_following_bonus and (perform_cutting_off and not yield_to_ref or commit_to_cutting_off):
             in_range_mul = [1.1, 1.5]
-            cutting_off_agent_idx = self.agent_ids.index(self.special_agent_ids['cutting_off'])
             cutting_off_agent = self.world.agents[cutting_off_agent_idx]
             dist_to_other = np.linalg.norm(cutting_off_agent.ego_dynamics.numpy()[:2]-self.ref_agent.ego_dynamics.numpy()[:2])
             min_dist = (cutting_off_agent.car_length + self.ref_agent.car_length) / 2.
             in_range = dist_to_other < (min_dist * in_range_mul[1]) and \
-                dist_to_other > (min_dist * in_range_mul[0]) and not passed[cutting_off_agent_idx-1]
+                dist_to_other > (min_dist * in_range_mul[0]) and not passed_cutting_off
             bonus = 1 if in_range else 0.
             reward[self.ref_agent_id] += self.car_following_bonus * bonus
 
