@@ -4,11 +4,11 @@ import pickle5 as pickle
 import numpy as np
 import ray
 from ray.rllib.evaluation.worker_set import WorkerSet
-from ray.tune.registry import get_trainable_cls
 
 import misc
 from policies import PolicyManager
 from envs import wrappers
+from trainers import get_trainer_class
 
 
 def parse_args():
@@ -98,7 +98,7 @@ def main():
         include_dashboard=False)
 
     # Get agent
-    cls = get_trainable_cls(args.run)
+    cls = get_trainer_class(args.run)
     agent = cls(env=config['env'], config=config)
     if args.checkpoint:
         agent.restore(args.checkpoint)
@@ -117,8 +117,10 @@ def test(args, agent, num_episodes, save_dir):
     env = agent.workers.local_worker().env
     if args.monitor:
         video_dir = os.path.join(save_dir, 'monitor')
+        video_dir = '/home/gridsan/tsunw/tmp/monitor' # TODO: debug
         env = wrappers.MultiAgentMonitor(env, video_dir, video_callable=lambda x: True, force=True)
     policy_mapping_fn = agent.config["multiagent"]["policy_mapping_fn"]
+    policy_map = agent.workers.local_worker().policy_map
 
     for ep in range(num_episodes):
         obs = env.reset()
@@ -126,10 +128,18 @@ def test(args, agent, num_episodes, save_dir):
         episode_reward = dict()
         for agent_id in obs.keys():
             episode_reward[agent_id] = 0.
+        state = {p: m.get_initial_state() for p, m in policy_map.items()}
+        has_state = {p: len(s) > 0 for p, s in state.items()}
         while not done:
             act = dict()
             for agent_id, a_obs in obs.items():
-                a_act = agent.compute_action(a_obs, policy_id=policy_mapping_fn(agent_id))
+                policy_id = policy_mapping_fn(agent_id)
+                if has_state[policy_id]:
+                    a_state = state[policy_id]
+                    a_act, a_state, _ = agent.compute_action(a_obs, a_state, policy_id=policy_id)
+                    state[agent_id] = a_state
+                else:
+                    a_act = agent.compute_action(a_obs, policy_id=policy_id)
                 act[agent_id] = a_act
             next_obs, rew, done, info = env.step(act)
         
