@@ -81,7 +81,7 @@ def main():
     # update exp based on task ID
     job_array_mod = importlib.import_module('job_array.{}'.format(args.job_array_module))
     update_exp_by_task_id = getattr(job_array_mod, 'update_exp_by_task_id')
-    exp = update_exp_by_task_id(exp, args.job_array_task_id)
+    exp, exp_name = update_exp_by_task_id(exp, args.job_array_task_id)
 
     print('')
     pprint.pprint(exp)
@@ -137,7 +137,7 @@ def main():
 
     # Run experiment
     tune.run(trainer,
-             name=exp_names[0],
+             name=exp_name,
              stop=exp['stop'],
              config=exp['config'],
              resources_per_trial=exp['resources_per_trial'],

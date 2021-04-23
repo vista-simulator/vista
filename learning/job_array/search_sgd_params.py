@@ -19,10 +19,9 @@ for num_sgd_iter in num_sgd_iter_list:
 def update_exp_by_task_id(exp, task_id):
     exp['config']['num_sgd_iter'] = new_config[task_id]['num_sgd_iter']
     exp['config']['sgd_minibatch_size'] = new_config[task_id]['sgd_minibatch_size']
-    exp['local_dir'] = os.path.join(exp['local_dir'], \
-        'iter{}-mbsize{}'.format(new_config[task_id]['num_sgd_iter'], new_config[task_id]['sgd_minibatch_size']))
+    exp_name = 'iter{}-mbsize{}'.format(new_config[task_id]['num_sgd_iter'], new_config[task_id]['sgd_minibatch_size'])
 
-    return exp
+    return exp, exp_name
 
 
 if __name__ == '__main__':

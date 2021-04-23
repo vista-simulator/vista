@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:volta:1
 #SBATCH -a 1-12
 
-USE_EGL=false
+USE_EGL=true
 BASE_CONFIG=config/takeover-ppo/with-velocity.yaml
 JOB_ARRAY_MODULE=search_sgd_params
 
