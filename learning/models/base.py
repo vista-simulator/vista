@@ -70,7 +70,10 @@ class Base(RecurrentNetwork, nn.Module):
 
     @override(ModelV2)
     def get_initial_state(self):
-        return None
+        device = next(self.parameters()).device
+        return [
+            torch.zeros((1), dtype=torch.float32).to(device)
+        ]
 
     @override(ModelV2)
     def forward(self, input_dict, state, seq_lens):
@@ -115,8 +118,7 @@ class Base(RecurrentNetwork, nn.Module):
             output, new_state = self.policy_inference(rnn_inputs, state, seq_lens)
             output = torch.reshape(output, [-1, self.num_outputs])
         else:
-            new_state = state
-            output = self.policy_inference(feat, state, seq_lens)
+            output, new_state = self.policy_inference(feat, state, seq_lens)
 
         return output, new_state
 
