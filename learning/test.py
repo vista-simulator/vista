@@ -136,7 +136,7 @@ def test(args, agent, num_episodes, save_dir):
                 policy_id = policy_mapping_fn(agent_id)
                 if has_state[policy_id]:
                     a_state = state[policy_id]
-                    a_act, a_state, _ = agent.compute_action(a_obs, a_state, policy_id=policy_id)
+                    a_act, a_state, _ = agent.compute_action(a_obs, a_state, policy_id=policy_id) # NOTE: stochastic action
                     state[agent_id] = a_state
                 else:
                     a_act = agent.compute_action(a_obs, policy_id=policy_id)
