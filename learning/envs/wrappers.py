@@ -232,23 +232,37 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
         self.roi = env.world.agents[0].sensors[0].camera.get_roi() # NOTE: use sensor config from the first agent
         (i1, j1, i2, j2) = self.roi
         new_h, new_w = int((i2 - i1) * self.fy), int((j2 - j1) * self.fx)
-        self.observation_space = gym.spaces.Box(
+        cropped_obs_space = gym.spaces.Box(
             low=0,
             high=255,
             shape=(new_h, new_w, 3),
-            dtype=np.uint8)
+            dtype=np.uint8
+        )
+        if isinstance(env.observation_space, gym.spaces.Tuple):
+            # NOTE: assume the first observation is alway visual input of the agent
+            self.observation_space = gym.spaces.Tuple([
+                cropped_obs_space,
+                *env.observation_space[1:]
+            ])
+        else:
+            self.observation_space = cropped_obs_space
     
     def observation(self, observation):
         (i1, j1, i2, j2) = self.roi
         if isinstance(observation, dict):
             out = dict()
             for k, v in observation.items():
-                out[k] = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
+                if isinstance(v, list):
+                    out[k] = [cv2.resize(v[0][i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)] + v[1:]
+                else:
+                    out[k] = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
         elif isinstance(observation, list):
+            raise NotImplementedError
             out = []
             for v in observation:
                 out.append(cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy))
         else:
+            raise NotImplementedError
             out = cv2.resize(observation[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
         self.observation_for_render = out
         return out
@@ -257,25 +271,49 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
 class StackObservation(gym.ObservationWrapper, MultiAgentEnv):
     def __init__(self, env, frame_stack=5):
         super(StackObservation, self).__init__(env)
-        assert len(env.observation_space.shape) == 3
-        ori_c = env.observation_space.shape[2]
-        self.observation_space = gym.spaces.Box(
-            low=np.dstack([env.observation_space.low] * frame_stack),
-            high=np.dstack([env.observation_space.high] * frame_stack),
-            dtype=env.observation_space.dtype,
-            shape=list(env.observation_space.shape[:2]) + [ori_c * frame_stack]
-        )
         self.frame_stack = frame_stack
         self.frame_deque = dict()
-        for agent_id in self.controllable_agents.keys():
-            self.frame_deque[agent_id] = deque(maxlen=frame_stack)
+        if isinstance(env.observation_space, gym.spaces.Tuple):
+            obs_space_list = []
+            for obs_space in env.observation_space:
+                assert len(obs_space.shape) == 3
+                ori_c = obs_space.shape[2]
+                obs_space_list.append(gym.spaces.Box(
+                    low=np.dstack([obs_space.low] * frame_stack),
+                    high=np.dstack([obs_space.high] * frame_stack),
+                    dtype=obs_space.dtype,
+                    shape=list(obs_space.shape[:2]) + [ori_c * frame_stack]
+                ))
+            self.observation_space = gym.spaces.Tuple(obs_space_list)
+
+            for agent_id in self.controllable_agents.keys():
+                self.frame_deque[agent_id] = [deque(maxlen=frame_stack) for _ in range(len(self.observation_space))]
+        else:
+            assert len(env.observation_space.shape) == 3
+            ori_c = env.observation_space.shape[2]
+            self.observation_space = gym.spaces.Box(
+                low=np.dstack([env.observation_space.low] * frame_stack),
+                high=np.dstack([env.observation_space.high] * frame_stack),
+                dtype=env.observation_space.dtype,
+                shape=list(env.observation_space.shape[:2]) + [ori_c * frame_stack]
+            )
+
+            for agent_id in self.controllable_agents.keys():
+                self.frame_deque[agent_id] = deque(maxlen=frame_stack)
 
     def observation(self, observation):
         for k, obs in observation.items():
-            self.frame_deque[k].append(obs)
-            while len(self.frame_deque[k]) < self.frame_deque[k].maxlen:
+            if isinstance(self.observation_space, gym.spaces.Tuple):
+                while len(self.frame_deque[k][0]) < self.frame_deque[k][0].maxlen:
+                    for oi, oobs in enumerate(obs):
+                        self.frame_deque[k][oi].append(oobs)
+                for oi in range(len(observation[k])):
+                    observation[k][oi] = np.concatenate([v for v in self.frame_deque[k][oi]], axis=2)
+            else:
                 self.frame_deque[k].append(obs)
-            observation[k] = np.concatenate([v for v in self.frame_deque[k]], axis=2)
+                while len(self.frame_deque[k]) < self.frame_deque[k].maxlen:
+                    self.frame_deque[k].append(obs)
+                observation[k] = np.concatenate([v for v in self.frame_deque[k]], axis=2)
         return observation
 
 
@@ -303,14 +341,16 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
         self.d_velocity_bound = d_velocity_bound
 
         # define augmented observation space
-        self.observation_space = gym.spaces.Tuple([
-            self.env.observation_space,
-            gym.spaces.Box( # normalized to -1~1
-                low=-2*np.ones((2,)), # NOTE: make sure pass boundary check
-                high=2*np.ones((2,)),
-                shape=(2,),
-                dtype=np.float64)
-        ])
+        vec_obs_space = gym.spaces.Box( # normalized to -1~1
+            low=-2*np.ones((2,)), # NOTE: make sure pass boundary check
+            high=2*np.ones((2,)),
+            shape=(2,),
+            dtype=np.float64
+        )
+        if isinstance(self.env.observation_space, gym.spaces.Tuple):
+            self.observation_space = gym.spaces.Tuple(list(self.env.observation_space) + [vec_obs_space])
+        else:
+            self.observation_space = gym.spaces.Tuple([self.env.observation_space, vec_obs_space])
         self.render_observation_space = self.observation_space[0]
 
         # track vehicle state
@@ -332,7 +372,10 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
 
             veh_state_obs = self._standardize_veh_state(*self.vehicle_state[agent_id])
 
-            observation[agent_id] = [obs, veh_state_obs]
+            if isinstance(obs, list):
+                observation[agent_id] = obs + [veh_state_obs]
+            else:
+                observation[agent_id] = [obs, veh_state_obs]
 
         return observation
 
@@ -350,7 +393,10 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
 
             veh_state_obs = self._standardize_veh_state(*self.vehicle_state[agent_id])
 
-            observation[agent_id] = [obs, veh_state_obs]
+            if isinstance(obs, list):
+                observation[agent_id] = obs + [veh_state_obs]
+            else:
+                observation[agent_id] = [obs, veh_state_obs]
 
         return observation, reward, done, info
 

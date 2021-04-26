@@ -19,11 +19,13 @@ class Base(RecurrentNetwork, nn.Module):
                  use_cnn=False,
                  use_recurrent=False,
                  with_bn=False,
+                 obs_idcs=[0, 1],
                  **kwargs):
         nn.Module.__init__(self)
         super(Base, self).__init__(obs_space, action_space, num_outputs,
                                    model_config, name)
         self.use_recurrent = use_recurrent
+        self.obs_idcs = obs_idcs
         
         # define feature extractor
         self.use_cnn = use_cnn
@@ -83,8 +85,8 @@ class Base(RecurrentNetwork, nn.Module):
         # feature extraction
         if self.use_cnn:
             if isinstance(input_dict['obs'], list):
-                img_obs = input_dict['obs'][0].permute(0, 3, 1, 2).float()
-                vec_obs = input_dict['obs'][1]
+                img_obs = input_dict['obs'][self.obs_idcs[0]].permute(0, 3, 1, 2).float()
+                vec_obs = input_dict['obs'][self.obs_idcs[1]]
                 feat = self.extractor(img_obs)
                 if hasattr(self, 'vec_extractor'):
                     vec_feat = self.vec_extractor(vec_obs)

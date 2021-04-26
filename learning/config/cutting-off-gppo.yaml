@@ -1,0 +1,99 @@
+cutting-off-gppo:
+  local_dir: ~/tmp
+  env: StateObs
+  run: GuidedPPO
+  num_samples: 1
+  checkpoint_freq: 50
+  checkpoint_at_end: true
+  stop:
+    episode_reward_mean: 99999
+    timesteps_total: 1e7 # 10M
+  ray_resources:
+    num_cpus: 20
+    num_gpus: 1
+  config:
+    num_workers: 10
+    num_gpus: 0.2
+    num_gpus_per_worker: 0.08
+    framework: torch
+    # environment
+    env_config:
+      task: CuttingOff
+      trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
+      mesh_dir: ~/data/old_vista_mesh_lib_calib/
+      init_agent_range: [6, 12]
+      collision_overlap_threshold: 0.05
+      respawn_distance: 10
+      # n_passed_reward: false
+      to_bev_map: true
+      with_vis_obs: true
+      # give_pass_reward_immediately: true
+      # car_following_bonus: 0.001
+      cutoff_immediately: true
+      # cutoff_at_reset_prob: 0.2
+      wrappers: [PreprocessObservation, StackObservation, ContinuousKinematic, DistanceReward]
+      wrappers_config:
+        PreprocessObservation:
+          fx: 1
+          fy: 1
+        StackObservation:
+          frame_stack: 5
+        ContinuousKinematic:
+          d_curvature_bound: [-5., 5.]
+          d_velocity_bound: [-15., 15.]
+        DistanceReward:
+          reward_coef: 0.001
+    observation_filter: NoFilter
+    callbacks: BasicCallbacks
+    # policies
+    multiagent:
+      policies: [default_policy]
+      policies_to_train: [default_policy]
+      policy_mapping_fn: all_to_default
+    # MDP-related
+    gamma: 0.99
+    rollout_fragment_length: 200
+    # sgd-related
+    lr: 0.0002
+    lr_schedule: null
+    num_sgd_iter: 8
+    train_batch_size: 32000
+    sgd_minibatch_size: 512 # larger batch size is better
+    # value function
+    vf_loss_coeff: 1.0
+    vf_clip_param: 1000.0
+    # PPO-specific
+    entropy_coeff: 0.01
+    entropy_coeff_schedule: null
+    lambda: 0.95
+    kl_coeff: 0.2
+    kl_target: 0.01
+    clip_param: 0.3
+    # guidance
+    guidance_ckpt_path: /home/gridsan/tsunw/results/202104w4/bev-state-obs-cutting-off-ppo/PPO_StateObs_854d5_00000_a938a2d_0_2021-04-23_23-16-55/checkpoint_450/exported_model.pkl
+    guidance_criterion: simple_kl
+    guidance_coef: 1.0
+    # model
+    model:
+      vf_share_layers: true
+      custom_model: ConvNet
+      conv_filters: [
+        [15, 24, 5, 2, 2],
+        [24, 36, 5, 2, 2], 
+        [36, 48, 3, 2, 1], 
+        [48, 64, 3, 1, 1], 
+        [64, 64, 3, 1, 1]
+      ]
+      conv_activation: relu
+      custom_action_dist: TorchBeta # prevent inf logprob
+      custom_model_config:
+        with_bn: false #true
+        vec_obs_dim: 2
+        obs_idcs: [0, 2]
+        policy_hiddens: [66, 32, 4]
+        policy_activation: relu
+        value_fcnet_hiddens: [66, 32, 1]
+        value_fcnet_activation: relu
+        custom_action_dist_config:
+          low: [-5., -15.]
+          high: [5., 15.]

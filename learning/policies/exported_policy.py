@@ -54,20 +54,33 @@ class ExportedPolicy(object):
         self.act_dist_cls = getattr(models, self.config['model']['custom_action_dist'])
         self.act_dist_config = self.config['model']['custom_model_config']['custom_action_dist_config']
 
-    def compute_action(self, obs, state, seq_lens, stochastic=False):
+    def compute_action(self, obs, state, seq_lens, stochastic=False, input_mode=0):
         # prepare input
-        pp_obs = self.preprocessor.transform(obs)
-        filtered_obs = self.obs_filter(pp_obs, update=False)
-        filtered_obs = torch.Tensor(filtered_obs).cuda()
-        input_dict = {'obs_flat': filtered_obs[None,:]}
-        if isinstance(self.model.obs_space, gym.spaces.Tuple):
-            obs_list = torch.split(filtered_obs, [np.prod(osp.shape) for osp in self.model.obs_space])
-            obs_list = list(obs_list)
-            for i in range(len(obs_list)):
-                obs_list[i] = obs_list[i].reshape(self.model.obs_space[i].shape)[None,...]
-            input_dict['obs'] = obs_list
+        if input_mode == 0:
+            pp_obs = self.preprocessor.transform(obs)
+            filtered_obs = self.obs_filter(pp_obs, update=False)
+            filtered_obs = torch.Tensor(filtered_obs).cuda()
+            input_dict = {'obs_flat': filtered_obs[None,:]}
+            if isinstance(self.model.obs_space, gym.spaces.Tuple):
+                obs_list = torch.split(filtered_obs, [np.prod(osp.shape) for osp in self.model.obs_space])
+                obs_list = list(obs_list)
+                for i in range(len(obs_list)):
+                    obs_list[i] = obs_list[i].reshape(self.model.obs_space[i].shape)[None,...]
+                input_dict['obs'] = obs_list
+            else:
+                input_dict['obs'] = filtered_obs.reshape(self.model.obs_space.shape)[None,...]
+        elif input_mode == 1: # already preprocessed and filtered; also augmented with batch dimension
+            input_dict = {'obs_flat': obs}
+            if isinstance(self.model.obs_space, gym.spaces.Tuple):
+                obs_list = torch.split(obs, [np.prod(osp.shape) for osp in self.model.obs_space], dim=-1)
+                obs_list = list(obs_list)
+                for i, o in enumerate(obs_list):
+                    obs_list[i] = o.reshape(o.shape[0], *self.model.obs_space[i].shape)
+                input_dict['obs'] = obs_list
+            else:
+                input_dict['obs'] = obs
         else:
-            input_dict['obs'] = filtered_obs.reshape(self.model.obs_space.shape)[None,...]
+            raise ValueError('Invalid input mode of ExportedPolicy')
         
         # network inference
         with torch.no_grad():

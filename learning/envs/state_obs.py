@@ -18,8 +18,9 @@ from . import *
 def StateObs(task, **kwargs):
     task = globals()[task]
     class _StateObs(task, MultiAgentEnv):
-        def __init__(self, aug_extra_obs=False, to_bev_map=False, **kwargs):
-            self.drop_obs_space_def = True
+        def __init__(self, aug_extra_obs=False, to_bev_map=False, with_vis_obs=False, **kwargs):
+            self.with_vis_obs = with_vis_obs
+            self.drop_obs_space_def = True and not self.with_vis_obs
             super(_StateObs, self).__init__(**kwargs)
 
             self.aug_extra_obs = aug_extra_obs
@@ -43,20 +44,29 @@ def StateObs(task, **kwargs):
             if self.to_bev_map:
                 figsize_in_pix = (80, 120) # 4x smaller
 
-                self.observation_space = gym.spaces.Box(
+                state_obs_space = gym.spaces.Box(
                     low=0,
                     high=255,
                     shape=(figsize_in_pix[1], figsize_in_pix[0], 3),
                     dtype=np.uint8)
+                if self.with_vis_obs:
+                    self.observation_space = gym.spaces.Tuple([self.observation_space, state_obs_space])
+                else:
+                    self.observation_space = state_obs_space
             else:
                 obs_size = self.road_buffer_size * 2 + 5 * self.n_agents # road xy and agent xytheta + velocity + curvature
                 if self.aug_extra_obs and hasattr(self, 'extra_obs'):
                     obs_size += self.extra_obs.shape[0]
-                self.observation_space = gym.spaces.Box(
+                state_obs_space = gym.spaces.Box(
                     low=-100., # NOTE: hardcoded bound for birdseye map range
                     high=100.,
                     shape=(obs_size,),
                     dtype=np.float64)
+                if self.with_vis_obs:
+                    self.observation_space = gym.spaces.Tuple([self.observation_space, state_obs_space])
+                    raise NotImplementedError
+                else:
+                    self.observation_space = state_obs_space
 
             if not hasattr(self, 'wrap_data'):
                 self.wrap_data = lambda _x: _x
@@ -104,9 +114,15 @@ def StateObs(task, **kwargs):
             get_human_curvature = lambda _a: _a.trace.f_curvature([self.get_timestamp_readonly(_a, current=True)])
             for agent_id, agent in zip(self.agent_ids, self.world.agents):
                 self.vehicle_states[agent_id] = np.array([get_human_curvature(agent)[0], get_human_speed(agent)[0]])
-            observation = self.get_state_obs()
+            state_obs = self.get_state_obs()
             if not self.to_bev_map and (self.aug_extra_obs and hasattr(self, 'extra_obs')):
-                observation[self.ref_agent_id] = np.concatenate([observation[self.ref_agent_id], self.extra_obs])
+                state_obs[self.ref_agent_id] = np.concatenate([state_obs[self.ref_agent_id], self.extra_obs])
+
+            # prepare observation
+            if self.with_vis_obs:
+                observation[self.ref_agent_id] = [observation[self.ref_agent_id], state_obs[self.ref_agent_id]]
+            else:
+                observation = state_obs
 
             return observation
 
@@ -116,9 +132,16 @@ def StateObs(task, **kwargs):
             observation, reward, done, info = map(self.wrap_data, step_results)
             for agent_id, agent in zip(self.agent_ids, self.world.agents):
                 self.vehicle_states[agent_id] = np.array([agent.model_curvature, agent.model_velocity])
-            observation = self.get_state_obs()
+            
+            state_obs = self.get_state_obs()
             if not self.to_bev_map and (self.aug_extra_obs and hasattr(self, 'extra_obs')):
-                observation[self.ref_agent_id] = np.concatenate([observation[self.ref_agent_id], self.extra_obs])
+                state_obs[self.ref_agent_id] = np.concatenate([state_obs[self.ref_agent_id], self.extra_obs])
+
+            if self.with_vis_obs:
+                observation[self.ref_agent_id] = [observation[self.ref_agent_id], state_obs[self.ref_agent_id]]
+            else:
+                observation = state_obs
+
             done['__all__'] = done_all
             return observation, reward, done, info
 
@@ -165,7 +188,10 @@ def StateObs(task, **kwargs):
             return observation
 
         def agent_sensors_setup(self, agent_i):
-            pass # don't need sensor; use ground truth state
+            if self.with_vis_obs:
+                super().agent_sensors_setup(agent_i)
+            else:
+                pass # don't need sensor; use ground truth state
 
         def fig2img(self, fig):
             fig.canvas.draw()
@@ -213,10 +239,16 @@ if __name__ == "__main__":
         default=False,
         action='store_true',
         help='Convert state observation to bev map.')
+    parser.add_argument(
+        '--with-vis-obs',
+        default=False,
+        action='store_true',
+        help='With visual observation.')
     args = parser.parse_args()
 
     # initialize simulator
-    env = StateObs(args.task, trace_paths=args.trace_paths, mesh_dir=args.mesh_dir, to_bev_map=args.to_bev_map)
+    env = StateObs(args.task, trace_paths=args.trace_paths, mesh_dir=args.mesh_dir, 
+        to_bev_map=args.to_bev_map, with_vis_obs=args.with_vis_obs)
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run

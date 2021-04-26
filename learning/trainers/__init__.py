@@ -6,8 +6,14 @@ def _import_toy_ppo():
     return ToyPPOTrainer, DEFAULT_CONFIG
 
 
+def _import_guided_ppo():
+    from .guided_ppo import GuidedPPOTrainer, DEFAULT_CONFIG
+    return GuidedPPOTrainer, DEFAULT_CONFIG
+
+
 CUSTOM_ALGORITHMS = {
-    'ToyPPO': _import_toy_ppo
+    'ToyPPO': _import_toy_ppo,
+    'GuidedPPO': _import_guided_ppo
 }
 
 
