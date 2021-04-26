@@ -64,7 +64,6 @@ def StateObs(task, **kwargs):
                     dtype=np.float64)
                 if self.with_vis_obs:
                     self.observation_space = gym.spaces.Tuple([self.observation_space, state_obs_space])
-                    raise NotImplementedError
                 else:
                     self.observation_space = state_obs_space
 

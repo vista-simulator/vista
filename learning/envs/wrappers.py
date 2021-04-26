@@ -275,19 +275,24 @@ class StackObservation(gym.ObservationWrapper, MultiAgentEnv):
         self.frame_deque = dict()
         if isinstance(env.observation_space, gym.spaces.Tuple):
             obs_space_list = []
-            for obs_space in env.observation_space:
-                assert len(obs_space.shape) == 3
-                ori_c = obs_space.shape[2]
-                obs_space_list.append(gym.spaces.Box(
-                    low=np.dstack([obs_space.low] * frame_stack),
-                    high=np.dstack([obs_space.high] * frame_stack),
-                    dtype=obs_space.dtype,
-                    shape=list(obs_space.shape[:2]) + [ori_c * frame_stack]
-                ))
+            self.stack_obs_idcs = []
+            for oi, obs_space in enumerate(env.observation_space):
+                if len(obs_space.shape) == 3: # only stack image observation
+                    ori_c = obs_space.shape[2]
+                    obs_space_list.append(gym.spaces.Box(
+                        low=np.dstack([obs_space.low] * frame_stack),
+                        high=np.dstack([obs_space.high] * frame_stack),
+                        dtype=obs_space.dtype,
+                        shape=list(obs_space.shape[:2]) + [ori_c * frame_stack]
+                    ))
+                    self.stack_obs_idcs.append(oi)
+                else:
+                    obs_space_list.append(obs_space)
             self.observation_space = gym.spaces.Tuple(obs_space_list)
 
             for agent_id in self.controllable_agents.keys():
-                self.frame_deque[agent_id] = [deque(maxlen=frame_stack) for _ in range(len(self.observation_space))]
+                self.frame_deque[agent_id] = [deque(maxlen=frame_stack) for oi in \
+                    range(len(self.observation_space)) if oi in self.stack_obs_idcs]
         else:
             assert len(env.observation_space.shape) == 3
             ori_c = env.observation_space.shape[2]
@@ -304,11 +309,16 @@ class StackObservation(gym.ObservationWrapper, MultiAgentEnv):
     def observation(self, observation):
         for k, obs in observation.items():
             if isinstance(self.observation_space, gym.spaces.Tuple):
+                for oi, oobs in enumerate(obs):
+                    if oi in self.stack_obs_idcs:
+                        self.frame_deque[k][oi].append(oobs)
                 while len(self.frame_deque[k][0]) < self.frame_deque[k][0].maxlen:
                     for oi, oobs in enumerate(obs):
-                        self.frame_deque[k][oi].append(oobs)
+                        if oi in self.stack_obs_idcs:
+                            self.frame_deque[k][oi].append(oobs)
                 for oi in range(len(observation[k])):
-                    observation[k][oi] = np.concatenate([v for v in self.frame_deque[k][oi]], axis=2)
+                    if oi in self.stack_obs_idcs:
+                        observation[k][oi] = np.concatenate([v for v in self.frame_deque[k][oi]], axis=2)
             else:
                 self.frame_deque[k].append(obs)
                 while len(self.frame_deque[k]) < self.frame_deque[k].maxlen:

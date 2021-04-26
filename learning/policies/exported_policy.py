@@ -24,19 +24,28 @@ class ExportedPolicy(object):
         self.config = config
     
         # Export checkpoint
+        use_custom_model = 'custom_model' in self.config['model'].keys()
         if not is_exported:
-            ckpt_path = self._export_model(ckpt_path, self.config, temp_dir, run)
+            ckpt_path = self._export_model(ckpt_path, self.config, temp_dir, run, not use_custom_model)
             print('Export model to {}'.format(ckpt_path))
 
         # Load exported model
-        model_cls = getattr(models, self.config['model']['custom_model'])
         model_config = dict()
-        for k, v in self.config['model'].items():
-            if isinstance(v, dict):
-                for kk, vv in v.items():
-                    model_config[kk] = vv
+        if use_custom_model:
+            model_cls = getattr(models, self.config['model']['custom_model'])
+            for k, v in self.config['model'].items():
+                if isinstance(v, dict):
+                    for kk, vv in v.items():
+                        model_config[kk] = vv
+                else:
+                    model_config[k] = v
+        else:
+            if 'conv_filters' in model_config.keys():
+                from ray.rllib.models.torch.visionnet import VisionNetwork
+                model_cls = VisionNetwork
             else:
-                model_config[k] = v
+                from ray.rllib.models.torch.fcnet import FullyConnectedNetwork
+                model_cls = FullyConnectedNetwork
 
         ckpt = torch.load(ckpt_path)
         self.model = model_cls(**ckpt['env'], **model_config, model_config=self.config['model'])
@@ -98,9 +107,8 @@ class ExportedPolicy(object):
         act = act.cpu().numpy()[0]
         return act, new_state, act_info
 
-    def _export_model(self, ckpt_path, config, temp_dir, run):
+    def _export_model(self, ckpt_path, config, temp_dir, run, use_policy_space=False):
         import ray
-        from ray.rllib.evaluation.worker_set import WorkerSet
         from ray.tune.registry import get_trainable_cls
 
         # Overwrite some config with arguments
@@ -129,7 +137,7 @@ class ExportedPolicy(object):
         state_dict = agent.get_policy().model.state_dict()
 
         env = agent.workers.local_worker().env
-        obs_space = env.observation_space
+        obs_space = agent.get_policy().model.obs_space if use_policy_space else env.observation_space
         act_space = env.action_space
         model_name = agent.get_policy().model.name
         model_num_outputs = agent.get_policy().model.num_outputs
