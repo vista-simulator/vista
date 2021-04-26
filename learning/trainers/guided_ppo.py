@@ -69,9 +69,31 @@ def custom_loss_fn(
     curr_entropy = curr_action_dist.entropy()
     mean_entropy = reduce_mean_valid(curr_entropy)
 
+    # inference of guidance policy 
+    obs_filter = policy.guidance.obs_filter
+    if type(obs_filter).__name__ == 'MeanStdFilter':
+        x = train_batch['obs'][:,-obs_filter.shape[0]:] # NOTE: assume obs list = [vis_obs, state_obs, wrappers_obs]
+        if obs_filter.demean:
+            x = x - torch.Tensor(obs_filter.rs.mean).to(x) # TODO: np2torch should be somewhere else
+        if obs_filter.destd:
+            x = x / (torch.Tensor(obs_filter.rs.std).to(x) + 1e-8) # TODO: np2torch should be somewhere else
+        if obs_filter.clip:
+            x = np.clip(x, -obs_filter.clip, obs_filter.clip)
+    elif type(obs_filter).__name__ == 'NoFilter':
+        g_obs_shape = 0
+        for ospace in policy.guidance.model.obs_space:
+            g_obs_shape += np.prod(ospace.shape)
+        x = train_batch['obs'][:,-g_obs_shape:]
+    else:
+        raise NotImplementedError('Unrecognized obs filter of guidance policy {}'.format(obs_filter))
+    _, _, act_info = policy.guidance.compute_action(x, None, None, input_mode=1)
+    guidance_action_dist = dist_class(act_info['action_dist_inputs'], model)
+
+    # compute advantage; otherwise will cause [KeyError: 'advantages'] later on
+    advantage = train_batch[Postprocessing.ADVANTAGES]
+
     # define policy loss with guidance policy
     criterion = policy.guidance.guidance_criterion
-    guidance_action_dist = dist_class(train_batch['guidance_action_dist_inputs'], model)
     guidance_kl = guidance_action_dist.kl(curr_action_dist)
     guidance_kl *= -1 # NOTE: compensate for the negative sign in surrogate loss later
     if criterion == 'simple_kl':
@@ -148,41 +170,6 @@ def custom_extra_action_out_fn(
     # default ppo process
     from ray.rllib.agents.ppo.ppo_torch_policy import vf_preds_fetches
     out = vf_preds_fetches(policy, input_dict, state_batches, model, action_dist)
-
-    # inference of guidance policy 
-    obs_filter = policy.guidance.obs_filter
-    if type(obs_filter).__name__ == 'MeanStdFilter':
-        x = input_dict['obs'][:,-obs_filter.shape[0]:] # NOTE: assume obs list = [vis_obs, state_obs, wrappers_obs]
-        if obs_filter.demean:
-            x = x - torch.Tensor(obs_filter.rs.mean).to(x) # TODO: np2torch should be somewhere else
-        if obs_filter.destd:
-            x = x / (torch.Tensor(obs_filter.rs.std).to(x) + 1e-8) # TODO: np2torch should be somewhere else
-        if obs_filter.clip:
-            x = np.clip(x, -obs_filter.clip, obs_filter.clip)
-    elif type(obs_filter).__name__ == 'NoFilter':
-        g_obs_shape = 0
-        for ospace in policy.guidance.model.obs_space:
-            g_obs_shape += np.prod(ospace.shape)
-        x = input_dict['obs'][:,-g_obs_shape:]
-    else:
-        raise NotImplementedError('Unrecognized obs filter of guidance policy {}'.format(obs_filter))
-
-    if False: # DEBUG check if observations are as expected
-        import cv2
-        bev = input_dict['obs'][:,-obs_filter.shape[0]:-policy.guidance.model.obs_space[1].shape[0]]
-        bs = bev.shape[0]
-        bev = bev.reshape(bs, *policy.guidance.model.obs_space[0].shape)
-        bev_img = bev[0,:,:,-3:].cpu().numpy().astype(np.uint8)
-        cv2.imwrite('/home/gridsan/tsunw/workspace/vista-integrate-new-api/learning/test.png', bev_img[:,:,::-1])
-
-        assert (np.prod([74, 192, 15]) + np.prod(policy.guidance.model.obs_space[0].shape) + 2) == input_dict['obs'].shape[-1]
-        rgb = input_dict['obs'][:,:np.prod([74, 192, 15])]
-        rgb = rgb.reshape(bs, *[74, 192, 15])
-        rgb_img = rgb[0,:,:,-3:].cpu().numpy().astype(np.uint8)
-        cv2.imwrite('/home/gridsan/tsunw/workspace/vista-integrate-new-api/learning/test.png', rgb_img)
-
-    _, _, act_info = policy.guidance.compute_action(x, None, None, input_mode=1)
-    out['guidance_action_dist_inputs'] = act_info['action_dist_inputs']
 
     return out
 

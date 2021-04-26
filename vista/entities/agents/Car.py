@@ -128,7 +128,7 @@ class Car(Entity):
 
         if index >= len(self.trace.syncedLabeledTimestamps[
                 self.current_segment_index]) - 1:
-            print("END OF TRACE")
+            # print("END OF TRACE")
             self.trace_done = True  # Done var will be set to True in deepknight env step
 
             # Return last timestamp
