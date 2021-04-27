@@ -4,6 +4,7 @@ import gym
 import numpy as np
 from typing import Dict, List, Type, Union
 import torch
+from torch.nn import functional as F
 
 from ray.rllib.evaluation.postprocessing import compute_gae_for_sample_batch, \
 Postprocessing
@@ -94,16 +95,44 @@ def custom_loss_fn(
 
     # define policy loss with guidance policy
     criterion = policy.guidance.guidance_criterion
-    guidance_kl = guidance_action_dist.kl(curr_action_dist)
-    guidance_kl *= -1 # NOTE: compensate for the negative sign in surrogate loss later
     if criterion == 'simple_kl':
+        guidance_kl = guidance_action_dist.kl(curr_action_dist)
+        guidance_kl *= -1 # NOTE: compensate for the negative sign in surrogate loss later
         surrogate_loss = guidance_kl 
     elif criterion == 'kl_with_ppo':
+        guidance_kl = guidance_action_dist.kl(curr_action_dist)
+        guidance_kl *= -1 # NOTE: compensate for the negative sign in surrogate loss later
         surrogate_loss = torch.min(
             guidance_kl,
             guidance_kl * torch.clamp(
                 logp_ratio, 1 - policy.config["clip_param"],
                 1 + policy.config["clip_param"]))
+    elif criterion == 'simple_reverse_kl':
+        guidance_reverse_kl = curr_action_dist.kl(guidance_action_dist)
+        guidance_reverse_kl *= -1 # NOTE: compensate for the negative sign in surrogate loss later
+        surrogate_loss = guidance_reverse_kl 
+    elif criterion == 'l2':
+        guidance_act_dist_inp = torch.Tensor(act_info['action_dist_inputs']).to(logits)
+        surrogate_loss = F.mse_loss(logits, guidance_act_dist_inp)
+        surrogate_loss *= -1 # NOTE: compensate for the negative sign in surrogate loss later
+    elif criterion == 'l1':
+        guidance_act_dist_inp = torch.Tensor(act_info['action_dist_inputs']).to(logits)
+        surrogate_loss = F.l1_loss(logits, guidance_act_dist_inp)
+        surrogate_loss *= -1 # NOTE: compensate for the negative sign in surrogate loss later
+    elif criterion == 'smooth_l1':
+        guidance_act_dist_inp = torch.Tensor(act_info['action_dist_inputs']).to(logits)
+        surrogate_loss = F.smooth_l1_loss(logits, guidance_act_dist_inp)
+        surrogate_loss *= -1 # NOTE: compensate for the negative sign in surrogate loss later
+    elif criterion == 'cross_entropy':
+        guidance_kl = guidance_action_dist.kl(curr_action_dist)
+        guidance_ent = guidance_action_dist.entropy()
+        surrogate_loss = guidance_kl + guidance_ent
+        surrogate_loss *= -1 # NOTE: compensate for the negative sign in surrogate loss later
+    elif criterion == 'reverse_cross_entropy':
+        guidance_reverse_kl = curr_action_dist.kl(guidance_action_dist)
+        curr_act_dist_ent = curr_action_dist.entropy()
+        surrogate_loss = guidance_reverse_kl + curr_act_dist_ent
+        surrogate_loss *= -1 # NOTE: compensate for the negative sign in surrogate loss later
     else:
         raise ValueError('Unrecognized criterion {}'.format(criterion))
     surrogate_loss = policy.guidance.guidance_coef * surrogate_loss
