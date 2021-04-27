@@ -1,7 +1,4 @@
-"""Top-level package for vista."""
+"""Top-level package for VISTA."""
 
-__author__ = """Alexander Amini"""
-__email__ = 'amini@mit.edu'
-__version__ = '0.1.0'
-
-from .simulator import Simulator
+from .core import *
+from .entities import *

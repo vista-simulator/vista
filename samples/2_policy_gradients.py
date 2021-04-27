@@ -28,8 +28,12 @@ import vista
 def main(args):
 
     # Initialize VISTA, the model, and a memory for training
-    sim = vista.Simulator(args.trace_path)
-    model = Model(sess=sim.sess, trainable=True)
+    world = vista.World(args.trace_path)
+    agent = world.spawn_agent()
+    sensor = agent.spawn_camera()
+    display = vista.Display(world)
+
+    model = Model(trainable=True)
     memory = Memory()
 
     # Some tracking variables for training status info
@@ -43,8 +47,8 @@ def main(args):
     EVAL, FINAL = False, False
 
     print("\n\nStarting Training\n\n")
-    full_observation = sim.reset()
-    cropped_observation = preprocess(full_observation, sim.camera)
+    full_observation = agent.reset()
+    cropped_observation = preprocess(full_observation, sensor)
     i_episode = 0
 
     # Reset and start training
@@ -61,8 +65,8 @@ def main(args):
             # Just continue on a new part of the trace to continue the episode
             pass
 
-        full_observation = sim.reset()
-        cropped_observation = preprocess(full_observation, sim.camera)
+        full_observation = agent.reset()
+        cropped_observation = preprocess(full_observation, sensor)
 
         EVAL = True if i_episode % 10 == 0 or FINAL else False
         if EVAL: print("==== STARTING EVALUATION EPISODE ====")
@@ -75,18 +79,21 @@ def main(args):
                 model.keep_prob: 1.0,
             }
             action = model.compute_action(feed, EVAL)[0][0]
-            next_full_observation, reward, crash, info = sim.step(action)
+            next_full_observation, crash = agent.step(action)
+            display.render()
+
             next_cropped_observation = preprocess(next_full_observation,
-                                                  sim.camera)
+                                                  sensor)
 
             # Add to memory
+            reward = 1.0
             memory.add_to_memory(cropped_observation, [action], reward)
             step += 1
 
             # If there was a crash, episode is over. Train with the resulting
             # data if it came from a explorative run (i.e. EVAL==False)
             if crash:
-                dist += info['distance']
+                dist += agent.distance
                 ep_rs_sum = sum(memory.rewards)
 
                 reward_mean = args.alpha * reward_mean + (1 - args.alpha) * (
@@ -99,17 +106,17 @@ def main(args):
 
                 if EVAL:
                     print("=====================================")
-                    summary = model.sess.run(model.rewards_ep_summary, {
-                        model.rewards_ep: [[ep_rs_sum]]
-                    })
-                    model.summary_writer.add_summary(summary, model.summary_iter)
+                    summary = model.sess.run(model.rewards_ep_summary,
+                                             {model.rewards_ep: [[ep_rs_sum]]})
+                    model.summary_writer.add_summary(summary,
+                                                     model.summary_iter)
                     model.summary_iter += 1
 
                     summary_steps += step
                     model.summary_writer.add_summary(
-                        model.sess.run(model.distances_ep_summary, {
-                            model.distance_ep: [[dist]]
-                        }), summary_steps)
+                        model.sess.run(model.distances_ep_summary,
+                                       {model.distance_ep: [[dist]]}),
+                        summary_steps)
 
                     # New best model obtained! Save it!
                     if ep_rs_sum > max_ep_reward:
@@ -131,7 +138,7 @@ def main(args):
                 discounted_ep_rs_norm = memory.discount_and_norm_rewards()
                 feed = {
                     model.tf_xs:
-                    np.array(memory.observations),  # shape=[None, 90, 230, 3]
+                    np.array(memory.observations),  # shape=[None, 74, 192, 3]
                     model.tf_ys: np.array(memory.actions),  # shape=[None, 1]
                     model.tf_rs: discounted_ep_rs_norm,  # shape=[None, 1]
                     model.rewards_ep: [[ep_rs_sum]],
@@ -142,9 +149,9 @@ def main(args):
                 model.write_summary(feed)
                 summary_steps += step
                 model.summary_writer.add_summary(
-                    model.sess.run(model.distances_ep_summary, {
-                        model.distance_ep: [[dist]]
-                    }), summary_steps)
+                    model.sess.run(model.distances_ep_summary,
+                                   {model.distance_ep: [[dist]]}),
+                    summary_steps)
 
                 memory.clear()
                 break
@@ -152,16 +159,15 @@ def main(args):
             if dist > args.max_distance:
                 print("Beat max episode steps!")
                 i_episode += 1
-                summary = model.sess.run(model.rewards_ep_summary, {
-                    model.rewards_ep: [[ep_rs_sum]]
-                })
+                summary = model.sess.run(model.rewards_ep_summary,
+                                         {model.rewards_ep: [[ep_rs_sum]]})
                 model.summary_writer.add_summary(summary, model.summary_iter)
                 model.summary_iter += 1
                 summary_steps += step
                 model.summary_writer.add_summary(
-                    model.sess.run(model.distances_ep_summary, {
-                        model.distance_ep: [[dist]]
-                    }), summary_steps)
+                    model.sess.run(model.distances_ep_summary,
+                                   {model.distance_ep: [[dist]]}),
+                    summary_steps)
 
                 if FINAL:
                     print("Writing checkpoint")
@@ -182,24 +188,30 @@ def main(args):
 # The model contains the brain of the agent. It takes as input an observation,
 # and outputs the action that the agent should execute at that instant.
 class Model:
-    def __init__(self, sess=tf.Session(), trainable=False):
+    def __init__(self, trainable=False):
 
-        self.sess = sess
-        self.tf_xs = tf.placeholder(
-            tf.float32, shape=[None, 90, 230, 3], name='camera')
-        self.tf_ys = tf.placeholder(
-            tf.float32, shape=[None, 1], name='control')
-        self.tf_rs = tf.placeholder(
-            tf.float32, shape=[None, 1], name='rewards')
-        self.rewards_ep = tf.placeholder(
-            tf.float32, shape=[None, 1], name='rewards_ep')
-        self.distance_ep = tf.placeholder(
-            tf.float32, shape=[None, 1], name='distance_ep')
+        self.sess = tf.compat.v1.Session()
+        self.tf_xs = tf.placeholder(tf.float32,
+                                    shape=[None, 74, 192, 3],
+                                    name='camera')
+        self.tf_ys = tf.placeholder(tf.float32,
+                                    shape=[None, 1],
+                                    name='control')
+        self.tf_rs = tf.placeholder(tf.float32,
+                                    shape=[None, 1],
+                                    name='rewards')
+        self.rewards_ep = tf.placeholder(tf.float32,
+                                         shape=[None, 1],
+                                         name='rewards_ep')
+        self.distance_ep = tf.placeholder(tf.float32,
+                                          shape=[None, 1],
+                                          name='distance_ep')
         self.keep_prob = tf.placeholder(tf.float32)
 
         # Convenience functions with default parameters
-        f_conv = functools.partial(
-            tf.layers.conv2d, padding="valid", activation="relu")
+        f_conv = functools.partial(tf.layers.conv2d,
+                                   padding="valid",
+                                   activation="relu")
         f_dense = functools.partial(tf.layers.dense, activation="relu")
 
         # batch color normalization
@@ -243,12 +255,7 @@ class Model:
                 zip(gradients, variables))
 
         # Initialize all unintialized variables
-        init_op = tf.compat.v1.variables_initializer([
-            v for v in tf.compat.v1.global_variables()
-            if not tf.compat.v1.is_variable_initialized(v).eval(
-                session=self.sess)
-        ])
-        self.sess.run(init_op)
+        self.sess.run(tf.compat.v1.global_variables_initializer())
         self._init_summaries()
 
     def compute_action(self, feed, greedy):
@@ -270,14 +277,12 @@ class Model:
         tf.summary.scalar("neglogprob", tf.reduce_mean(self.neg_log_prob))
         tf.summary.scalar("rewards", tf.reduce_sum(self.tf_rs))
         tf.summary.scalar("ys", tf.reduce_mean(self.tf_ys))
-        self.rewards_ep_summary = tf.summary.scalar("rewards_ep",
-                                                    tf.reduce_mean(
-                                                        self.rewards_ep))
+        self.rewards_ep_summary = tf.summary.scalar(
+            "rewards_ep", tf.reduce_mean(self.rewards_ep))
         self.merged_summary_op = tf.summary.merge_all()
 
-        self.distances_ep_summary = tf.summary.scalar("distance_ep",
-                                                      tf.reduce_mean(
-                                                          self.distance_ep))
+        self.distances_ep_summary = tf.summary.scalar(
+            "distance_ep", tf.reduce_mean(self.distance_ep))
 
         self.summary_writer = tf.summary.FileWriter(
             self.log_dir, graph=tf.get_default_graph())
@@ -328,10 +333,11 @@ class Memory:
         return discounted_ep_rs.reshape((-1, 1))
 
 
-def preprocess(image, camera):
+def preprocess(observation, camera):
+    image = observation[camera.id]
     if image is not None:
-        (i1, j1, i2, j2) = camera.get_roi()
-        return cv2.resize(image[i1:i2, j1:j2], None, fx=0.25, fy=0.25)
+        (i1, j1, i2, j2) = camera.camera.get_roi()
+        return image[i1:i2, j1:j2]
     return image
 
 
@@ -339,17 +345,15 @@ if __name__ == "__main__":
     # Parse Arguments
     parser = argparse.ArgumentParser(
         description='Train a new policy in VISTA using policy gradients')
-    parser.add_argument(
-        '--trace-path',
-        type=str,
-        nargs='+',
-        help='Path to the traces to use for simulation')
+    parser.add_argument('--trace-path',
+                        type=str,
+                        nargs='+',
+                        help='Path to the traces to use for simulation')
     parser.add_argument(
         '--max-distance',
         type=int,
         default=10000,
-        help='Distance in [m] to drive without crashing to "master" the scene'
-    )
+        help='Distance in [m] to drive without crashing to "master" the scene')
     parser.add_argument(
         '--max_episodes',
         type=int,

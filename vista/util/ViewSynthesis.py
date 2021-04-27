@@ -31,7 +31,6 @@ class ViewSynthesis:
             and depth
         mode (DepthModes): The mode of depth to use for projecting from 2d -> 3d
      """
-
     def __init__(
             self,
             camera,  # Camera object of the images
@@ -55,15 +54,14 @@ class ViewSynthesis:
         self.world_rays = np.matmul(self.K_inv, self.homogeneous_coords)
 
         # Objects for rendering the scene
-        self.scene = pyrender.Scene(
-            ambient_light=[1., 1., 1.], bg_color=[0, 0, 0])
-        self.render_camera = pyrender.IntrinsicsCamera(
-            fx=camera._fx,
-            fy=camera._fy,
-            cx=camera._cx,
-            cy=camera._cy,
-            znear=0.01,
-            zfar=100000)
+        self.scene = pyrender.Scene(ambient_light=[1., 1., 1.],
+                                    bg_color=[0, 0, 0])
+        self.render_camera = pyrender.IntrinsicsCamera(fx=camera._fx,
+                                                       fy=camera._fy,
+                                                       cx=camera._cx,
+                                                       cy=camera._cy,
+                                                       znear=0.01,
+                                                       zfar=100000)
         self.renderer = pyrender.OffscreenRenderer(camera.get_width(),
                                                    camera.get_height())
 
@@ -92,16 +90,17 @@ class ViewSynthesis:
 
     def disp_to_depth(self, disparity):
         depth_img = np.exp(
-            0.5 * np.clip(self.baseline * self.K[0, 0] /
-                          (disparity * self.dims[1]), 0, MAX_DIST))
+            0.5 *
+            np.clip(self.baseline * self.K[0, 0] /
+                    (disparity * self.dims[1]), 0, MAX_DIST))
         return depth_img
 
     def synthesize(self,
-                       theta,
-                       translation_x,
-                       translation_y,
-                       image,
-                       depth=None):
+                   theta,
+                   translation_x,
+                   translation_y,
+                   image,
+                   depth=None):
         if depth is None:
             depth = self.depth
 
@@ -114,10 +113,12 @@ class ViewSynthesis:
         colors = image[:, ::-1] / 255.
         self.mesh.primitives[0].color_0[:, :3] = colors.reshape(-1, 3)
 
-        # Compute new camera pose based on the requested viewpoint args
+        # # Compute new camera pose based on the requested viewpoint args
         camera_pose = np.eye(4)
-        camera_pose[:3, :3] = self._create_rotation_matrix(theta)
-        camera_pose[:3, 3] = [translation_x, 0, translation_y]
+        cam_theta, cam_x, cam_y = self._to_ogl_coordinate(
+            theta, translation_x, translation_y)
+        camera_pose[:3, :3] = self._create_rotation_matrix(cam_theta)
+        camera_pose[:3, 3] = [cam_x, 0, cam_y]
 
         # Clear scene and fill with new contents
         self.scene.clear()
@@ -158,11 +159,15 @@ class ViewSynthesis:
             print(time.time() - tic)
             return coords, mesh_tri
 
-
     def _create_rotation_matrix(self, theta):
         s, c = np.sin(theta), np.cos(theta)
-        R = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+        R = np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]])
         return R
+
+    def _to_ogl_coordinate(self, theta, x, y):
+        # OpenGL z-axis inverted, theta (x-z-plane) and translation_y (z)
+        return -theta, x, -y
+
 
 
 if __name__ == "main":
