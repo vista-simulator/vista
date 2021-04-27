@@ -18,6 +18,7 @@ class Camera(BaseSensor):
         self.camera = CameraParams(self.which_camera)
         self.camera.resize(250, 400)  #Hardcode FIXME
         self.view_synthesizer = ViewSynthesis(self.camera).synthesize
+        self.stream = None
 
         # Reset the sensor based on the position of the parent
         self.reset()
@@ -63,7 +64,11 @@ class Camera(BaseSensor):
         car = self.parent
         self.trace = car.world.traces[car.current_trace_index]
 
-        # Initialize stream
+        # Close already opened stream
+        if self.stream is not None:
+            self.stream.close()
+
+        # Initialize new stream and seek
         video = os.path.join(self.trace.trace_path, self.which_camera + '.avi')
         self.stream = FFReader(video, custom_size=(250, 400), verbose=False)
 
