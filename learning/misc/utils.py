@@ -1,6 +1,7 @@
 import re
 import yaml
 import copy
+import itertools
 from functools import partial, partialmethod
 from importlib import import_module
 from ray.tune.registry import register_env
@@ -28,6 +29,26 @@ def load_yaml(fpath):
             list(u'-+0123456789.'))
         data = yaml.load(f, Loader=loader)
     return data
+
+
+def update_by_job_array_exp(exp, job_array_module, job_array_task_id):
+    job_array_mod = import_module('job_array.{}'.format(job_array_module))
+    job_array_exp = getattr(job_array_mod, 'job_array_exp')
+    job_array_exp_flat_list = []
+    for k, v in job_array_exp.items():
+        assert isinstance(v, list)
+        task_exp_list = []
+        for vv in v:
+            task_exp_list.append([k, vv])
+        job_array_exp_flat_list.append(task_exp_list)
+    task_exp = list(itertools.product(*job_array_exp_flat_list))[job_array_task_id]
+    exp_name = []
+    for v in task_exp:
+        set_dict_value_by_str(exp, v[0], v[1])
+        exp_name.append(''.join([vv[0] for vv in v[0].split(':')[-1].split('_')]) + str(v[1]))
+    exp_name = '-'.join(exp_name)
+    
+    return exp, exp_name
 
 
 def get_dict_value_by_str(data, string, delimiter=':'):

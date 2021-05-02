@@ -79,9 +79,7 @@ def main():
         exp['config']['num_workers'] = 0
 
     # update exp based on task ID
-    job_array_mod = importlib.import_module('job_array.{}'.format(args.job_array_module))
-    update_exp_by_task_id = getattr(job_array_mod, 'update_exp_by_task_id')
-    exp, exp_name = update_exp_by_task_id(exp, args.job_array_task_id)
+    exp, exp_name = misc.update_by_job_array_exp(exp, args.job_array_module, args.job_array_task_id)
 
     print('')
     pprint.pprint(exp)
