@@ -9,7 +9,8 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
                  target_velocity=None, n_passed_reward=True, car_following_bonus=0., 
                  cutoff_immediately=False, cutoff_at_reset_prob=None, 
-                 give_pass_reward_immediately=False, soft_crash=0.0, **kwargs):
+                 give_pass_reward_immediately=False, soft_crash=0.0, 
+                 cutoff_base_speed_range=[5., 7.], **kwargs):
         super(CuttingOff, self).__init__(trace_paths, n_agents=3, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -21,6 +22,7 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         self.cutoff_at_reset_prob = cutoff_at_reset_prob
         self.give_pass_reward_immediately = give_pass_reward_immediately
         self.soft_crash = soft_crash
+        self.cutoff_base_speed_range = cutoff_base_speed_range
         if self.cutoff_at_reset_prob is not None:
             assert self.cutoff_immediately
         self.extra_obs = np.zeros((3,))
@@ -49,7 +51,7 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         cutting_off_agent = self.world.agents[self.agent_ids.index(self.special_agent_ids['cutting_off'])]
 
         self.situation = dict(nominal=dict(), cutting_off=dict())
-        self.situation['cutting_off']['base_speed'] = np.random.uniform(5., 7.) # moving
+        self.situation['cutting_off']['base_speed'] = np.random.uniform(*self.cutoff_base_speed_range) # moving
         self.situation['nominal']['base_speed'] = np.random.uniform(0., # slower than cutting-off agent
             0.9 * self.situation['cutting_off']['base_speed'])
         
