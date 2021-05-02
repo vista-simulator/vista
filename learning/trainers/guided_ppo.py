@@ -183,7 +183,8 @@ def custom_before_loss_init(policy: Policy, obs_space: gym.spaces.Space,
     # load guidance policy
     ckpt_path = config['guidance_ckpt_path']
     policy.guidance = ExportedPolicy(ckpt_path)
-    policy.guidance.model.cuda()
+    if torch.cuda.is_available():
+        policy.guidance.model.cuda()
 
     policy.guidance.guidance_criterion = config['guidance_criterion']
     policy.guidance.guidance_coef = config['guidance_coef']

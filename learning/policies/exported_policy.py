@@ -47,7 +47,10 @@ class ExportedPolicy(object):
                 from ray.rllib.models.torch.fcnet import FullyConnectedNetwork
                 model_cls = FullyConnectedNetwork
 
-        ckpt = torch.load(ckpt_path)
+        if torch.cuda.is_available():
+            ckpt = torch.load(ckpt_path)
+        else:
+            ckpt = torch.load(ckpt_path, map_location=torch.device('cpu'))
         self.model = model_cls(**ckpt['env'], **model_config, model_config=self.config['model'])
         self.model.load_state_dict(ckpt['model'])
 
