@@ -433,11 +433,12 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
 
 
 class DistanceReward(gym.Wrapper, MultiAgentEnv):
-    def __init__(self, env, reward_coef=1.0, scale_with_dist=True):
+    def __init__(self, env, reward_coef=1.0, scale_with_dist=True, cutoff_dist=None):
         super(DistanceReward, self).__init__(env)
         self.prev_distance = None
         self.reward_coef = reward_coef
         self.scale_with_dist = scale_with_dist
+        self.cutoff_dist = cutoff_dist
 
     def reset(self, **kwargs):
         self.prev_distance = {k: 0. for k in self.controllable_agents.keys()}
@@ -446,13 +447,14 @@ class DistanceReward(gym.Wrapper, MultiAgentEnv):
     def step(self, action):
         observation, reward, done, info = super().step(action)
         for k, v in info.items():
-            delta_distance = v['distance'] - self.prev_distance[k]
-            if not self.scale_with_dist:
-                delta_distance = 0.1 if delta_distance > 0 else 0.
-            if self.reward_coef in ['inf', np.inf]:
-                reward[k] = delta_distance
-            else:
-                reward[k] += self.reward_coef * delta_distance
-            assert delta_distance >= 0 # sanity check
-            self.prev_distance[k] = v['distance']
+            if self.cutoff_dist is None or (self.cutoff_dist is not None and self.prev_distance[k] <= self.cutoff_dist):
+                delta_distance = v['distance'] - self.prev_distance[k]
+                if not self.scale_with_dist:
+                    delta_distance = 0.1 if delta_distance > 0 else 0.
+                if self.reward_coef in ['inf', np.inf]:
+                    reward[k] = delta_distance
+                else:
+                    reward[k] += self.reward_coef * delta_distance
+                assert delta_distance >= 0 # sanity check
+                self.prev_distance[k] = v['distance']
         return observation, reward, done, info

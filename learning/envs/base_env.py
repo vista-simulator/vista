@@ -146,7 +146,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.observation_for_render = observation
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
-        self.crash_to_others = self.check_collision(polys)
+        self.crash_to_others, self.overlap_ratio = self.check_collision(polys, return_overlap=True)
         done = {k: v or c for (k, v), c in zip(done.items(), self.crash_to_others)}
         done['__all__'] = np.any(list(done.values()))
         
@@ -250,16 +250,21 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
         return poly
 
-    def check_collision(self, polys):
+    def check_collision(self, polys, return_overlap=False):
         """ Given a set of polygons, check if there is collision. """
         n_polys = len(polys)
         crash = [False] * n_polys
+        overlap = [0.] * n_polys
         for i in range(n_polys):
             for j in range(i+1, n_polys):
                 intersect = polys[i].intersection(polys[j])
                 overlap_ratio = intersect.area / polys[i].area
                 crash[i] = crash[i] or (overlap_ratio >= self.collision_overlap_threshold)
-        return crash
+                overlap[i] += overlap_ratio
+        if return_overlap:
+            return crash, overlap
+        else:
+            return crash
 
     def compute_relative_transform(self, dynamics, ref_dynamics):
         """ Relative x, y, and yaw w.r.t. reference dynamics. """

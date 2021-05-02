@@ -9,7 +9,7 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
                  target_velocity=None, n_passed_reward=True, car_following_bonus=0., 
                  cutoff_immediately=False, cutoff_at_reset_prob=None, 
-                 give_pass_reward_immediately=False, **kwargs):
+                 give_pass_reward_immediately=False, soft_crash=0.0, **kwargs):
         super(CuttingOff, self).__init__(trace_paths, n_agents=3, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -20,6 +20,7 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         self.cutoff_immediately = cutoff_immediately
         self.cutoff_at_reset_prob = cutoff_at_reset_prob
         self.give_pass_reward_immediately = give_pass_reward_immediately
+        self.soft_crash = soft_crash
         if self.cutoff_at_reset_prob is not None:
             assert self.cutoff_immediately
         self.extra_obs = np.zeros((3,))
@@ -164,12 +165,12 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
                     Kp = 3
 
                     # get road vectors
-                    road_in_agent, _ = self.get_scene_state(agent.ego_dynamics, False)
+                    road_in_agent, _ = self.get_scene_state(agent.ego_dynamics, False, update=False)
                     road_in_agent = road_in_agent[road_in_agent[:,1] > 0] # drop road behind
 
                     if road_in_agent.shape[0] > 0:
                         # get target xy; use lookahead distance and apply later shift
-                        dist = np.linalg.norm(road_in_agent, axis=1)
+                        dist = np.linalg.norm(road_in_agent[:,:2], axis=1)
                         tgt_idx = np.argmin(np.abs(dist - lookahead_dist))
                         dx, dy, dtheta = road_in_agent[tgt_idx]
 
@@ -243,14 +244,14 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
                 dist_to_other > (min_dist * in_range_mul[0]) and not passed_cutting_off
             bonus = 1 if in_range else 0.
             reward[self.ref_agent_id] += self.car_following_bonus * bonus
+        
+        for i, agent_id in enumerate(self.agent_ids):
+            if agent_id in reward.keys():
+                reward[agent_id] += self.soft_crash * -self.overlap_ratio[i]
 
         # terminate episode if too far away behind
-        # origin_dist = self.ref_agent.trace.f_distance(self.ref_agent.first_time)
-        # dist = self.ref_agent.trace.f_distance(self.ref_agent.get_current_timestamp()) - origin_dist
         fail_to_catch_up = []
         for other_agent in other_agents:
-            # other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
-            # too_far_behind = (other_dist - dist) > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
             dist_to_other = np.linalg.norm(self.ref_agent.ego_dynamics.numpy()[:2] - other_agent.ego_dynamics.numpy()[:2])
             too_far_behind = dist_to_other > (10 * (other_agent.car_length + self.ref_agent.car_length) / 2.)
             fail_to_catch_up.append(too_far_behind)
