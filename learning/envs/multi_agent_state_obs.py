@@ -18,17 +18,20 @@ from . import *
 def MultiAgentStateObs(task, **kwargs):
     task = globals()[task]
     class _MultiAgentStateObs(task, MultiAgentEnv):
-        def __init__(self, aug_extra_obs=False, to_bev_map=False, with_vis_obs=False, **kwargs):
+        def __init__(self, aug_extra_obs=False, to_bev_map=False, with_vis_obs=False, 
+                     subsample_road=1, **kwargs):
             self.with_vis_obs = with_vis_obs
             self.drop_obs_space_def = True and not self.with_vis_obs
             super(_MultiAgentStateObs, self).__init__(**kwargs)
 
             self.aug_extra_obs = aug_extra_obs
             self.to_bev_map = to_bev_map
+            self.subsample_road = subsample_road
 
             self.require_handling_road = not hasattr(self, 'road')
             if self.require_handling_road:
                 self.init_scene_state(200)
+            assert self.road_buffer_size % self.subsample_road == 0
 
             # define observation space
             self.fake_cam_height, self.fake_cam_width = 10, 15
@@ -50,7 +53,7 @@ def MultiAgentStateObs(task, **kwargs):
                 else:
                     self.observation_space = state_obs_space
             else:
-                obs_size = self.road_buffer_size * 2 + 5 * self.n_agents # road xy and agent xytheta + velocity + curvature
+                obs_size = (self.road_buffer_size // self.subsample_road) * 2 + 5 * self.n_agents # road xy and agent xytheta + velocity + curvature
                 if self.aug_extra_obs and hasattr(self, 'extra_obs'):
                     obs_size += self.extra_obs.shape[0]
                 state_obs_space = gym.spaces.Box(
@@ -182,6 +185,7 @@ def MultiAgentStateObs(task, **kwargs):
                     # prepare observation
                     aug_road_in_ref = np.concatenate([np.zeros(\
                         (self.road_buffer_size-road_in_ref[:,:2].shape[0],2)), road_in_ref[:,:2]]) # NOTE: drop theta state
+                    aug_road_in_ref = aug_road_in_ref[::self.subsample_road]
                     state_obs = np.concatenate([aug_road_in_ref.reshape((-1,)), ego_in_ref] + others_in_ref)
                     observation[ref_agent_id] = state_obs
 

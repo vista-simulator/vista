@@ -6,11 +6,13 @@ from .base_env import BaseEnv
 
 
 class MultiAgentCuttingOff(BaseEnv, MultiAgentEnv):
-    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, **kwargs):
+    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
+                 reward_mode=0, **kwargs):
         super(MultiAgentCuttingOff, self).__init__(trace_paths, n_agents=3, 
             mesh_dir=mesh_dir, **kwargs)
 
         self.respawn_distance = respawn_distance
+        self.reward_mode = reward_mode
 
         # include velocity
         self.action_space = gym.spaces.Box(
@@ -125,8 +127,6 @@ class MultiAgentCuttingOff(BaseEnv, MultiAgentEnv):
             success = pass_nominal[agent_id] and in_lane_center[agent_id]
 
             info[agent_id]['success'] = success
-            done[agent_id] = success or done[agent_id]
-            reward[agent_id] = float(done[agent_id] and success)
 
             # terminate episode if too far away behind
             for other_agent_idx, other_agent_id in enumerate(self.agent_ids):
@@ -137,7 +137,48 @@ class MultiAgentCuttingOff(BaseEnv, MultiAgentEnv):
                 too_far_behind = dist_to_other > (10 * (other_agent.car_length + agent.car_length) / 2.)
                 done[agent_id] = too_far_behind or done[agent_id]
 
-        done['__all__'] = np.any(list(done.values()))
+        if self.reward_mode == 0: 
+            # done whenever one of the agents succeed or crash
+            # reward of an agent is given when the agent succeed at the end of the episode
+            for agent_id in self.controllable_agents.keys():
+                success = info[agent_id]['success']
+                done[agent_id] = success or done[agent_id]
+                reward[agent_id] = float(done[agent_id] and success)
+            done['__all__'] = np.any(list(done.values()))
+
+        elif self.reward_mode == 1: 
+            # done when one of the agents crash or all agents succeed
+            # reward of all agents is given as the number of succeeded agents at the end of the episodes
+            all_success = [info[aid]['success'] for aid in self.controllable_agents.keys()]
+            for agent_id in self.controllable_agents.keys():
+                done[agent_id] = np.all(all_success) or done[agent_id]
+            done['__all__'] = np.any(list(done.values()))
+            for agent_id in self.controllable_agents.keys():
+                reward[agent_id] = float(done['__all__']) * np.sum(all_success)
+
+        elif self.reward_mode == 2:
+            # done when one of the agents crash or all agents succeed
+            # reward of an agent is given if the agent succeed
+            all_success = [info[aid]['success'] for aid in self.controllable_agents.keys()]
+            for agent_id in self.controllable_agents.keys():
+                done[agent_id] = np.all(all_success) or done[agent_id]
+            done['__all__'] = np.any(list(done.values()))
+            for agent_id in self.controllable_agents.keys():
+                reward[agent_id] = float(info[agent_id]['success'])
+
+        elif self.reward_mode == 3:
+            # done whenever one of the agents succeed or crash
+            # reward of an agent is given when the agent succeed at the end of the episode
+            # with extra punishment on agents that crash
+            for agent_id in self.controllable_agents.keys():
+                success = info[agent_id]['success']
+                crash_done = done[agent_id]
+                done[agent_id] = success or done[agent_id]
+                reward[agent_id] = float(done[agent_id]) * (float(success) - float(crash_done))
+            done['__all__'] = np.any(list(done.values()))
+
+        else:
+            raise NotImplementedError('Unrecognized reward mode {}'.format(self.reward_mode))
 
         return observation, reward, done, info
 

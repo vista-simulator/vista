@@ -474,6 +474,8 @@ class RandomPermuteAgent(gym.Wrapper, MultiAgentEnv):
         return observation
 
     def step(self, action):
+        if self.do_permute:
+            action = self.permute_data(action)
         observation, reward, done, info = super().step(action)
         if self.do_permute:
             done_all = done.pop('__all__')
