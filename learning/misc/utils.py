@@ -4,6 +4,7 @@ import copy
 import itertools
 from functools import partial, partialmethod
 from importlib import import_module
+import numpy as np
 from ray.tune.registry import register_env
 from ray.rllib.models import ModelCatalog
 
@@ -34,14 +35,28 @@ def load_yaml(fpath):
 def update_by_job_array_exp(exp, job_array_module, job_array_task_id):
     job_array_mod = import_module('job_array.{}'.format(job_array_module))
     job_array_exp = getattr(job_array_mod, 'job_array_exp')
-    job_array_exp_flat_list = []
-    for k, v in job_array_exp.items():
-        assert isinstance(v, list)
-        task_exp_list = []
-        for vv in v:
-            task_exp_list.append([k, vv])
-        job_array_exp_flat_list.append(task_exp_list)
-    task_exp = list(itertools.product(*job_array_exp_flat_list))[job_array_task_id]
+    search_method = getattr(job_array_mod, 'search_method')
+    if search_method == 'grid':
+        job_array_exp_flat_list = []
+        for k, v in job_array_exp.items():
+            assert isinstance(v, list)
+            task_exp_list = []
+            for vv in v:
+                task_exp_list.append([k, vv])
+            job_array_exp_flat_list.append(task_exp_list)
+        all_task_exp = list(itertools.product(*job_array_exp_flat_list))
+    elif search_method == 'cartesian':
+        n_task = np.unique([len(v) for v in list(job_array_exp.values())])
+        assert len(n_task) == 1, 'Every list should have the same length'
+        n_task = n_task[0]
+        all_task_exp = []
+        for i in range(n_task):
+            all_task_exp.append([])
+            for k, v in job_array_exp.items():
+                all_task_exp[-1].append([k, v[i]])
+    else:
+        raise NotImplementedError('Unrecognized search method {}'.format(search_method))
+    task_exp = all_task_exp[job_array_task_id]
     exp_name = []
     for v in task_exp:
         set_dict_value_by_str(exp, v[0], v[1])
@@ -120,7 +135,11 @@ def register_custom_model(model_config):
 def set_callbacks(exp, agent_ids):
     """ Set callbacks to a callback class by string. """
     _callbacks = getattr(callbacks, exp['config']['callbacks'])
-    _callbacks = partial(_callbacks, agent_ids=agent_ids)
+    if 'callbacks_config' in exp['config']['multiagent'].keys():
+        kwargs = exp['config']['multiagent']['callbacks_config']
+    else:
+        kwargs = dict()
+    _callbacks = partial(_callbacks, agent_ids=agent_ids, **kwargs)
     exp['config']['callbacks'] = _callbacks
 
 
