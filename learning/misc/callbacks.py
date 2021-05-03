@@ -3,6 +3,7 @@ from typing import Dict
 import numpy as np
 from collections import deque
 
+import ray
 from ray.rllib.agents.callbacks import DefaultCallbacks
 from ray.rllib.env import BaseEnv
 from ray.rllib.evaluation import MultiAgentEpisode, RolloutWorker
