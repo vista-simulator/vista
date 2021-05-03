@@ -1,7 +1,7 @@
 """run source interactive_start.sh"""
 #!/bin/bash
 
-USE_EGL=false
+USE_EGL=true
 
 if $USE_EGL
 then

@@ -458,3 +458,27 @@ class DistanceReward(gym.Wrapper, MultiAgentEnv):
                 assert delta_distance >= 0 # sanity check
                 self.prev_distance[k] = v['distance']
         return observation, reward, done, info
+
+
+class RandomPermuteAgent(gym.Wrapper, MultiAgentEnv):
+    def __init__(self, env, permute_prob=0.0):
+        super(RandomPermuteAgent, self).__init__(env)
+        self.permute_prob = permute_prob
+
+    def reset(self, **kwargs):
+        self.do_permute = self.permute_prob > np.random.uniform(0., 1.)
+        observation = super().reset(**kwargs)
+        if self.do_permute:
+            observation = self.permute_data(observation)
+        return observation
+
+    def step(self, action):
+        observation, reward, done, info = super().step(action)
+        if self.do_permute:
+            observation, reward, done, info = map(self.permute_data, [observation, reward, done, info])
+        return observation, reward, done, info
+
+    def permute_data(self, data):
+        permuted_keys = np.random.permutation(list(data.keys()))
+        new_data = {k: v for k, v in zip(permuted_keys, list(data.values()))}
+        return new_data

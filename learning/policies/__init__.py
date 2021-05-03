@@ -13,7 +13,7 @@ class PolicyManager(object):
 
     def get_policy(self, policy_id):
         single_config = copy.deepcopy(self.config) # otherwise will cause "ValueError: Circular reference detected"
-        if policy_id == 'default_policy':
+        if 'default_policy' in policy_id:
             policy = (None, self.obs_space, self.act_space, single_config)
         else:
             raise ValueError('Invalid policy ID {}'.format(policy_id))
@@ -24,6 +24,8 @@ class PolicyManager(object):
     def get_policy_mapping_fn(self, policy_mapping_fn):
         if policy_mapping_fn == 'all_to_default':
             fn = lambda agent_id: 'default_policy'
+        elif policy_mapping_fn == 'one_to_one':
+            fn = lambda agent_id: 'default_policy_{}'.format(agent_id.split('_')[-1])
         else:
             raise ValueError('Invalid policy_mapping_fn {}'.format(policy_mapping_fn))
 
