@@ -111,11 +111,13 @@ def MultiAgentStateObs(task, **kwargs):
                 self.vehicle_states[agent_id] = np.array([get_human_curvature(agent)[0], get_human_speed(agent)[0]])
             state_obs = self.get_state_obs()
             if not self.to_bev_map and (self.aug_extra_obs and hasattr(self, 'extra_obs')):
-                state_obs[self.ref_agent_id] = np.concatenate([state_obs[self.ref_agent_id], self.extra_obs])
+                for k in self.controllable_agents.keys():
+                    state_obs[k] = np.concatenate([state_obs[k], self.extra_obs[k]])
 
             # prepare observation
             if self.with_vis_obs:
-                observation[self.ref_agent_id] = [observation[self.ref_agent_id], state_obs[self.ref_agent_id]]
+                for k in self.controllable_agents.keys():
+                    observation[k] = [observation[k], state_obs[k]]
             else:
                 observation = state_obs
 
@@ -130,10 +132,12 @@ def MultiAgentStateObs(task, **kwargs):
             
             state_obs = self.get_state_obs()
             if not self.to_bev_map and (self.aug_extra_obs and hasattr(self, 'extra_obs')):
-                state_obs[self.ref_agent_id] = np.concatenate([state_obs[self.ref_agent_id], self.extra_obs])
+                for k in self.controllable_agents.keys():
+                    state_obs[k] = np.concatenate([state_obs[k], self.extra_obs[k]])
 
             if self.with_vis_obs:
-                observation[self.ref_agent_id] = [observation[self.ref_agent_id], state_obs[self.ref_agent_id]]
+                for k in self.controllable_agents.keys():
+                    observation[k] = [observation[k], state_obs[k]]
             else:
                 observation = state_obs
 

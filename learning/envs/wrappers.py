@@ -469,16 +469,18 @@ class RandomPermuteAgent(gym.Wrapper, MultiAgentEnv):
         self.do_permute = self.permute_prob > np.random.uniform(0., 1.)
         observation = super().reset(**kwargs)
         if self.do_permute:
+            self.permuted_keys = np.random.permutation(list(observation.keys()))
             observation = self.permute_data(observation)
         return observation
 
     def step(self, action):
         observation, reward, done, info = super().step(action)
         if self.do_permute:
+            done_all = done.pop('__all__')
             observation, reward, done, info = map(self.permute_data, [observation, reward, done, info])
+            done['__all__'] = done_all
         return observation, reward, done, info
 
     def permute_data(self, data):
-        permuted_keys = np.random.permutation(list(data.keys()))
-        new_data = {k: v for k, v in zip(permuted_keys, list(data.values()))}
+        new_data = {k: v for k, v in zip(self.permuted_keys, list(data.values()))}
         return new_data
