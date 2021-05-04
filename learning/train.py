@@ -1,6 +1,7 @@
 import os
 import argparse
 import subprocess
+import numpy as np
 import ray
 from ray import tune
 from ray.tune.config_parser import make_parser
@@ -117,6 +118,8 @@ def main():
 
     # Get trainer
     trainer = get_trainer_class(exp['run'])
+    if args.resume:
+        misc.resume_from_latest_ckpt(exp, exp_names[0])
 
     # Run experiment
     tune.run(trainer,

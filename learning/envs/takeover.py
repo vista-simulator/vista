@@ -74,6 +74,7 @@ class Takeover(BaseEnv, MultiAgentEnv):
             in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
             reward[self.ref_agent_id] = 1 if in_lane_center and np.all(passed) else 0
             done[self.ref_agent_id] = (in_lane_center and np.all(passed)) or done[self.ref_agent_id]
+            info[self.ref_agent_id]['success'] = in_lane_center and np.all(passed)
         else:
             for agent, passed_this in zip(other_agents, passed):
                 if passed_this:

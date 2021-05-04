@@ -132,6 +132,8 @@ def main():
 
     # Get trainer
     trainer = get_trainer_class(exp['run'])
+    if args.resume:
+        misc.resume_from_latest_ckpt(exp, exp_name)
 
     # Run experiment
     tune.run(trainer,

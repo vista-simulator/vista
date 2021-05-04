@@ -1,3 +1,4 @@
+import os
 import re
 import yaml
 import copy
@@ -30,6 +31,23 @@ def load_yaml(fpath):
             list(u'-+0123456789.'))
         data = yaml.load(f, Loader=loader)
     return data
+
+
+def resume_from_latest_ckpt(exp, exp_name):
+    exp_dir = os.path.join(exp['local_dir'], exp_name)
+    assert os.path.isdir(exp_dir)
+    trial_dirs = []
+    for v in os.listdir(exp_dir):
+        v = os.path.join(exp_dir, v)
+        if os.path.isdir(v):
+            trial_dirs.append(v)
+    trial_time = ['_'.join(v.split('_')[-2:]) for v in trial_dirs]
+    latest_trial_dir = trial_dirs[np.argmax(trial_time)]
+    ckpt_dirnames = [v for v in os.listdir(latest_trial_dir) if 'checkpoint' in v]
+    latest_ckpt_dirname = ckpt_dirnames[np.argmax([int(v.split('_')[-1]) for v in ckpt_dirnames])]
+    latest_ckpt = os.path.join(latest_trial_dir, latest_ckpt_dirname, latest_ckpt_dirname.replace('_', '-'))
+    assert os.path.exists(latest_ckpt)
+    exp['restore'] = latest_ckpt
 
 
 def update_by_job_array_exp(exp, job_array_module, job_array_task_id):

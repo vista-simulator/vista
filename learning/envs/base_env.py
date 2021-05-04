@@ -128,6 +128,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             self.rigid_body_info = {
                 'crash': np.zeros((self.n_agents, self.n_agents), dtype=bool),
                 'overlap': np.zeros((self.n_agents, self.n_agents)),
+                'cum_collide': np.zeros((self.n_agents,)),
             }
 
         # horizon count
@@ -196,6 +197,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         if self.rigid_body_collision:
             for i, agent_id in enumerate(info.keys()):
                 info[agent_id]['collide'] = np.any(self.rigid_body_info['crash'][i])
+                self.rigid_body_info['cum_collide'][i] += float(info[agent_id]['collide'])
+                info[agent_id]['cum_collide'] = self.rigid_body_info['cum_collide'][i]
             self.rigid_body_info['crash'] = crash
             self.rigid_body_info['overlap'] = overlap
             # NOTE: don't end due to collision unless pass hard overlap threshold
