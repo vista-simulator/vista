@@ -6,7 +6,7 @@ from .base_env import BaseEnv
 
 
 class CuttingOff(BaseEnv, MultiAgentEnv):
-    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=10, # DEBUG 
+    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
                  target_velocity=None, n_passed_reward=True, car_following_bonus=0., 
                  cutoff_immediately=False, cutoff_at_reset_prob=None, 
                  give_pass_reward_immediately=False, soft_crash=0.0, 
@@ -261,6 +261,10 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
             if agent_id in reward.keys():
                 reward[agent_id] += self.soft_crash * -self.overlap_ratio[i]
 
+        if self.rigid_body_collision:
+            for agent_id in reward.keys():
+                reward[agent_id] -= self.rigid_body_collision_coef * float(info[agent_id]['collide'])
+
         # terminate episode if too far away behind
         fail_to_catch_up = []
         for other_agent in other_agents:
@@ -317,7 +321,8 @@ if __name__ == "__main__":
 
     # initialize simulator
     env = CuttingOff(args.trace_paths, args.mesh_dir, init_agent_range=[6,12], 
-        respawn_distance=10, target_velocity=args.target_velocity, cutoff_immediately=True, collision_overlap_threshold=0.001) # DEBUG
+        respawn_distance=10, target_velocity=args.target_velocity, 
+        cutoff_immediately=True, collision_overlap_threshold=0.001)
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run
@@ -327,7 +332,6 @@ if __name__ == "__main__":
         ep_rew = 0
         ep_steps = 0
         while not done:
-            # print(ep_steps) # DEBUG
             act = dict()
             for k, a in env.controllable_agents.items():
                 if True: # follow human trajectory

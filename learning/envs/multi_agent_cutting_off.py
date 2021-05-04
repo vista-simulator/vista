@@ -190,6 +190,10 @@ class MultiAgentCuttingOff(BaseEnv, MultiAgentEnv):
         else:
             raise NotImplementedError('Unrecognized reward mode {}'.format(self.reward_mode))
 
+        if self.rigid_body_collision:
+            for agent_id in reward.keys():
+                reward[agent_id] -= self.rigid_body_collision_coef * float(info[agent_id]['collide'])
+
         return observation, reward, done, info
 
     def wrap_data(self, data):

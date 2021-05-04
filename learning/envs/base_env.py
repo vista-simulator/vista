@@ -44,7 +44,6 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.rigid_body_collision = rigid_body_collision
         self.rigid_body_collision_coef = rigid_body_collision_coef
         self.rigid_body_collision_repulsive_coef = rigid_body_collision_repulsive_coef
-        self.rigid_body_collision_hard_overlap_threshold = rigid_body_collision_hard_overlap_threshold
         self.perturb_heading_in_random_init = True # set False for car following nominal traj 
 
         if self.n_agents > 1:

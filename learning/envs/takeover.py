@@ -105,6 +105,9 @@ class Takeover(BaseEnv, MultiAgentEnv):
                 velo_rew = 1 - (self.target_velocity - ref_agent_speed) / self.target_velocity
                 velo_rew = np.clip(velo_rew, 0., 1.) * 0.001
                 reward[self.ref_agent_id] += velo_rew
+        if self.rigid_body_collision:
+            for agent_id in reward.keys():
+                reward[agent_id] -= self.rigid_body_collision_coef * float(info[agent_id]['collide'])
         done['__all__'] = done[self.ref_agent_id]
         return observation, reward, done, info
 
