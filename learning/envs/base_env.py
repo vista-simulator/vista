@@ -1,4 +1,5 @@
 import os
+from itertools import combinations
 import numpy as np
 import gym
 import cv2
@@ -23,8 +24,9 @@ class BaseEnv(gym.Env, MultiAgentEnv):
     drop_obs_space_def = False
 
     def __init__(self, trace_paths, n_agents=1, mesh_dir=None, 
-                 collision_overlap_threshold=0.2,
-                 init_agent_range=[8, 20]):
+                 collision_overlap_threshold=0.2, init_agent_range=[8, 20],
+                 max_horizon=500, rigid_body_collision=False,
+                 rigid_body_collision_coef=0.0, rigid_body_collision_repulsive_coef=0.9):
         trace_paths = [os.path.abspath(os.path.expanduser(tp)) for tp in trace_paths]
         self.world = vista.World(trace_paths)
         self.ref_agent_idx = 0
@@ -38,6 +40,11 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
         self.collision_overlap_threshold = collision_overlap_threshold
         self.init_agent_range = init_agent_range
+        self.max_horizon = max_horizon
+        self.rigid_body_collision = rigid_body_collision
+        self.rigid_body_collision_coef = rigid_body_collision_coef
+        self.rigid_body_collision_repulsive_coef = rigid_body_collision_repulsive_coef
+        self.rigid_body_collision_hard_overlap_threshold = rigid_body_collision_hard_overlap_threshold
         self.perturb_heading_in_random_init = True # set False for car following nominal traj 
 
         if self.n_agents > 1:
@@ -117,9 +124,48 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         observation = {k: v for k, v in zip(self.agent_ids, observation)}
         self.observation_for_render = observation
 
+        # for rigid body collision
+        if self.rigid_body_collision:
+            self.rigid_body_info = {
+                'crash': np.zeros((self.n_agents, self.n_agents), dtype=bool),
+                'overlap': np.zeros((self.n_agents, self.n_agents)),
+            }
+
+        # horizon count
+        self.horizon_cnt = 0
+
         return observation
 
     def step(self, action):
+        # modify action for rigid body collision
+        if self.rigid_body_collision:
+            assert np.all([v.shape[0] == 2 for v in action.values()]), 'Need to include velocity for rigid body collision'
+            # get pairwise projected speed
+            agent_order = self.get_agent_order()
+            proj_speed = 9999 * np.ones((self.n_agents, self.n_agents))
+            for i in range(self.n_agents):
+                for j in range(self.n_agents):
+                    i_in_front_of_j = np.where(agent_order == i)[0][0] < np.where(agent_order == j)[0][0]
+                    if (i == j) or i_in_front_of_j: # only slow down the behind car
+                        proj_speed[i,j] = action[self.agent_ids[i]][1]
+                    else:
+                        crash = self.rigid_body_info['crash'][i,j]
+                        if not crash:
+                            continue
+                        _, _, dtheta = self.compute_relative_transform(
+                            self.world.agents[j].ego_dynamics, self.world.agents[i].ego_dynamics)
+                        proj_speed[i,j] = np.cos(dtheta) * action[self.agent_ids[j]][1]
+            # assign modified speed
+            min_agent_speed = 9999. # consider modified speed of other agents
+            for i, agent_idx in enumerate(agent_order):
+                agent_id = self.agent_ids[agent_idx]
+                crash_to_front_cars = np.any(self.rigid_body_info['crash'][agent_idx][agent_order][:i+1])
+                if crash_to_front_cars:
+                    action[agent_id][1] = min(proj_speed[agent_idx].min(), min_agent_speed)
+                    action[agent_id][1] *= self.rigid_body_collision_repulsive_coef
+                    min_agent_speed = min(min_agent_speed, action[agent_id][1])
+                else:
+                    min_agent_speed = 9999.
         # update agents' dynamics (take action in the environment)
         observation, reward, done, info = dict(), dict(), dict(), dict()
         next_valid_timestamp_list = []
@@ -146,8 +192,20 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.observation_for_render = observation
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
-        self.crash_to_others, self.overlap_ratio = self.check_collision(polys, return_overlap=True)
-        done = {k: v or c for (k, v), c in zip(done.items(), self.crash_to_others)}
+        crash, overlap = self.check_collision(polys, return_overlap=True)
+        self.crash_to_others, self.overlap_ratio = np.any(crash, axis=1), np.sum(overlap, axis=1) # legacy code
+        if self.rigid_body_collision:
+            for i, agent_id in enumerate(info.keys()):
+                info[agent_id]['collide'] = np.any(self.rigid_body_info['crash'][i])
+            self.rigid_body_info['crash'] = crash
+            self.rigid_body_info['overlap'] = overlap
+            # NOTE: don't end due to collision unless pass hard overlap threshold
+        else:
+            done = {k: v or c for (k, v), c in zip(done.items(), self.crash_to_others)}
+
+        self.horizon_cnt += 1
+        if self.horizon_cnt >= self.max_horizon:
+            done = {k: True for k, v in done.items()}
         done['__all__'] = np.any(list(done.values()))
         
         return observation, reward, done, info
@@ -253,14 +311,18 @@ class BaseEnv(gym.Env, MultiAgentEnv):
     def check_collision(self, polys, return_overlap=False):
         """ Given a set of polygons, check if there is collision. """
         n_polys = len(polys)
-        crash = [False] * n_polys
-        overlap = [0.] * n_polys
+        crash = np.zeros((n_polys, n_polys), dtype=bool)
+        overlap = np.zeros((n_polys, n_polys))
         for i in range(n_polys):
-            for j in range(i+1, n_polys):
-                intersect = polys[i].intersection(polys[j])
-                overlap_ratio = intersect.area / polys[i].area
-                crash[i] = crash[i] or (overlap_ratio >= self.collision_overlap_threshold)
-                overlap[i] += overlap_ratio
+            for j in range(n_polys):
+                if j == i:
+                    crash[i,j] = False
+                    overlap[i,j] = 0.
+                else:
+                    intersect = polys[i].intersection(polys[j])
+                    overlap_ratio = intersect.area / polys[i].area
+                    crash[i,j] = overlap_ratio >= self.collision_overlap_threshold
+                    overlap[i,j] = overlap_ratio
         if return_overlap:
             return crash, overlap
         else:
@@ -319,6 +381,15 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         passed = (dist - other_dist) > ((other_agent.car_length + agent.car_length) / 2.)
         return passed
 
+    def get_agent_order(self):
+        ref_agent = self.ref_agent
+        origin_dist = ref_agent.trace.f_distance(ref_agent.first_time)
+        dists = []
+        for agent in self.world.agents:
+            dist = agent.trace.f_distance(agent.get_current_timestamp()) - origin_dist
+            dists.append(dist)
+        return np.argsort(dists)[::-1] # front to behind
+
     def reset_mesh_lib(self):
         self.mesh_lib.reset(self.n_agents)
         # assign car width and length based on mesh size
@@ -373,7 +444,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.road_frame_index.clear()
         self.road_frame_index.append(self.ref_agent.current_frame_index)
         self.road.clear()
-        self.road.append(self.ref_agent.human_dynamics.numpy())
+        self.road.append(self.ref_agent.human_dynamics.numpy().astype(np.float))
         self.road_dynamics = self.ref_agent.human_dynamics.copy()
 
     def get_timestamp_readonly(self, agent, index=0, current=False):
@@ -382,6 +453,10 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                 agent.current_segment_index]) - 1, index)
         return agent.trace.syncedLabeledTimestamps[
             agent.current_segment_index][index]
+
+    def obs_for_render(self, obs):
+        # for monitor wrapper
+        return obs
 
     def close(self):
         for agent in self.world.agents:

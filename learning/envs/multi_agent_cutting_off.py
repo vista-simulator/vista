@@ -95,6 +95,16 @@ class MultiAgentCuttingOff(BaseEnv, MultiAgentEnv):
         observation = self.wrap_data(observation)
         self.observation_for_render = observation # for render
 
+        # for rigid body collision
+        if self.rigid_body_collision:
+            self.rigid_body_info = {
+                'crash': np.zeros((self.n_agents, self.n_agents), dtype=bool),
+                'overlap': np.zeros((self.n_agents, self.n_agents)),
+            }
+
+        # horizon count
+        self.horizon_cnt = 0
+
         # reset road
         self.reset_scene_state()
 

@@ -6,7 +6,7 @@ from .base_env import BaseEnv
 
 
 class CuttingOff(BaseEnv, MultiAgentEnv):
-    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15, 
+    def __init__(self, trace_paths, mesh_dir=None, respawn_distance=10, # DEBUG 
                  target_velocity=None, n_passed_reward=True, car_following_bonus=0., 
                  cutoff_immediately=False, cutoff_at_reset_prob=None, 
                  give_pass_reward_immediately=False, soft_crash=0.0, 
@@ -119,6 +119,16 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
         self.observation_for_render = observation # for render
         self.extra_obs = np.array([float(False), float(False), float(False)])
 
+        # for rigid body collision
+        if self.rigid_body_collision:
+            self.rigid_body_info = {
+                'crash': np.zeros((self.n_agents, self.n_agents), dtype=bool),
+                'overlap': np.zeros((self.n_agents, self.n_agents)),
+            }
+
+        # horizon count
+        self.horizon_cnt = 0
+
         # reset road
         self.reset_scene_state()
 
@@ -167,7 +177,7 @@ class CuttingOff(BaseEnv, MultiAgentEnv):
                     Kp = 3
 
                     # get road vectors
-                    road_in_agent, _ = self.get_scene_state(agent.ego_dynamics, False, update=False)
+                    road_in_agent, _ = self.get_scene_state(agent.ego_dynamics, False)
                     road_in_agent = road_in_agent[road_in_agent[:,1] > 0] # drop road behind
 
                     if road_in_agent.shape[0] > 0:
@@ -307,16 +317,17 @@ if __name__ == "__main__":
 
     # initialize simulator
     env = CuttingOff(args.trace_paths, args.mesh_dir, init_agent_range=[6,12], 
-        respawn_distance=10, target_velocity=args.target_velocity)
+        respawn_distance=10, target_velocity=args.target_velocity, cutoff_immediately=True, collision_overlap_threshold=0.001) # DEBUG
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run
-    for ep in range(10):
+    for ep in range(1):
         done = False
         obs = env.reset()
         ep_rew = 0
         ep_steps = 0
         while not done:
+            # print(ep_steps) # DEBUG
             act = dict()
             for k, a in env.controllable_agents.items():
                 if True: # follow human trajectory

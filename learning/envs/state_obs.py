@@ -261,7 +261,12 @@ if __name__ == "__main__":
             for _i, k in enumerate(env.controllable_agents.keys()):
                 if True: # follow human trajectory
                     ts = env.world.agents[_i].get_current_timestamp()
-                    act[k] = env.world.agents[_i].trace.f_curvature(ts), 
+                    if env.action_space.shape[0] == 1:
+                        act[k] = env.world.agents[_i].trace.f_curvature(ts)
+                    elif env.action_space.shape[0] == 2:
+                        act[k] = np.array([env.world.agents[_i].trace.f_curvature(ts), env.world.agents[_i].trace.f_speed(ts)])
+                    else:
+                        raise NotImplementedError
                 else: # random action
                     act[k] = env.action_space.sample()
             obs, rew, done, info = env.step(act)
