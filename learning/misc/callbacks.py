@@ -39,7 +39,8 @@ class BasicCallbacks(DefaultCallbacks):
             info = episode.last_info_for(agent_id)
             if info:
                 for k in info.keys():
-                    if k in ['distance', 'model_velocity', 'success', 'passed_cars', 'cum_collide']:
+                    if k in ['distance', 'model_velocity', 'success', 'passed_cars', 
+                             'cum_collide', 'done_out_of_lane_or_max_rot', 'has_collided']:
                         episode.custom_metrics['{}/{}'.format(agent_id, k)] = info[k]
 
     def on_sample_end(self, *, worker: RolloutWorker, samples: SampleBatch,

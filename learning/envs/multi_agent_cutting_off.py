@@ -100,6 +100,7 @@ class MultiAgentCuttingOff(BaseEnv, MultiAgentEnv):
             self.rigid_body_info = {
                 'crash': np.zeros((self.n_agents, self.n_agents), dtype=bool),
                 'overlap': np.zeros((self.n_agents, self.n_agents)),
+                'cum_collide': np.zeros((self.n_agents,)),
             }
 
         # horizon count

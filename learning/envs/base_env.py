@@ -199,16 +199,23 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                 info[agent_id]['collide'] = np.any(self.rigid_body_info['crash'][i])
                 self.rigid_body_info['cum_collide'][i] += float(info[agent_id]['collide'])
                 info[agent_id]['cum_collide'] = self.rigid_body_info['cum_collide'][i]
+                info[agent_id]['has_collided'] = info[agent_id]['cum_collide'] > 0
             self.rigid_body_info['crash'] = crash
             self.rigid_body_info['overlap'] = overlap
             # NOTE: don't end due to collision unless pass hard overlap threshold
         else:
             done = {k: v or c for (k, v), c in zip(done.items(), self.crash_to_others)}
+            for i, agent_id in enumerate(info.keys()):
+                info[agent_id]['has_collided'] = self.crash_to_others[i]
 
         self.horizon_cnt += 1
         if self.horizon_cnt >= self.max_horizon:
             done = {k: True for k, v in done.items()}
         done['__all__'] = np.any(list(done.values()))
+
+        if done['__all__']:
+            for i, agent_id in enumerate(info.keys()):
+                info[agent_id]['done_out_of_lane_or_max_rot'] = self.world.agents[i].isCrashed
         
         return observation, reward, done, info
 
