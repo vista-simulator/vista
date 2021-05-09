@@ -1,47 +1,56 @@
-state-obs-takeover-ppo-ncp:
+cutting-off-ma-state-obs:
   local_dir: ~/tmp
-  env: StateObs
+  env: MultiAgentStateObs
   run: PPO
   num_samples: 1
   checkpoint_freq: 10
   checkpoint_at_end: true
   stop:
     episode_reward_mean: 99999
-    timesteps_total: 3e6 # 3M
+    timesteps_total: 3e7
   ray_resources:
-    num_cpus: 20
-    num_gpus: 1
+    num_cpus: 40
+    num_gpus: 0
   config:
-    num_workers: 10
-    num_gpus: 0.2
-    num_gpus_per_worker: 0.08
+    num_workers: 32
     framework: torch
     # environment
     env_config:
-      task: Takeover
+      subsample_road: 10
+      max_horizon: 300
+      rigid_body_collision: true
+      rigid_body_collision_coef: 0.001
+      rigid_body_collision_repulsive_coef: 0.9
+      task: MultiAgentCuttingOff
       trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
       mesh_dir: ~/data/old_vista_mesh_lib_calib/
       init_agent_range: [6, 12]
       collision_overlap_threshold: 0.05
-      task_mode: episodic
-      motion_model: constant_speed # motion model for other non-controllable agents
-      respawn_distance: 15
-      speed_scale_range: [0.0, 0.8] # only used for random speed motion model
-      with_velocity: true
-      wrappers: [ContinuousKinematic, DistanceReward]
+      respawn_distance: 10
+      reward_mode: 3
+      wrappers: [ContinuousKinematic, DistanceReward, RandomPermuteAgent]
       wrappers_config:
         ContinuousKinematic:
           d_curvature_bound: [-5., 5.]
           d_velocity_bound: [-15., 15.]
         DistanceReward:
           reward_coef: 0.001
+          scale_with_dist: true
+          cutoff_dist: null
+        RandomPermuteAgent:
+          permute_prob: 0.5
     observation_filter: MeanStdFilter
     callbacks: BasicCallbacks
     # policies
     multiagent:
-      policies: [default_policy]
-      policies_to_train: [default_policy]
-      policy_mapping_fn: all_to_default
+      policies: [default_policy_0, default_policy_1]
+      policies_to_train: [default_policy_0, default_policy_1]
+      policy_mapping_fn: one_to_one
+      callbacks_config:
+        n_recent_ckpt: 0
+        ckpt_freq: 2
+        main_policy_id: default_policy_0
+        ckpt_policy_id: default_policy_1
     # MDP-related
     gamma: 0.99
     rollout_fragment_length: 200
@@ -50,7 +59,7 @@ state-obs-takeover-ppo-ncp:
     lr_schedule: null
     num_sgd_iter: 8
     train_batch_size: 32000
-    sgd_minibatch_size: 512 # larger batch size is better
+    sgd_minibatch_size: 512
     # value function
     vf_loss_coeff: 1.0
     vf_clip_param: 1000.0
@@ -64,23 +73,11 @@ state-obs-takeover-ppo-ncp:
     # model
     model:
       vf_share_layers: false
-      custom_model: NCP
-      max_seq_len: 20
-      fcnet_hiddens: [412, 64]
+      fcnet_hiddens: [32, 32]
       fcnet_activation: relu
+      use_lstm: true
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
-        use_cnn: false
-        with_bn: true
-        vec_obs_dim: 2 # not used in use_cnn=False
-        value_fcnet_hiddens: [64, 32, 1]
-        value_fcnet_activation: relu
-        sensory_fanout: 10
-        inter_neurons: 20
-        inter_fanout: 4
-        command_neurons: 4
-        recurrent_command_synapses: 2
-        motor_fanin: 3
         custom_action_dist_config:
           low: [-5., -15.]
           high: [5., 15.]

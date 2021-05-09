@@ -5,12 +5,12 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from .base_env import BaseEnv
 
 
-class Takeover(BaseEnv, MultiAgentEnv):
+class Overtaking(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
                  respawn_distance=15, speed_scale_range=[0.0, 0.8], 
                  motion_model='random_speed', with_velocity=False, 
                  target_velocity=None, **kwargs):
-        super(Takeover, self).__init__(trace_paths, n_agents=2, 
+        super(Overtaking, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
         assert task_mode in ['episodic', 'infinite_horizon_dense', 'infinite_horizon_sparse']
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # initialize simulator
-    env = Takeover(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[6,10],
+    env = Overtaking(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[6,10],
         with_velocity=args.with_velocity, target_velocity=args.target_velocity)
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 

@@ -1,37 +1,44 @@
-car-following-ppo:
+cutting-off-bev-obs:
   local_dir: ~/tmp
-  env: CarFollowing
+  env: StateObs
   run: PPO
   num_samples: 1
-  checkpoint_freq: 50
+  checkpoint_freq: 10
   checkpoint_at_end: true
   stop:
     episode_reward_mean: 99999
-    timesteps_total: 3e6 # 3M
+    timesteps_total: 3e7
   ray_resources:
-    num_cpus: 20
+    num_cpus: 40
     num_gpus: 1
   config:
-    num_workers: 10
+    num_workers: 16
     num_gpus: 0.2
-    num_gpus_per_worker: 0.08
+    num_gpus_per_worker: 0.05
     framework: torch
     # environment
     env_config:
+      to_bev_map: true
+      max_horizon: 300
+      rigid_body_collision: true
+      rigid_body_collision_coef: 0.1
+      rigid_body_collision_repulsive_coef: 0.9
+      task: CuttingOff
       trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
       mesh_dir: ~/data/old_vista_mesh_lib_calib/
       init_agent_range: [6, 12]
       collision_overlap_threshold: 0.05
-      motion_model: constant_speed # motion model for other non-controllable agents
-      respawn_distance: 15
-      speed_scale_range: [0.0, 0.8] # only used for random speed motion model
-      wrappers: [PreprocessObservation, StackObservation]
+      respawn_distance: 10
+      cutoff_immediately: true
+      wrappers: [StackObservation, ContinuousKinematic, DistanceReward]
       wrappers_config:
-        PreprocessObservation:
-          fx: 1
-          fy: 1
         StackObservation:
           frame_stack: 5
+        ContinuousKinematic:
+          d_curvature_bound: [-5., 5.]
+          d_velocity_bound: [-15., 15.]
+        DistanceReward:
+          reward_coef: 0.001
     observation_filter: NoFilter
     callbacks: BasicCallbacks
     # policies
@@ -47,7 +54,7 @@ car-following-ppo:
     lr_schedule: null
     num_sgd_iter: 8
     train_batch_size: 32000
-    sgd_minibatch_size: 512 # larger batch size is better
+    sgd_minibatch_size: 512
     # value function
     vf_loss_coeff: 1.0
     vf_clip_param: 1000.0
@@ -61,19 +68,23 @@ car-following-ppo:
     # model
     model:
       vf_share_layers: true
-      custom_model: BasicCNN
+      custom_model: ConvNet
       conv_filters: [
-        [15, 24, 5, 2],
-        [24, 36, 5, 2], 
-        [36, 48, 3, 2], 
-        [48, 64, 3, 1], 
-        [64, 64, 3, 1]
+        [15, 24, 5, 2, 2],
+        [24, 36, 5, 2, 2], 
+        [36, 48, 3, 2, 1], 
+        [48, 64, 3, 1, 1], 
+        [64, 64, 3, 1, 1]
       ]
       conv_activation: relu
-      fcnet_hiddens: [3456, 512, 64]
-      fcnet_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
+        with_bn: false
+        vec_obs_dim: 2
+        policy_hiddens: [66, 32, 4]
+        policy_activation: relu
+        value_fcnet_hiddens: [66, 32, 1]
+        value_fcnet_activation: relu
         custom_action_dist_config:
-          low: -0.3
-          high: 0.3
+          low: [-5., -15.]
+          high: [5., 15.]

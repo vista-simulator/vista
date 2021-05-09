@@ -1,15 +1,15 @@
-cutting-off-gppo:
+overtaking-gpl:
   local_dir: ~/tmp
   env: StateObs
   run: GuidedPPO
   num_samples: 1
-  checkpoint_freq: 50
+  checkpoint_freq: 10
   checkpoint_at_end: true
   stop:
     episode_reward_mean: 99999
-    timesteps_total: 1e7 # 10M
+    timesteps_total: 3e6
   ray_resources:
-    num_cpus: 20
+    num_cpus: 40
     num_gpus: 1
   config:
     num_workers: 10
@@ -18,19 +18,18 @@ cutting-off-gppo:
     framework: torch
     # environment
     env_config:
-      task: CuttingOff
+      task: Overtaking
+      to_bev_map: true
+      with_vis_obs: true
       trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
       mesh_dir: ~/data/old_vista_mesh_lib_calib/
       init_agent_range: [6, 12]
       collision_overlap_threshold: 0.05
-      respawn_distance: 10
-      # n_passed_reward: false
-      to_bev_map: true
-      with_vis_obs: true
-      # give_pass_reward_immediately: true
-      # car_following_bonus: 0.001
-      cutoff_immediately: true
-      # cutoff_at_reset_prob: 0.2
+      task_mode: episodic
+      motion_model: constant_speed # motion model for other non-controllable agents
+      respawn_distance: 15
+      speed_scale_range: [0.0, 0.8] # only used for random speed motion model
+      with_velocity: true
       wrappers: [PreprocessObservation, StackObservation, ContinuousKinematic, DistanceReward]
       wrappers_config:
         PreprocessObservation:
@@ -57,8 +56,8 @@ cutting-off-gppo:
     lr: 0.0002
     lr_schedule: null
     num_sgd_iter: 8
-    train_batch_size: 32000
-    sgd_minibatch_size: 512 # larger batch size is better
+    train_batch_size: 5120
+    sgd_minibatch_size: 64
     # value function
     vf_loss_coeff: 1.0
     vf_clip_param: 1000.0
@@ -70,7 +69,7 @@ cutting-off-gppo:
     kl_target: 0.01
     clip_param: 0.3
     # guidance
-    guidance_ckpt_path: /home/gridsan/tsunw/results/202104w4/bev-state-obs-cutting-off-ppo/PPO_StateObs_854d5_00000_a938a2d_0_2021-04-23_23-16-55/checkpoint_450/exported_model.pkl
+    guidance_ckpt_path: <path-to-exported-ckpt>
     guidance_criterion: simple_kl
     guidance_coef: 1.0
     # model
@@ -87,7 +86,7 @@ cutting-off-gppo:
       conv_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
-        with_bn: false #true
+        with_bn: false
         vec_obs_dim: 2
         obs_idcs: [0, 2]
         policy_hiddens: [66, 32, 4]

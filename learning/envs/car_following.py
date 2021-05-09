@@ -3,10 +3,10 @@ import numpy as np
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 
-from .takeover import Takeover
+from .overtaking import Overtaking
 
 
-class CarFollowing(Takeover, MultiAgentEnv):
+class CarFollowing(Overtaking, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, respawn_distance=15,
                  motion_model='random_speed', speed_scale_range=[0.0, 0.8], 
                  in_range_mul=[1.1, 1.5], **kwargs):

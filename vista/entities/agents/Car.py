@@ -75,28 +75,24 @@ class Car(Entity):
 
         # info is used in some envs
         info = dict()
-        info["timestamp"] = next_valid_timestamp
+        info["timestamp"] = self.timestamp
         info["first_time"] = self.first_time
-        info["human_curvature"] = self.trace.f_curvature(next_valid_timestamp)
-        info["human_velocity"] = self.trace.f_speed(next_valid_timestamp)
-        info["model_curvature"] = model_curvature
-        info["model_velocity"] = model_velocity
-        info["model_angle"] = self.curvature_to_steering(model_curvature)
+        info["human_curvature"] = self.trace.f_curvature(self.timestamp)
+        info["human_velocity"] = self.trace.f_speed(self.timestamp)
+        info["model_curvature"] = self.model_curvature
+        info["model_velocity"] = self.model_velocity
+        info["model_angle"] = self.curvature_to_steering(self.model_curvature)
         info["rotation"] = self.relative_state.theta
         info["translation"] = self.relative_state.translation_x
-        info["distance"] = self.trace.f_distance(next_valid_timestamp) - \
+        info["distance"] = self.trace.f_distance(self.timestamp) - \
                            self.trace.f_distance(self.first_time)
         info["done"] = self.isCrashed
-
-        self.model_curvature = model_curvature
-        self.model_velocity = model_velocity
 
         done = self.isCrashed or self.trace_done
 
         step_reward = 1.0 if not done else 0.0  # simple reward function +1 if not crashed
-        self.reward += step_reward
 
-        return step_reward, done, info, next_valid_timestamp
+        return step_reward, done, info, self.timestamp
 
     def step_sensors(self, next_valid_timestamp, other_agents=[]):
         observations = {}
