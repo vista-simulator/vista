@@ -203,11 +203,11 @@ class MultiAgentCuttingOff(BaseEnv, MultiAgentEnv):
             new_data[aid] = data[aid]
         return new_data
 
-    def agent_sensors_setup(self, agent_i):
+    def agent_sensors_setup(self, agent_i, rendering_config):
         controllable_agent_idx = [0, 1] # NOTE: hardcoded
         if agent_i in controllable_agent_idx:
             agent = self.world.agents[agent_i]
-            camera = agent.spawn_camera()
+            camera = agent.spawn_camera(rendering_config)
 
 
 if __name__ == "__main__":

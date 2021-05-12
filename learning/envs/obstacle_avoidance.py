@@ -74,11 +74,11 @@ class ObstacleAvoidance(BaseEnv, MultiAgentEnv):
     def wrap_data(self, data):
         return {self.ref_agent_id: data[self.ref_agent_id]}
 
-    def agent_sensors_setup(self, agent_i):
+    def agent_sensors_setup(self, agent_i, rendering_config):
         # static agents don't need sensors
         if agent_i == self.ref_agent_idx:
             agent = self.world.agents[agent_i]
-            camera = agent.spawn_camera()
+            camera = agent.spawn_camera(rendering_config)
 
 
 if __name__ == "__main__":

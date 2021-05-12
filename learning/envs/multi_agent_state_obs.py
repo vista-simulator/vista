@@ -196,9 +196,9 @@ def MultiAgentStateObs(task, **kwargs):
 
             return observation
 
-        def agent_sensors_setup(self, agent_i):
+        def agent_sensors_setup(self, agent_i, rendering_config):
             if self.with_vis_obs:
-                super().agent_sensors_setup(agent_i)
+                super().agent_sensors_setup(agent_i, rendering_config)
             else:
                 pass # don't need sensor; use ground truth state
 

@@ -26,13 +26,14 @@ class BaseEnv(gym.Env, MultiAgentEnv):
     def __init__(self, trace_paths, n_agents=1, mesh_dir=None, 
                  collision_overlap_threshold=0.2, init_agent_range=[8, 20],
                  max_horizon=500, rigid_body_collision=False,
-                 rigid_body_collision_coef=0.0, rigid_body_collision_repulsive_coef=0.9):
+                 rigid_body_collision_coef=0.0, rigid_body_collision_repulsive_coef=0.9,
+                 rendering_config=None):
         trace_paths = [os.path.abspath(os.path.expanduser(tp)) for tp in trace_paths]
         self.world = vista.World(trace_paths)
         self.ref_agent_idx = 0
         for i in range(n_agents):
             agent = self.world.spawn_agent()
-            self.agent_sensors_setup(i)
+            self.agent_sensors_setup(i, rendering_config)
         self.n_agents = len(self.world.agents)
         self.agent_ids = ['agent_{}'.format(i) for i in range(self.n_agents)]
         self.ref_agent = self.world.agents[self.ref_agent_idx]
@@ -44,6 +45,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.rigid_body_collision = rigid_body_collision
         self.rigid_body_collision_coef = rigid_body_collision_coef
         self.rigid_body_collision_repulsive_coef = rigid_body_collision_repulsive_coef
+        self.rendering_config = rendering_config
         self.perturb_heading_in_random_init = True # set False for car following nominal traj 
 
         if self.n_agents > 1:
@@ -369,9 +371,9 @@ class BaseEnv(gym.Env, MultiAgentEnv):
 
         return other_agents_nodes
 
-    def agent_sensors_setup(self, agent_i):
+    def agent_sensors_setup(self, agent_i, rendering_config):
         agent = self.world.agents[agent_i]
-        camera = agent.spawn_camera()
+        camera = agent.spawn_camera(rendering_config)
 
     def check_agent_in_lane_center(self, agent):
         dx = agent.relative_state.translation_x 

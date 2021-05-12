@@ -13,8 +13,10 @@ import trimesh
 from . import Camera
 
 MAX_DIST = 10000.
-USE_LIGHTING = True
-LIGHTING_DR = False
+DEFAULT_RENDERING_CONFIG = {
+    'use_lighting': False,
+    'lighting_dr': False,
+}
 
 
 class DepthModes(Enum):
@@ -36,10 +38,12 @@ class ViewSynthesis:
     def __init__(
             self,
             camera,  # Camera object of the images
+            rendering_config=None,
             baseline=0.42567,  # [m]
             mode=DepthModes.FIXED_PLANE):
 
         self.camera = camera
+        self.rendering_config = rendering_config if rendering_config is not None else DEFAULT_RENDERING_CONFIG
         self.dims = (self.camera.get_height(), self.camera.get_width())
         self.baseline = baseline
         self.mode = mode
@@ -128,7 +132,7 @@ class ViewSynthesis:
         self.scene.add(copy.deepcopy(self.mesh), name="env")
         self.scene.add(self.render_camera, pose=camera_pose)
 
-        if USE_LIGHTING:
+        if self.rendering_config['use_lighting']:
             # Render background
             self.scene.ambient_light = [1., 1., 1.] # doesn't matter for FLAT rendering
             color_bg, depth_bg = self.renderer.render(
@@ -139,7 +143,7 @@ class ViewSynthesis:
             self.scene.remove_node(env_node)
 
             # Add other agents to the scene
-            if LIGHTING_DR:
+            if self.rendering_config['lighting_dr']:
                 self.scene.ambient_light = [np.random.uniform(0.05, 0.3)] * 3
             else:
                 self.scene.ambient_light = [.1, .1, .1]
@@ -147,7 +151,7 @@ class ViewSynthesis:
                 self.scene.add_node(other_agent)
 
             # Add light
-            if LIGHTING_DR:
+            if self.rendering_config['lighting_dr']:
                 light_intensity = np.random.uniform(5, 15) # domain randomization
             else:
                 light_intensity = 10
@@ -160,7 +164,7 @@ class ViewSynthesis:
             # Overlay
             mask = np.any(color_agent != 0, axis=2, keepdims=True).astype(np.uint8)
 
-            if LIGHTING_DR:
+            if self.rendering_config['lighting_dr']:
                 recoloring_factor = np.random.uniform(0.2, 0.7) # domain randomization
             else:
                 recoloring_factor = 0.5

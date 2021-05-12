@@ -78,7 +78,7 @@ def update_by_job_array_exp(exp, job_array_module, job_array_task_id):
     exp_name = []
     for v in task_exp:
         set_dict_value_by_str(exp, v[0], v[1])
-        exp_name.append(''.join([vv[0] for vv in v[0].split(':')[-1].split('_')]) + str(v[1]))
+        exp_name.append(''.join([vv[0] for vv in v[0].split(':')[-1].split('_')]) + str(v[1]).replace('~','').replace('/','_'))
     exp_name = '-'.join(exp_name)
     
     return exp, exp_name

@@ -226,17 +226,22 @@ class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
 
 
 class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
-    def __init__(self, env, fx=1.0, fy=1.0):
+    def __init__(self, env, fx=1.0, fy=1.0, standardize=False):
         super(PreprocessObservation, self).__init__(env)
         self.fx, self.fy = fx, fy
+        self.standardize = standardize
         self.roi = env.world.agents[0].sensors[0].camera.get_roi() # NOTE: use sensor config from the first agent
         (i1, j1, i2, j2) = self.roi
         new_h, new_w = int((i2 - i1) * self.fy), int((j2 - j1) * self.fx)
+        if self.standardize:
+            low, high, dtype = -10., 10., np.float
+        else:
+            low, high, dtype = 0, 255, np.uint8
         cropped_obs_space = gym.spaces.Box(
-            low=0,
-            high=255,
+            low=low,
+            high=high,
             shape=(new_h, new_w, 3),
-            dtype=np.uint8
+            dtype=dtype
         )
         if isinstance(env.observation_space, gym.spaces.Tuple):
             # NOTE: assume the first observation is alway visual input of the agent
@@ -253,9 +258,15 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             out = dict()
             for k, v in observation.items():
                 if isinstance(v, list):
-                    out[k] = [cv2.resize(v[0][i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)] + v[1:]
+                    if self.standardize:
+                        out[k] = [cv2.resize(self._standardize(v[0][i1:i2, j1:j2]), None, fx=self.fx, fy=self.fy)] + v[1:]
+                    else:
+                        out[k] = [cv2.resize(v[0][i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)] + v[1:]
                 else:
-                    out[k] = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
+                    if self.standardize:
+                        out[k] = cv2.resize(self._standardize(v[i1:i2, j1:j2]), None, fx=self.fx, fy=self.fy)
+                    else:
+                        out[k] = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
         elif isinstance(observation, list):
             raise NotImplementedError
             out = []
@@ -266,6 +277,12 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             out = cv2.resize(observation[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
         self.observation_for_render = out
         return out
+
+    def _standardize(self, x):
+        """ follow https://www.tensorflow.org/api_docs/python/tf/image/per_image_standardization """
+        mean, stddev = x.mean(), x.std()
+        adjusted_stddev = max(stddev, 1.0/np.sqrt(np.prod(x.shape)))
+        return (x - mean) / adjusted_stddev
 
 
 class StackObservation(gym.ObservationWrapper, MultiAgentEnv):
@@ -433,30 +450,46 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
 
 
 class DistanceReward(gym.Wrapper, MultiAgentEnv):
-    def __init__(self, env, reward_coef=1.0, scale_with_dist=True, cutoff_dist=None):
+    def __init__(self, env, reward_coef=1.0, scale_with_dist=True, cutoff_dist=None, sparse=False):
         super(DistanceReward, self).__init__(env)
         self.prev_distance = None
         self.reward_coef = reward_coef
         self.scale_with_dist = scale_with_dist
         self.cutoff_dist = cutoff_dist
+        self.sparse = sparse
+        self.step_cnt = None
 
     def reset(self, **kwargs):
         self.prev_distance = {k: 0. for k in self.controllable_agents.keys()}
+        self.step_cnt = 0
         return super().reset(**kwargs)
 
     def step(self, action):
         observation, reward, done, info = super().step(action)
+        self.step_cnt += 1
         for k, v in info.items():
-            if self.cutoff_dist is None or (self.cutoff_dist is not None and self.prev_distance[k] <= self.cutoff_dist):
-                delta_distance = v['distance'] - self.prev_distance[k]
-                if not self.scale_with_dist:
-                    delta_distance = 0.1 if delta_distance > 0 else 0.
-                if self.reward_coef in ['inf', np.inf]:
-                    reward[k] = delta_distance
+            if self.sparse and done['__all__']:
+                if self.scale_with_dist:
+                    distance = v['distance']
                 else:
-                    reward[k] += self.reward_coef * delta_distance
-                assert delta_distance >= 0 # sanity check
-                self.prev_distance[k] = v['distance']
+                    distance = 0.1 * self.step_cnt
+                if self.cutoff_dist is not None:
+                    distance = min(self.cutoff_dist, distance)
+                if self.reward_coef in ['inf', np.inf]:
+                    reward[k] = distance
+                else:
+                    reward[k] += self.reward_coef * distance
+            else:
+                if self.cutoff_dist is None or (self.cutoff_dist is not None and self.prev_distance[k] <= self.cutoff_dist):
+                    delta_distance = v['distance'] - self.prev_distance[k]
+                    if not self.scale_with_dist:
+                        delta_distance = 0.1 if delta_distance > 0 else 0.
+                    if self.reward_coef in ['inf', np.inf]:
+                        reward[k] = delta_distance
+                    else:
+                        reward[k] += self.reward_coef * delta_distance
+                    assert delta_distance >= 0 # sanity check
+                    self.prev_distance[k] = v['distance']
         return observation, reward, done, info
 
 

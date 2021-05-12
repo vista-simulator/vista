@@ -183,6 +183,7 @@ def StateObs(task, **kwargs):
                 state_obs = np.concatenate([aug_road_in_ref.reshape((-1,)), ego_in_ref] + others_in_ref)
                 observation = {self.ref_agent_id: state_obs}
 
+            if not self.with_vis_obs:
                 for k in self.observation_for_render.keys():
                     self.observation_for_render[k] = np.zeros(self.render_observation_space.shape,\
                         dtype=self.render_observation_space.dtype)
@@ -190,9 +191,9 @@ def StateObs(task, **kwargs):
 
             return observation
 
-        def agent_sensors_setup(self, agent_i):
+        def agent_sensors_setup(self, agent_i, rendering_config):
             if self.with_vis_obs:
-                super().agent_sensors_setup(agent_i)
+                super().agent_sensors_setup(agent_i, rendering_config)
             else:
                 pass # don't need sensor; use ground truth state
 

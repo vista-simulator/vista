@@ -8,7 +8,7 @@ from ...util import Camera as CameraParams
 
 
 class Camera(BaseSensor):
-    def __init__(self, attach_to=None):
+    def __init__(self, attach_to=None, rendering_config=None):
         super(Camera, self).__init__()
 
         self._parent = attach_to
@@ -17,7 +17,7 @@ class Camera(BaseSensor):
         self.which_camera = self.parent.trace.which_camera
         self.camera = CameraParams(self.which_camera)
         self.camera.resize(250, 400)  #Hardcode FIXME
-        self.view_synthesizer = ViewSynthesis(self.camera).synthesize
+        self.view_synthesizer = ViewSynthesis(self.camera, rendering_config).synthesize
         self.stream = None
 
         # Reset the sensor based on the position of the parent

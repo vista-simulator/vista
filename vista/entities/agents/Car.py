@@ -37,8 +37,8 @@ class Car(Entity):
         # 2. The video stream of this trace
         self.reset()
 
-    def spawn_camera(self):
-        camera = sensors.Camera(attach_to=self)
+    def spawn_camera(self, rendering_config=None):
+        camera = sensors.Camera(attach_to=self, rendering_config=rendering_config)
         self.sensors.append(camera)
         return camera
 

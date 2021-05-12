@@ -1,7 +1,7 @@
-cutting-off-base:
+cutting-off-gpl:
   local_dir: ~/tmp
-  env: CuttingOff
-  run: PPO
+  env: StateObs
+  run: GuidedPPO
   num_samples: 1
   checkpoint_freq: 10
   checkpoint_at_end: true
@@ -18,12 +18,16 @@ cutting-off-base:
     framework: torch
     # environment
     env_config:
+      subsample_road: 10
       max_horizon: 300
       rigid_body_collision: true
       rigid_body_collision_coef: 0.1
       rigid_body_collision_repulsive_coef: 0.9
+      with_vis_obs: true
+      task: CuttingOff
       trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
       mesh_dir: ~/data/old_vista_mesh_lib_calib/
+      init_agent_range: [6, 12]
       collision_overlap_threshold: 0.05
       respawn_distance: 10
       cutoff_immediately: true
@@ -32,7 +36,6 @@ cutting-off-base:
         PreprocessObservation:
           fx: 1
           fy: 1
-          standardize: true
         StackObservation:
           frame_stack: 5
         ContinuousKinematic:
@@ -54,18 +57,22 @@ cutting-off-base:
     lr: 0.0002
     lr_schedule: null
     num_sgd_iter: 8
-    train_batch_size: 32000
-    sgd_minibatch_size: 512
+    train_batch_size: 5120
+    sgd_minibatch_size: 64
     # value function
-    vf_loss_coeff: 1.0
+    vf_loss_coeff: 0.0
     vf_clip_param: 1000.0
     # PPO-specific
-    entropy_coeff: 0.01
+    entropy_coeff: 0.0
     entropy_coeff_schedule: null
     lambda: 0.95
-    kl_coeff: 0.2
+    kl_coeff: 0.0
     kl_target: 0.01
     clip_param: 0.3
+    # guidance
+    guidance_ckpt_path: /home/gridsan/tsunw/results/202105w1/search-cutting-off-rb/cot0.05-rbcc0.001/PPO_StateObs_0dbcc_00000_7d33dd6_0_2021-05-04_18-57-09/checkpoint_1730/exported_model.pkl
+    guidance_criterion: simple_reverse_kl
+    guidance_coef: 1.0
     # model
     model:
       vf_share_layers: true
@@ -82,6 +89,7 @@ cutting-off-base:
       custom_model_config:
         with_bn: false
         vec_obs_dim: 2
+        obs_idcs: [0, 2]
         policy_hiddens: [66, 32, 4]
         policy_activation: relu
         value_fcnet_hiddens: [66, 32, 1]
