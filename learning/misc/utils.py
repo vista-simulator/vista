@@ -3,6 +3,7 @@ import re
 import yaml
 import copy
 import itertools
+import collections.abc
 from functools import partial, partialmethod
 from importlib import import_module
 import numpy as np
@@ -31,6 +32,24 @@ def load_yaml(fpath):
             list(u'-+0123456789.'))
         data = yaml.load(f, Loader=loader)
     return data
+
+
+def get_latest_checkpoint(ckpt_root_dir):
+    ckpt_dirnames = [v for v in os.listdir(ckpt_root_dir) if 'checkpoint' in v]
+    ckpt_nums = [int(v.split('_')[-1]) for v in ckpt_dirnames]
+    latest_ckpt_dirname = ckpt_dirnames[np.argmax(ckpt_nums)]
+    latest_ckpt = os.path.join(ckpt_root_dir, latest_ckpt_dirname, latest_ckpt_dirname.replace('_', '-'))
+    assert os.path.exists(latest_ckpt)
+    return latest_ckpt
+
+
+def update_dict(d, u):
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = update_dict(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
 
 
 def resume_from_latest_ckpt(exp, exp_name):
