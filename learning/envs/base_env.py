@@ -27,7 +27,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                  collision_overlap_threshold=0.2, init_agent_range=[8, 20],
                  max_horizon=500, rigid_body_collision=False,
                  rigid_body_collision_coef=0.0, rigid_body_collision_repulsive_coef=0.9,
-                 rendering_config=None):
+                 rendering_config=None, free_width_mul=0.5, max_rot_mul=0.1):
         trace_paths = [os.path.abspath(os.path.expanduser(tp)) for tp in trace_paths]
         self.world = vista.World(trace_paths)
         self.ref_agent_idx = 0
@@ -46,6 +46,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.rigid_body_collision_coef = rigid_body_collision_coef
         self.rigid_body_collision_repulsive_coef = rigid_body_collision_repulsive_coef
         self.rendering_config = rendering_config
+        self.free_width_mul = free_width_mul
+        self.max_rot_mul = max_rot_mul
         self.perturb_heading_in_random_init = True # set False for car following nominal traj 
 
         if self.n_agents > 1:
@@ -192,6 +194,13 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             else:
                 observation[agent_id] = None
         self.observation_for_render = observation
+        # check agent off lane or exceed maximal rotation
+        for agent_id in done.keys():
+            agent = self.world.agents[self.agent_ids.index(agent_id)]
+            off_lane, max_rot = self.check_agent_off_lane_or_max_rot(agent)
+            done[agent_id] = off_lane or max_rot
+            info[agent_id]['off_lane'] = off_lane
+            info[agent_id]['max_rot'] = max_rot
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
         crash, overlap = self.check_collision(polys, return_overlap=True)
@@ -400,6 +409,13 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             dist = agent.trace.f_distance(agent.get_current_timestamp()) - origin_dist
             dists.append(dist)
         return np.argsort(dists)[::-1] # front to behind
+
+    def check_agent_off_lane_or_max_rot(self, agent):
+        tx, ty, theta = self.compute_relative_transform(agent.ego_dynamics, agent.human_dynamics)
+        free_width = agent.trace.road_width - agent.car_width
+        off_lane = abs(tx) > (free_width * self.free_width_mul)
+        max_rot = abs(theta) > (np.pi * self.max_rot_mul)
+        return off_lane, max_rot
 
     def reset_mesh_lib(self):
         self.mesh_lib.reset(self.n_agents)

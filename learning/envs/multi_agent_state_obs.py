@@ -14,6 +14,8 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 import misc
 from . import *
 
+import os; os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE" # DEBUG
+
 
 def MultiAgentStateObs(task, **kwargs):
     task = globals()[task]
@@ -271,7 +273,7 @@ if __name__ == "__main__":
             for _i, k in enumerate(env.controllable_agents.keys()):
                 if True: # follow human trajectory
                     ts = env.world.agents[_i].get_current_timestamp()
-                    act[k] = env.world.agents[_i].trace.f_curvature(ts), 
+                    act[k] = env.world.agents[_i].trace.f_curvature(ts)
                 else: # random action
                     act[k] = env.action_space.sample()
             obs, rew, done, info = env.step(act)
