@@ -11,7 +11,7 @@ import misc
 from policies import PolicyManager
 from envs import wrappers
 from trainers import get_trainer_class
-
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -149,15 +149,17 @@ def main():
         agent.restore(args.checkpoint)
 
     # Evaluation
-    if not args.out and args.save_rollout:
-        save_dir_name = 'results'
-        if args.save_dir_suffix:
-            save_dir_name = save_dir_name + '_{}'.format(args.save_dir_suffix)
-        save_dir = os.path.join(os.path.expanduser(config_dir), save_dir_name)
-        if not os.path.isdir(save_dir):
-            os.makedirs(save_dir)
-        args.out = os.path.join(save_dir, 'rollout.pkl')
-    if args.save_rollout: # save evaluation config
+    if args.save_rollout: 
+        if not args.out:
+            save_dir_name = 'results'
+            if args.save_dir_suffix:
+                save_dir_name = save_dir_name + '_{}'.format(args.save_dir_suffix)
+            save_dir = os.path.join(os.path.expanduser(config_dir), save_dir_name)
+            if not os.path.isdir(save_dir):
+                os.makedirs(save_dir)
+            args.out = os.path.join(save_dir, 'rollout.pkl')
+
+        # save evaluation config
         config_path = os.path.splitext(args.out)[0] + '_eval_config.yaml'
         with open(config_path, 'w') as f:
             yaml.dump(eval_config, f)
@@ -179,14 +181,18 @@ def test(args, agent, num_episodes, saver):
 
     env = agent.workers.local_worker().env
     if args.monitor:
-        save_dir = os.path.dirname(saver._outfile)
+        if saver._outfile:
+            save_dir = os.path.dirname(saver._outfile)
+        else:
+            save_dir = os.path.dirname(args.checkpoint)
         video_dir = os.path.join(save_dir, 'monitor')
         env = wrappers.MultiAgentMonitor(env, video_dir, video_callable=lambda x: True, force=True)
     policy_mapping_fn = agent.config["multiagent"]["policy_mapping_fn"]
     policy_map = agent.workers.local_worker().policy_map
 
     for ep in range(num_episodes):
-        saver.begin_rollout()
+        if args.save_rollout:
+            saver.begin_rollout()
         obs = env.reset()
         done = False
         episode_reward = dict()
@@ -208,14 +214,16 @@ def test(args, agent, num_episodes, saver):
             next_obs, rew, done, info = env.step(act)
         
             # save data
-            saver.append_step(obs, act, next_obs, rew, done, info)
+            if args.save_rollout:
+                saver.append_step(obs, act, next_obs, rew, done, info)
 
             for agent_id, a_rew in rew.items():
                 episode_reward[agent_id] += a_rew
 
             done = np.any(list(done.values()))
             obs = next_obs
-        saver.end_rollout()
+        if args.save_rollout:
+            saver.end_rollout()
         print("Episode #{}: reward: {}".format(ep, episode_reward))
 
 

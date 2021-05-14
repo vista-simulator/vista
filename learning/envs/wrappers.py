@@ -136,7 +136,7 @@ class _MultiAgentMonitor(gym.Wrapper):
                 text = 'Running'
             self.ax_obs[agent_id].set_title(text, color='white', size=20, weight='bold')
             self.artists['im:{}'.format(agent_id)].set_data(self.fit_img_to_ax(
-                self.ax_obs[agent_id], self.obs_for_render(obs)[:,:,-3:][:,:,::-1])) # handle stacked frames
+                self.ax_obs[agent_id], obs[:,:,-3:][:,:,::-1])) # handle stacked frames
 
         # add speed and steering wheel
         for agent_id, agent in self.agents_with_sensor.items():
@@ -258,15 +258,18 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             out = dict()
             for k, v in observation.items():
                 if isinstance(v, list):
+                    pp_obs = cv2.resize(v[0][i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
                     if self.standardize:
-                        out[k] = [cv2.resize(self._standardize(v[0][i1:i2, j1:j2]), None, fx=self.fx, fy=self.fy)] + v[1:]
+                        out[k] = [self._standardize(pp_obs)] + v[1:]
                     else:
-                        out[k] = [cv2.resize(v[0][i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)] + v[1:]
+                        out[k] = [pp_obs] + v[1:]
                 else:
+                    pp_obs = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
                     if self.standardize:
-                        out[k] = cv2.resize(self._standardize(v[i1:i2, j1:j2]), None, fx=self.fx, fy=self.fy)
+                        out[k] = self._standardize(pp_obs)
                     else:
-                        out[k] = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
+                        out[k] = pp_obs
+                self.observation_for_render[k] = pp_obs
         elif isinstance(observation, list):
             raise NotImplementedError
             out = []
@@ -275,7 +278,6 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
         else:
             raise NotImplementedError
             out = cv2.resize(observation[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
-        self.observation_for_render = out
         return out
 
     def _standardize(self, x):
@@ -426,9 +428,6 @@ class ContinuousKinematic(gym.Wrapper, MultiAgentEnv):
                 observation[agent_id] = [obs, veh_state_obs]
 
         return observation, reward, done, info
-
-    def obs_for_render(self, obs):
-        return obs[0]
 
     def _integrator(self, act, agent_id):
         self.vehicle_state[agent_id] += act * self.delta_t
