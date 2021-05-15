@@ -201,6 +201,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             done[agent_id] = off_lane or max_rot
             info[agent_id]['off_lane'] = off_lane
             info[agent_id]['max_rot'] = max_rot
+            self.world.agents[self.agent_ids.index(agent_id)].isCrashed = off_lane or max_rot
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
         crash, overlap = self.check_collision(polys, return_overlap=True)

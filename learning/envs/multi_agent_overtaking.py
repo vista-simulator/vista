@@ -7,7 +7,8 @@ from .base_env import BaseEnv
 class MultiAgentOvertaking(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic',
                  with_velocity=False, velocity_range=[5., 15.], min_velocity_diff=4., 
-                 pass_reward=1., svo_theta=0, passed_dist=10., **kwargs):
+                 pass_reward=1., svo_theta=0, passed_dist=10., agent_failure_reward=0., 
+                 **kwargs):
         super(MultiAgentOvertaking, self).__init__(trace_paths, n_agents=2,
             mesh_dir=mesh_dir, free_width_mul=1.0, **kwargs) # NOTE: otherwise episode end during init
         assert task_mode in ['episodic', 'infinite_horizon']
@@ -18,6 +19,7 @@ class MultiAgentOvertaking(BaseEnv, MultiAgentEnv):
         self.pass_reward = pass_reward
         self.svo_theta = np.deg2rad(svo_theta)
         self.passed_dist = passed_dist
+        self.agent_failure_reward = agent_failure_reward
 
         # use curvature only or with velocity as action
         if self.with_velocity:
@@ -85,6 +87,12 @@ class MultiAgentOvertaking(BaseEnv, MultiAgentEnv):
         if self.rigid_body_collision:
             for agent_id in reward.keys():
                 reward[agent_id] -= self.rigid_body_collision_coef * float(info[agent_id]['collide'])
+        if self.agent_failure_reward:
+            for agent_id in reward.keys():
+                off_lane_or_max_rot = info[agent_id]['off_lane'] or info[agent_id]['max_rot']
+                collide_key = 'collide' if 'collide' in info[agent_id].keys() else 'has_collided'
+                collide = False if self.rigid_body_collision else info[agent_id][collide_key]
+                reward[agent_id] -= self.agent_failure_reward * (float(off_lane_or_max_rot) + float(collide))
         # add info
         for agent_id in info.keys():
             info[agent_id]['success'] = success
