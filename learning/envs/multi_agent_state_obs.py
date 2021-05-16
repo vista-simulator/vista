@@ -14,8 +14,6 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 import misc
 from . import *
 
-import os; os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE" # DEBUG
-
 
 def MultiAgentStateObs(task, **kwargs):
     task = globals()[task]
@@ -156,7 +154,8 @@ def MultiAgentStateObs(task, **kwargs):
                 ref_agent_idx = self.agent_ids.index(ref_agent_id)
                 ref_dynamics = ref_agent.human_dynamics
 
-                road_in_ref, ego_in_ref = self.get_scene_state(concat=False, ref_dynamics=ref_dynamics, update=update)
+                road_in_ref, ego_in_ref = self.get_scene_state(concat=False, 
+                    agent=ref_agent, ref_dynamics=ref_dynamics, update=update)
                 update = False
 
                 if self.to_bev_map:

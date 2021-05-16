@@ -430,7 +430,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.road = deque(maxlen=self.road_buffer_size)
         self.road_frame_index = deque(maxlen=self.road_buffer_size)
 
-    def get_scene_state(self, ref_dynamics=None, concat=True, update=True):
+    def get_scene_state(self, ref_dynamics=None, agent=None, concat=True, update=True):
         # update road (in global coordinate)
         if update:
             while self.road_frame_index[-1] < (self.ref_agent.current_frame_index + self.road_buffer_size / 2):
@@ -455,8 +455,9 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         road_in_ref[:,:2] = np.matmul(road_in_ref[:,:2], R_T)
 
         # update agent in birds eye map (in reference agent coordinate)
+        agent = self.ref_agent if agent is None else agent
         agent_xytheta_in_ref = self.compute_relative_transform(
-            self.ref_agent.ego_dynamics, ref_dynamics)
+            agent.ego_dynamics, ref_dynamics)
 
         # get scene state
         aug_road_in_ref = np.concatenate([np.zeros(\
