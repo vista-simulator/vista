@@ -186,6 +186,16 @@ def MultiAgentStateObs(task, **kwargs):
                     # prepare observation
                     aug_road_in_ref = np.concatenate([np.zeros(\
                         (self.road_buffer_size-road_in_ref[:,:2].shape[0],2)), road_in_ref[:,:2]]) # NOTE: drop theta state
+                        
+                    # NOTE: update road vector order otherwise not centered at the agent
+                    if ref_agent_id != self.ref_agent_id:
+                        index_diff = self.ref_agent.current_frame_index - ref_agent.current_frame_index
+                        aug_road_in_ref = np.roll(aug_road_in_ref, shift=index_diff, axis=0)
+                        if index_diff < 0:
+                            aug_road_in_ref[index_diff:] = 0
+                        else:
+                            aug_road_in_ref[:index_diff] = 0
+
                     aug_road_in_ref = aug_road_in_ref[::self.subsample_road]
                     state_obs = np.concatenate([aug_road_in_ref.reshape((-1,)), ego_in_ref] + others_in_ref)
                     observation[ref_agent_id] = state_obs
