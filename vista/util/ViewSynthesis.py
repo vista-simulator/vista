@@ -14,8 +14,18 @@ from . import Camera
 
 MAX_DIST = 10000.
 DEFAULT_RENDERING_CONFIG = {
-    'use_lighting': False,
+    'use_lighting': True,
     'lighting_dr': False,
+    'ambient_light_factor': 0.2,
+    'recoloring_factor': 0.5,
+    'harmonization': False,
+    'harmonization_config': {
+        'model': ['deeplab_r34_idih256', 'hrnet18_idih256', 'hrnet18s_idih256',
+                  'hrnet18_v2p_idih256', 'hrnet32_idih256', 'improved_dih256',
+                  'improved_ssam256'][1],
+        'ckpt': '~/workspace/misc/image_harmonization/ckpt/hrnet18_idih256.pth',
+        'resize': 512,
+    }
 }
 
 
@@ -94,6 +104,19 @@ class ViewSynthesis:
         k[k < 0] = MAX_DIST
         self.depth = k
 
+        if self.rendering_config['harmonization']:
+            import torch
+            try:
+                sys.path.insert(0, os.environ.get('HARMONIZATION_ROOT'))
+                from iharm.inference.predictor import Predictor
+                from iharm.inference.utils import load_model
+            except:
+                raise ImportError('Fail to import image harmonization. Do you forget to set HARMONIZATION_ROOT?')
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            ckpt_path = os.path.expanduser(self.rendering_config['harmonization_config']['ckpt'])
+            net = load_model(self.rendering_config['harmonization_config']['model'], ckpt_path, verbose=True)
+            self.harmonizer = Predictor(net, device)
+
     def disp_to_depth(self, disparity):
         depth_img = np.exp(
             0.5 *
@@ -137,6 +160,7 @@ class ViewSynthesis:
             self.scene.ambient_light = [1., 1., 1.] # doesn't matter for FLAT rendering
             color_bg, depth_bg = self.renderer.render(
                 self.scene, flags=pyrender.constants.RenderFlags.FLAT)
+            color_bg_mean = color_bg.mean(0).mean(0)
 
             # remove background
             env_node = [n for n in list(self.scene.nodes) if n.name == 'env'][0]
@@ -146,7 +170,7 @@ class ViewSynthesis:
             if self.rendering_config['lighting_dr']:
                 self.scene.ambient_light = [np.random.uniform(0.05, 0.3)] * 3
             else:
-                self.scene.ambient_light = [.1, .1, .1]
+                self.scene.ambient_light = color_bg_mean / 255. * self.rendering_config['ambient_light_factor']
             for other_agent in other_agents:
                 self.scene.add_node(other_agent)
 
@@ -167,16 +191,27 @@ class ViewSynthesis:
             if self.rendering_config['lighting_dr']:
                 recoloring_factor = np.random.uniform(0.2, 0.7) # domain randomization
             else:
-                recoloring_factor = 0.5
+                recoloring_factor = self.rendering_config['recoloring_factor']
             if mask.sum() != 0:
                 color_agent_mean = (color_agent * mask).sum(0).sum(0) / mask.sum()
-                color_bg_mean = color_bg.mean(0).mean(0)
                 recolor_agent = color_agent + (color_bg_mean - color_agent_mean) * recoloring_factor
                 recolor_agent = np.clip(recolor_agent, 0, 255)
             else: # agent out-of-view
                 recolor_agent = color_agent
 
             color = (1 - mask) * color_bg + mask * recolor_agent
+
+            if self.rendering_config['harmonization']:
+                if self.rendering_config['harmonization_config']['resize'] > 0:
+                    ori_shape = color.shape[:2]
+                    resize_shape = (self.rendering_config['harmonization_config']['resize'],) * 2
+                    mask = cv2.resize(mask, resize_shape, interpolation=cv2.INTER_NEAREST)
+                    color = cv2.resize(color, resize_shape, interpolation=cv2.INTER_LANCZOS4)
+                
+                color = self.harmonizer.predict(color, mask.astype(np.float32))
+
+                if self.rendering_config['harmonization_config']['resize'] > 0:
+                    color = cv2.resize(color, ori_shape[::-1], interpolation=cv2.INTER_LANCZOS4)
         else:
             # Add other agents to the scene
             for other_agent in other_agents:
