@@ -28,9 +28,9 @@ class Car(Entity):
 
         # Additional attributes of the vehicle
         self.car_width = 2  # meters
-        self.car_length = 4
-        self.wheel_base = 2.8
-        self.steering_ratio = 17.6
+        self.car_length = 5
+        self.wheel_base = 2.78
+        self.steering_ratio = 14.7
 
         # Reset the car in the world, this will reset several properties:
         # 1. The trace in the world where the car is located
@@ -44,9 +44,9 @@ class Car(Entity):
 
     def step(self, action, delta_t=1 / 30.):
         step_reward, done, info, next_valid_timestamp = self.step_dynamics(action, delta_t)
-        observations = self.step_sensors(next_valid_timestamp)
+        self.observations = self.step_sensors(next_valid_timestamp)
 
-        return observations, step_reward, done, info
+        return self.observations, step_reward, done, info
 
     def step_dynamics(self, action, delta_t=1 / 30.):
         # Force action to be column vector

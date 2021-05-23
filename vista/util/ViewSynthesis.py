@@ -14,6 +14,11 @@ from . import Camera
 
 MAX_DIST = 10000.
 DEFAULT_RENDERING_CONFIG = {
+    'camera_offset': {
+        'x': 0.,
+        'y': 0.,
+        'theta': 0.
+    },
     'use_lighting': True,
     'lighting_dr': False,
     'ambient_light_factor': 0.2,
@@ -146,7 +151,9 @@ class ViewSynthesis:
         # # Compute new camera pose based on the requested viewpoint args
         camera_pose = np.eye(4)
         cam_theta, cam_x, cam_y = self._to_ogl_coordinate(
-            theta, translation_x, translation_y)
+            theta + self.rendering_config['camera_offset']['theta'], 
+            translation_x + self.rendering_config['camera_offset']['x'], 
+            translation_y + self.rendering_config['camera_offset']['y'])
         camera_pose[:3, :3] = self._create_rotation_matrix(cam_theta)
         camera_pose[:3, 3] = [cam_x, 0, cam_y]
 

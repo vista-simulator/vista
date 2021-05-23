@@ -23,7 +23,7 @@ def main(args):
         total_reward, done = reset(world)
 
         while not done:
-            state, done = agent.step(steering_curvature)
+            state, _, done, _ = agent.step(steering_curvature)
             display.render()
 
             total_reward += 1.0
