@@ -268,7 +268,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         agent.trace = agent.world.traces[agent.current_trace_index]
         agent.first_time = agent.trace.masterClock.get_time_from_frame_num(
             agent.trace.which_camera,
-            agent.trace.syncedLabeledFrames[agent.current_trace_index][
+            agent.trace.syncedLabeledFrames[agent.current_segment_index][
                 agent.trace.which_camera][agent.current_frame_index])  # MODIFIED
 
     def random_init_agent_in_the_front(self, agent, min_dist, max_dist, ref_dynamics):

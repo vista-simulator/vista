@@ -16,7 +16,7 @@ class Camera(BaseSensor):
         # Camera sensors synthesize new images from a view synthesizer
         self.which_camera = self.parent.trace.which_camera
         self.camera = CameraParams(self.which_camera)
-        self.camera.resize(250, 400)  #Hardcode FIXME
+        self.camera.resize(200, 320)  #Hardcode FIXME
         self.view_synthesizer = ViewSynthesis(self.camera, rendering_config).synthesize
         self.stream = None
 
@@ -72,7 +72,7 @@ class Camera(BaseSensor):
 
         # Initialize new stream and seek
         video = os.path.join(self.trace.trace_path, self.which_camera + '.avi')
-        self.stream = FFReader(video, custom_size=(250, 400), verbose=False)
+        self.stream = FFReader(video, custom_size=(self.camera.get_height(), self.camera.get_width()), verbose=False)
 
         seek_sec = self.stream.frame_to_secs(
             self.trace.syncedLabeledFrames[car.current_segment_index][
