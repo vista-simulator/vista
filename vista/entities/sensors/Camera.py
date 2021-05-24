@@ -75,7 +75,7 @@ class Camera(BaseSensor):
         self.stream = FFReader(video, custom_size=(250, 400), verbose=False)
 
         seek_sec = self.stream.frame_to_secs(
-            self.trace.syncedLabeledFrames[car.current_trace_index][
+            self.trace.syncedLabeledFrames[car.current_segment_index][
                 self.trace.which_camera][car.current_frame_index])  # MODIFIED
         self.stream.seek(seek_sec)
 

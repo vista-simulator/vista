@@ -68,7 +68,6 @@ class Trace:
                 frames['camera_front'] = syncedLabeledFrames['camera_front']
                 syncedLabeledFrames_.append(frames)
                 start = i + 1
-                break
 
         # TODO: Ensure other components expect list of dictionaries
         return syncedLabeledFrames_

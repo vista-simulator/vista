@@ -29,7 +29,7 @@ class World:
         trace = self.traces[new_trace_index]
 
         # Assume every trace only has one segment (need to fix this and split traces with > 1 segment)
-        current_segment_index = 0 # TODO: FIXME
+        current_segment_index = trace.find_segment_reset()
         curv_reset_probs = trace.get_curv_reset_probs(
             current_segment_index)  # Get new curv reset probs for it
 

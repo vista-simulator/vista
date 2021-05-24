@@ -195,7 +195,7 @@ class Car(Entity):
         self.trace = self.world.traces[self.current_trace_index]
         self.first_time = self.trace.masterClock.get_time_from_frame_num(
             self.trace.which_camera,
-            self.trace.syncedLabeledFrames[self.current_trace_index][
+            self.trace.syncedLabeledFrames[self.current_segment_index][
                 self.trace.which_camera][self.current_frame_index])  # MODIFIED
 
         self.trace_done = False
