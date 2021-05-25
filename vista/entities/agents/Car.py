@@ -43,10 +43,10 @@ class Car(Entity):
         return camera
 
     def step(self, action, delta_t=1 / 30.):
-        step_reward, done, info, next_valid_timestamp = self.step_dynamics(action, delta_t)
-        self.observations = self.step_sensors(next_valid_timestamp)
+        self.step_dynamics(action, delta_t)
+        self.step_sensors()
 
-        return self.observations, step_reward, done, info
+        return self.observations, self.isCrashed
 
     def step_dynamics(self, action, delta_t=1 / 30.):
         # Force action to be column vector
@@ -73,37 +73,15 @@ class Car(Entity):
         self.distance = self.trace.f_distance(self.timestamp) - \
                         self.trace.f_distance(self.first_time)
 
-        # info is used in some envs
-        info = dict()
-        info["timestamp"] = self.timestamp
-        info["first_time"] = self.first_time
-        info["human_curvature"] = self.trace.f_curvature(self.timestamp)
-        info["human_velocity"] = self.trace.f_speed(self.timestamp)
-        info["model_curvature"] = self.model_curvature
-        info["model_velocity"] = self.model_velocity
-        info["model_angle"] = self.curvature_to_steering(self.model_curvature)
-        info["rotation"] = self.relative_state.theta
-        info["translation"] = self.relative_state.translation_x
-        info["distance"] = self.trace.f_distance(self.timestamp) - \
-                           self.trace.f_distance(self.first_time)
-        info["done"] = self.isCrashed
-
-        done = self.isCrashed or self.trace_done
-
-        step_reward = 1.0 if not done else 0.0  # simple reward function +1 if not crashed
-
-        return step_reward, done, info, self.timestamp
-
-    def step_sensors(self, next_valid_timestamp, other_agents=[]):
-        observations = {}
+    def step_sensors(self, other_agents=[]):
+        self.observations = {}
         for sensor in self.sensors:
-            observations[sensor.id] = sensor.capture(next_valid_timestamp, other_agents=other_agents)
+            self.observations[sensor.id] = sensor.capture(self.timestamp, other_agents=other_agents)
 
         # NOTE: this implementation will cause issue if agent has memory. Also it accumulates reward
         # accross episode. Need a way to connect trace ending and starting point.
         if self.trace_done:
             pass # otherwise will cause incorrect computation of scene state | translated_frame = self.reset()
-        return observations
 
     def get_timestamp(self, index):
 

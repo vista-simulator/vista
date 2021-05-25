@@ -6,8 +6,9 @@ from .base_env import BaseEnv
 
 
 class LaneFollowing(BaseEnv, MultiAgentEnv):
-    def __init__(self, trace_paths, **kwargs):
+    def __init__(self, trace_paths, reward_mode='default', **kwargs):
         super(LaneFollowing, self).__init__(trace_paths, n_agents=1, **kwargs)
+        self.reward_mode = reward_mode
 
         # always use curvature only as action
         self.action_space = gym.spaces.Box(
@@ -15,6 +16,19 @@ class LaneFollowing(BaseEnv, MultiAgentEnv):
                 high=np.array([self.upper_curvature_bound]),
                 shape=(1,),
                 dtype=np.float64)
+
+    def step(self, action):
+        observation, reward, done, info = super().step(action)
+        if self.reward_mode == 'default':
+            pass
+        elif self.reward_mode == 'lane-center':
+            for a_id, _ in reward.items():
+                agent = self.world.agents[self.agent_ids.index(a_id)]
+                reward[a_id] = float(self.check_agent_in_lane_center(agent))
+        else:
+            raise NotImplementedError('Unrecognized reward mode {}'.format(self.reward_mode))
+
+        return observation, reward, done, info
 
 
 if __name__ == "__main__":

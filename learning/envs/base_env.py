@@ -171,23 +171,28 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                 else:
                     min_agent_speed = 9999.
         # update agents' dynamics (take action in the environment)
-        observation, reward, done, info = dict(), dict(), dict(), dict()
-        next_valid_timestamp_list = []
+        info = dict()
         for agent_id, agent in zip(self.agent_ids, self.world.agents):
             act = action[agent_id]
-            rew, d, info_, next_valid_timestamp = agent.step_dynamics(act)
-            reward[agent_id] = rew
-            done[agent_id] = d
-            info[agent_id] = info_
-            next_valid_timestamp_list.append(next_valid_timestamp)
+            agent.step_dynamics(act)
+            info[agent_id] = {
+                'model_curvature': agent.model_curvature,
+                'model_velocity': agent.model_velocity,
+                'model_angle': agent.curvature_to_steering(agent.model_curvature),
+                'distance': agent.trace.f_distance(agent.timestamp) - \
+                            agent.trace.f_distance(agent.first_time),
+                'rotation': agent.relative_state.theta,
+                'translation': agent.relative_state.translation_x,
+            }
         self.info_for_render = info
         # get agents' sensory measurement
+        observation = dict()
         for i, agent_id in enumerate(self.agent_ids):
             agent = self.world.agents[i]
-            next_valid_timestamp = next_valid_timestamp_list[i]
             other_agents = {_ai: self.world.agents[_ai] for _ai in range(self.n_agents) if _ai != i}
             other_agents = self.convert_to_scene_node(agent, other_agents)
-            obs = agent.step_sensors(next_valid_timestamp, other_agents=other_agents)
+            agent.step_sensors(other_agents=other_agents)
+            obs = agent.observations
             # NOTE: only support one sensor now
             if len(agent.sensors) == 1:
                 observation[agent_id] = obs[agent.sensors[0].id]
@@ -195,13 +200,14 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                 observation[agent_id] = None
         self.observation_for_render = observation
         # check agent off lane or exceed maximal rotation
-        for agent_id in done.keys():
+        done, reward = dict(), dict()
+        for agent_id in self.agent_ids:
             agent = self.world.agents[self.agent_ids.index(agent_id)]
             off_lane, max_rot = self.check_agent_off_lane_or_max_rot(agent)
-            done[agent_id] = off_lane or max_rot
+            done[agent_id] = off_lane or max_rot or agent.trace_done
             info[agent_id]['off_lane'] = off_lane
             info[agent_id]['max_rot'] = max_rot
-            self.world.agents[self.agent_ids.index(agent_id)].isCrashed = off_lane or max_rot
+            reward[agent_id] = 1 if not agent.isCrashed else 0 # default reward
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
         crash, overlap = self.check_collision(polys, return_overlap=True)
@@ -412,7 +418,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         return np.argsort(dists)[::-1] # front to behind
 
     def check_agent_off_lane_or_max_rot(self, agent):
-        tx, ty, theta = self.compute_relative_transform(agent.ego_dynamics, agent.human_dynamics)
+        tx = agent.relative_state.translation_x
+        theta = agent.relative_state.theta
         free_width = agent.trace.road_width - agent.car_width
         off_lane = abs(tx) > (free_width * self.free_width_mul)
         max_rot = abs(theta) > (np.pi * self.max_rot_mul)
