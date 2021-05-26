@@ -42,7 +42,11 @@ def parse_args():
     parser.add_argument(
         '--export',
         action='store_true',
-        help='Whether to export the model or test on the exported model. ')
+        help='Whether to export the model or test on the exported model.')
+    parser.add_argument(
+        '--to-deepknight',
+        action='store_true',
+        help='Whether to export to deepknight format.')
 
     args = parser.parse_args()
 
@@ -87,19 +91,29 @@ def main():
         state_dict = agent.get_policy().model.state_dict()
 
         # make compatible with e2ed
-        new_state_dict = dict()
-        for key, value in state_dict.items():
-            if key.startswith('convnet.'):
-                key = key.replace('convnet.', 'module.extractors.fcamera.features.')
-                new_state_dict[key] = value
-            elif key.startswith('fcnet.'):
-                key = key.replace('fcnet.', 'module.transform.')
-                new_state_dict[key] = value
-            elif key.startswith('action_fc.'):
-                key = key.replace('action_fc.', 'module.transform.4.')
-                new_state_dict[key] = value
+        if args.to_deepknight:
+            export_path = os.path.join(config_dir, 'model_deepknight.pkl')
 
-        saved_data = {'model': new_state_dict}
+            new_state_dict = dict()
+            for key, value in state_dict.items():
+                if key.startswith('extractor.'):
+                    key = key.replace('extractor.', 'module.extractors.fcamera.features.')
+                    new_state_dict[key] = value
+                elif key.startswith('policy.'):
+                    key = key.replace('policy.', 'module.transform.')
+                    new_state_dict[key] = value
+                # drop value function
+            saved_data = {'model': new_state_dict}
+        else:
+            new_state_dict = dict()
+            for key, value in state_dict.items():
+                if key.startswith('extractor.'):
+                    key = key.replace('extractor.', 'extractor.')
+                    new_state_dict[key] = value
+                elif key.startswith('policy.'):
+                    key = key.replace('policy.', 'policy.')
+                    new_state_dict[key] = value
+            saved_data = new_state_dict
         
         torch.save(saved_data, export_path)
     else:
@@ -126,7 +140,7 @@ def test_exported_model(agent, config, export_path):
         config['model'].keys() else {}
     exported_model = model_cls(obs_space, act_space, model_num_outputs, 
         config['model'], model_name, **kwargs)
-    exported_model.load_state_dict(torch.load(export_path))
+    exported_model.load_state_dict(torch.load(export_path), strict=False)
     exported_model.cuda()
     
     act_dist_cls = getattr(models, config['model']['custom_action_dist'])
@@ -172,7 +186,9 @@ def test_exported_model(agent, config, export_path):
         for agent_id in obs.keys():
             a_act_info = act_info[agent_id]
             a_act_info_exported = act_info_exported[agent_id]
-            assert np.allclose(a_act_info['action_logp'], a_act_info_exported['rllib_action_logp'])
+            if not np.allclose(a_act_info['action_logp'], a_act_info_exported['rllib_action_logp']):
+                err = np.abs(a_act_info['action_logp'] - a_act_info_exported['rllib_action_logp'])
+                print('Not allclose. Error = {}'.format(err))
 
         # step environment
         next_obs, rew, done, info = env.step(act)
