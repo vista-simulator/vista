@@ -19,7 +19,7 @@ DEFAULT_RENDERING_CONFIG = {
         'y': 0.,
         'theta': 0.
     },
-    'use_lighting': True,
+    'use_lighting': False,
     'lighting_dr': False,
     'ambient_light_factor': 0.2,
     'recoloring_factor': 0.5,

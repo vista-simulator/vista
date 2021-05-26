@@ -19,6 +19,7 @@ lane-following-base:
     # environment
     env_config:
       trace_paths: [~/data/20190205-102931_blue_prius_devens_rightside]
+      reward_mode: default
       wrappers: [PreprocessObservation]
       wrappers_config:
         PreprocessObservation:

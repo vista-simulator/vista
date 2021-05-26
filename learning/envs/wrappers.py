@@ -226,10 +226,12 @@ class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
 
 
 class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
-    def __init__(self, env, fx=1.0, fy=1.0, standardize=False):
+    def __init__(self, env, fx=1.0, fy=1.0, standardize=False, random_gamma=False, random_gamma_range=[0.5, 2.5]):
         super(PreprocessObservation, self).__init__(env)
         self.fx, self.fy = fx, fy
         self.standardize = standardize
+        self.random_gamma = random_gamma
+        self.random_gamma_range = random_gamma_range
         self.roi = env.world.agents[0].sensors[0].camera.get_roi() # NOTE: use sensor config from the first agent
         (i1, j1, i2, j2) = self.roi
         new_h, new_w = int((i2 - i1) * self.fy), int((j2 - j1) * self.fx)
@@ -258,12 +260,18 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             out = dict()
             for k, v in observation.items():
                 if isinstance(v, list):
+                    if self.random_gamma:
+                        gamma = np.random.uniform(*self.random_gamma_range)
+                        v[0] = self._adjust_gamma(v[0], gamma)
                     pp_obs = cv2.resize(v[0][i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
                     if self.standardize:
                         out[k] = [self._standardize(pp_obs)] + v[1:]
                     else:
                         out[k] = [pp_obs] + v[1:]
                 else:
+                    if self.random_gamma:
+                        gamma = np.random.uniform(*self.random_gamma_range)
+                        v = self._adjust_gamma(v, gamma)
                     pp_obs = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
                     if self.standardize:
                         out[k] = self._standardize(pp_obs)
@@ -285,6 +293,13 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
         mean, stddev = x.mean(), x.std()
         adjusted_stddev = max(stddev, 1.0/np.sqrt(np.prod(x.shape)))
         return (x - mean) / adjusted_stddev
+
+    def _adjust_gamma(self, x, gamma=1.0):
+        """ follow https://www.pyimagesearch.com/2015/10/05/opencv-gamma-correction/ """
+        invGamma = 1.0 / gamma
+        table = np.array([((i / 255.0) ** invGamma) * 255
+            for i in np.arange(0, 256)]).astype("uint8")
+        return cv2.LUT(x, table)
 
 
 class StackObservation(gym.ObservationWrapper, MultiAgentEnv):
