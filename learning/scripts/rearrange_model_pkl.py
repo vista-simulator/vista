@@ -7,7 +7,7 @@ from termcolor import colored
 root_dir = os.path.expanduser(sys.argv[1])
 out_root_dir = os.path.expanduser(sys.argv[2])
 ckpt_name = 'model_deepknight.pkl'
-config_name = 'config.yaml'
+config_name = 'configs.yaml'
 config = """dataset:
   sensors: [fcamera] #navimap
   min_distance: 3 
@@ -21,7 +21,7 @@ model:
   extractors:
     fcamera:
       name: convnet_ma
-      standardize: False
+      standardize: True
   estimator:
     name: deterministic_ma
 
@@ -50,7 +50,7 @@ for subdname in os.listdir(root_dir):
                     shutil.copy(ckpt_path, out_path)
                     print('Copy to {}'.format(out_path))
 
-                    if True:
+                    if False:
                         if 'sTrue' in ssubdir:
                             if 'standardize: False' in config:
                                 config = config.replace('standardize: False', 'standardize: True')
