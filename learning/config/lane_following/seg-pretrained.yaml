@@ -12,9 +12,9 @@ lane-following-seg-pretrained:
     num_cpus: 40
     num_gpus: 1
   config:
-    num_workers: 6 # 4
-    num_gpus: 0.4
-    num_gpus_per_worker: 0.1 # 0.15
+    num_workers: 10
+    num_gpus: 0.2
+    num_gpus_per_worker: 0.08
     framework: torch
     # environment
     env_config:
@@ -23,9 +23,9 @@ lane-following-seg-pretrained:
       wrappers: [PreprocessObservation, BasicManeuverReward]
       wrappers_config:
         PreprocessObservation:
-          fx: 3 # NOTE: make sure image size is at least 300-400
-          fy: 3
-          custom_roi_crop: [33, 88, 135, 243] # NOTE: include sky for segmentation pretrained model
+          fx: 1.2 # NOTE: better if the image size is at least 300-400 (3x) but too slow
+          fy: 1.2
+          custom_roi_crop: [80, 88, 135, 243] # NOTE: include some sky for segmentation pretrained model [240, 264, 405, 729] in RIG.xml
           random_gamma: [0.5, 1.5]
           color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
           imagenet_normalize: true
@@ -67,19 +67,19 @@ lane-following-seg-pretrained:
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
         # ade20k-mobilenetv2dilated-c1_deepsup, ade20k-resnet18dilated-ppm_deepsup, ade20k-resnet50-upernet
-        seg_model_name: ade20k-mobilenetv2dilated-c1_deepsup # CHANGE THIS
-        seg_out_channel: 4 # CHANGE THIS: 4, 4, 64
+        seg_model_name: ade20k-mobilenetv2dilated-c1_deepsup
+        seg_out_channel: 16
         # we want in RIG.xml format roi = [270, 264, 405, 729], where video size [600, 960]
-        # we are reading stream with shape [200, 320] --> target RIG.xml format roi = [90, 88, 135, 243]
-        # custom_roi_crop [33, 88, 135, 243] gives image shape [102, 155]
-        # fx=fy=3 gives imsage shape [306, 465]
-        # thus feat_roi_crop = [(90-33)*3=171, 0, 306, 465] in image ([306, 465]) pixel unit
-        # double-check by (306-171) == (135-90)*3
-        feat_roi_crop: [171, 0, 306, 465] # NOTE: unit is image pixel not based on feature map dimension
-        policy_hiddens: [4248, 128, 2] # CHANGE THIS: 4248, 4248, 4800
+        # we are reading stream with shape [200, 320] --> target roi = [90, 88, 135, 243]
+        # custom_roi_crop [80, 88, 135, 243] gives image shape [55, 155]
+        # fx=fy=1.2 gives imsage shape [66, 186]
+        # thus feat_roi_crop = [(90-80)*1.2=12, 0, 66, 186] in image ([66, 186]) pixel unit
+        # double-check by (66-12) == (135-90)*1.2
+        feat_roi_crop: [12, 0, 66, 186] # NOTE: unit is image pixel not based on feature map dimension
+        policy_hiddens: [256, 2]
         policy_activation: relu
         policy_dropout: 0.5
-        value_fcnet_hiddens: [4248, 128, 1] # CHANGE THIS: 4248, 4248, 4800
+        value_fcnet_hiddens: [256, 1]
         value_fcnet_activation: relu
         value_fcnet_dropout: 0.5
         custom_action_dist_config:

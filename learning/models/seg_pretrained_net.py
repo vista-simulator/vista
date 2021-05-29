@@ -52,7 +52,9 @@ class SegPretrainedNet(Base):
                                                **kwargs)
 
         # define policy
-        assert policy_hiddens[0] == self.feat_channel
+        if policy_hiddens[0] != self.feat_channel:
+            print('The channel of the first layer in policy does not equal to that of feature extraction output. Append!!')
+            policy_hiddens = [self.feat_channel] + policy_hiddens
         assert policy_hiddens[-1] == self.num_outputs
         self.policy = self._build_fcnet(policy_hiddens, policy_activation, with_bn=with_bn,
                                         dropout=policy_dropout, no_last_act=True)

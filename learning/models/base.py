@@ -1,6 +1,7 @@
 import os
 import sys
 import numpy as np
+import torch.nn.functional as F
 from ray.rllib.models.modelv2 import ModelV2
 from ray.rllib.utils.annotations import override
 from ray.rllib.models.torch.recurrent_net import RecurrentNetwork
@@ -44,47 +45,48 @@ class Base(RecurrentNetwork, nn.Module):
                 try:
                     from mit_semseg.models import ModelBuilder
                     from mit_semseg.config import cfg
-
-                    config_arg = os.path.join(
-                        os.environ.get('SEG_PRETRAINED_ROOT'),
-                        'config/{}.yaml'.format(seg_model_name))
-                    cfg.merge_from_file(config_arg)
-                    cfg.MODEL.arch_encoder = cfg.MODEL.arch_encoder.lower()
-                    cfg.MODEL.weights_encoder = os.path.join(
-                        os.environ.get('SEG_PRETRAINED_ROOT'),
-                        cfg.DIR, 'encoder_' + cfg.TEST.checkpoint)
-                    assert os.path.exists(cfg.MODEL.weights_encoder), 'checkpoint does not exist!'
-
-                    self.extractor = ModelBuilder.build_encoder(
-                        arch=cfg.MODEL.arch_encoder,
-                        fc_dim=cfg.MODEL.fc_dim,
-                        weights=cfg.MODEL.weights_encoder)
-                    for param in self.extractor.parameters():
-                        param.requires_grad = False
-                    fake_inp = torch.zeros([1] + list(obs_space.shape)).permute(0, 3, 1, 2)
-                    fake_out = self.extractor(fake_inp)
-                    assert len(fake_out) == 1
-                    raw_feat_channel = fake_out[0].shape[1]
-
-                    if self.feat_roi_crop:
-                        ori_h, ori_w = fake_inp.shape[2:]
-                        feat_h, feat_w = fake_out[0].shape[2:]
-                        crop_i1 = int(np.floor(self.feat_roi_crop[0] / ori_h * feat_h))
-                        crop_i2 = int(np.ceil(self.feat_roi_crop[2] / ori_h * feat_h))
-                        crop_j1 = int(np.floor(self.feat_roi_crop[1] / ori_w * feat_w))
-                        crop_j2 = int(np.ceil(self.feat_roi_crop[3] / ori_w * feat_w))
-                        self.feat_roi_crop = (crop_i1, crop_j1, crop_i2, crop_j2)
-                        fake_out[0] = fake_out[0][:, :, crop_i1:crop_i2, crop_j1:crop_j2]
-
-                    if seg_out_channel is None: # set to default
-                        seg_out_channel = raw_feat_channel // 64
-                    self.extractor_post = nn.Sequential(
-                        nn.Conv2d(raw_feat_channel, seg_out_channel, 1, 1, 0),
-                        nn.Dropout2d(p=0.5),
-                        nn.Flatten())
-                    feat_channel = self.extractor_post(fake_out[0]).shape[1]
                 except ImportError:
                     raise ImportError('Fail to import segmentation repo. Do you forget to set SEG_PRETRAINED_ROOT ?')
+
+                config_arg = os.path.join(
+                    os.environ.get('SEG_PRETRAINED_ROOT'),
+                    'config/{}.yaml'.format(seg_model_name))
+                cfg.merge_from_file(config_arg)
+                cfg.MODEL.arch_encoder = cfg.MODEL.arch_encoder.lower()
+                cfg.MODEL.weights_encoder = os.path.join(
+                    os.environ.get('SEG_PRETRAINED_ROOT'),
+                    cfg.DIR, 'encoder_' + cfg.TEST.checkpoint)
+                assert os.path.exists(cfg.MODEL.weights_encoder), 'checkpoint does not exist!'
+
+                self.extractor = ModelBuilder.build_encoder(
+                    arch=cfg.MODEL.arch_encoder,
+                    fc_dim=cfg.MODEL.fc_dim,
+                    weights=cfg.MODEL.weights_encoder)
+                for param in self.extractor.parameters():
+                    param.requires_grad = False
+                fake_inp = torch.zeros([1] + list(obs_space.shape)).permute(0, 3, 1, 2)
+                fake_out = self.extractor(fake_inp)
+                assert len(fake_out) == 1
+                raw_feat_channel = fake_out[0].shape[1]
+
+                if self.feat_roi_crop:
+                    ori_h, ori_w = fake_inp.shape[2:]
+                    feat_h, feat_w = fake_out[0].shape[2:]
+                    crop_i1 = int(np.floor(self.feat_roi_crop[0] / ori_h * feat_h))
+                    crop_i2 = int(np.ceil(self.feat_roi_crop[2] / ori_h * feat_h))
+                    crop_j1 = int(np.floor(self.feat_roi_crop[1] / ori_w * feat_w))
+                    crop_j2 = int(np.ceil(self.feat_roi_crop[3] / ori_w * feat_w))
+                    self.feat_roi_crop = (crop_i1, crop_j1, crop_i2, crop_j2)
+                    fake_out[0] = fake_out[0][:, :, crop_i1:crop_i2, crop_j1:crop_j2]
+
+                if seg_out_channel is None: # set to default
+                    seg_out_channel = raw_feat_channel // 64
+                self.extractor_post = nn.Sequential(
+                    nn.Conv2d(raw_feat_channel, seg_out_channel, 1, 1, 0),
+                    nn.ReLU(),
+                    nn.Dropout2d(p=0.5),
+                    nn.Flatten())
+                feat_channel = self.extractor_post(fake_out[0]).shape[1]
             else:
                 # NOTE: cannot check obs shape for obs_space is originally a tuple obs space
                 extractor_filters = model_config['conv_filters']
@@ -109,8 +111,9 @@ class Base(RecurrentNetwork, nn.Module):
 
         # define value function
         if model_config['vf_share_layers']:
-            assert value_fcnet_hiddens[0] == self.feat_channel, \
-                'Input channel of value function FCs should be consistent with feature extractor.'
+            if value_fcnet_hiddens[0] != self.feat_channel:
+                print('The channel of the first layer in policy does not equal to that of feature extraction output. Append!!')
+                value_fcnet_hiddens = [self.feat_channel] + value_fcnet_hiddens
         else:
             if self.use_cnn:
                 self.vf_extractor = self._build_convnet(extractor_filters, 
