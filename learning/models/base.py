@@ -59,6 +59,8 @@ class Base(RecurrentNetwork, nn.Module):
                         arch=cfg.MODEL.arch_encoder,
                         fc_dim=cfg.MODEL.fc_dim,
                         weights=cfg.MODEL.weights_encoder)
+                    for param in self.extractor.parameters():
+                        param.requires_grad = False
                     fake_inp = torch.zeros([1] + list(obs_space.shape)).permute(0, 3, 1, 2)
                     fake_out = self.extractor(fake_inp)
                     assert len(fake_out) == 1

@@ -12,9 +12,9 @@ lane-following-seg-pretrained:
     num_cpus: 40
     num_gpus: 1
   config:
-    num_workers: 10
-    num_gpus: 0.2
-    num_gpus_per_worker: 0.08
+    num_workers: 6 # 4
+    num_gpus: 0.4
+    num_gpus_per_worker: 0.1 # 0.15
     framework: torch
     # environment
     env_config:
@@ -46,8 +46,8 @@ lane-following-seg-pretrained:
     lr: 0.0002
     lr_schedule: null
     num_sgd_iter: 8
-    train_batch_size: 32000
-    sgd_minibatch_size: 512
+    train_batch_size: 5120
+    sgd_minibatch_size: 128
     # value function
     vf_loss_coeff: 1.0
     vf_clip_param: 1000.0
@@ -68,7 +68,7 @@ lane-following-seg-pretrained:
       custom_model_config:
         # ade20k-mobilenetv2dilated-c1_deepsup, ade20k-resnet18dilated-ppm_deepsup, ade20k-resnet50-upernet
         seg_model_name: ade20k-mobilenetv2dilated-c1_deepsup # CHANGE THIS
-        seg_out_channel: 4 # CHANGE THIS: 4, 4, 32
+        seg_out_channel: 4 # CHANGE THIS: 4, 4, 64
         # we want in RIG.xml format roi = [270, 264, 405, 729], where video size [600, 960]
         # we are reading stream with shape [200, 320] --> target RIG.xml format roi = [90, 88, 135, 243]
         # custom_roi_crop [33, 88, 135, 243] gives image shape [102, 155]
@@ -76,10 +76,10 @@ lane-following-seg-pretrained:
         # thus feat_roi_crop = [(90-33)*3=171, 0, 306, 465] in image ([306, 465]) pixel unit
         # double-check by (306-171) == (135-90)*3
         feat_roi_crop: [171, 0, 306, 465] # NOTE: unit is image pixel not based on feature map dimension
-        policy_hiddens: [4248, 1024, 2] # CHANGE THIS: 4248, 4248, 4800
+        policy_hiddens: [4248, 128, 2] # CHANGE THIS: 4248, 4248, 4800
         policy_activation: relu
         policy_dropout: 0.5
-        value_fcnet_hiddens: [4248, 1024, 1] # CHANGE THIS: 4248, 4248, 4800
+        value_fcnet_hiddens: [4248, 128, 1] # CHANGE THIS: 4248, 4248, 4800
         value_fcnet_activation: relu
         value_fcnet_dropout: 0.5
         custom_action_dist_config:
