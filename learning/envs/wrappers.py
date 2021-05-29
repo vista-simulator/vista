@@ -580,7 +580,7 @@ class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
             self.curvature_deque.append(agent.model_curvature)
             dcurvature = np.array(self.curvature_deque) / (self.upper_curvature_bound - self.lower_curvature_bound)
             dcurvature = dcurvature[1:] - dcurvature[:-1]
-            jitter_rew = dcurvature.std()
+            jitter_rew = -dcurvature.std()
             # assign reward
             reward[agent_id] = self.center_coeff * center_rew + self.jitter_coeff * jitter_rew
         return observation, reward, done, info
