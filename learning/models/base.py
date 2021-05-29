@@ -1,3 +1,5 @@
+import os
+import sys
 import numpy as np
 from ray.rllib.models.modelv2 import ModelV2
 from ray.rllib.utils.annotations import override
@@ -18,6 +20,8 @@ class Base(RecurrentNetwork, nn.Module):
                  vec_branch_activation=None,
                  use_cnn=False,
                  use_recurrent=False,
+                 use_seg_pretrained=False,
+                 seg_model_name=None,
                  with_bn=False,
                  obs_idcs=[0, 1],
                  **kwargs):
@@ -29,12 +33,44 @@ class Base(RecurrentNetwork, nn.Module):
         
         # define feature extractor
         self.use_cnn = use_cnn
+        self.use_seg_pretrained = use_seg_pretrained
         if self.use_cnn:
-            # NOTE: cannot check obs shape for obs_space is originally a tuple obs space
-            extractor_filters = model_config['conv_filters']
-            extractor_activation = model_config['conv_activation']
-            self.extractor = self._build_convnet(extractor_filters, extractor_activation, with_bn=with_bn)
-            feat_channel = extractor_filters[-1][1]
+            if self.use_seg_pretrained:
+                sys.path.insert(0, os.environ.get('SEG_PRETRAINED_ROOT'))
+                try:
+                    from mit_semseg.models import ModelBuilder
+                    from mit_semseg.config import cfg
+
+                    config_arg = os.path.join(
+                        os.environ.get('SEG_PRETRAINED_ROOT'),
+                        'config/{}.yaml'.format(seg_model_name))
+                    cfg.merge_from_file(config_arg)
+                    cfg.MODEL.arch_encoder = cfg.MODEL.arch_encoder.lower()
+                    cfg.MODEL.weights_encoder = os.path.join(
+                        os.environ.get('SEG_PRETRAINED_ROOT'),
+                        cfg.DIR, 'encoder_' + cfg.TEST.checkpoint)
+                    assert os.path.exists(cfg.MODEL.weights_encoder) and \
+                        os.path.exists(cfg.MODEL.weights_decoder), 'checkpoint does not exitst!'
+
+                    self.net_encoder = ModelBuilder.build_encoder(
+                        arch=cfg.MODEL.arch_encoder,
+                        fc_dim=cfg.MODEL.fc_dim,
+                        weights=cfg.MODEL.weights_encoder)
+                    fake_inp = torch.zeros([1] + list(obs_space.shape)).permute(0, 3, 1, 2)
+                    feat_channel = self.net_encoder(fake_inp)[0].shape[1]
+
+                    self.extractor = {'net': self.net_encoder, 
+                                      'reduce': nn.Sequential(
+                                            nn.AdaptiveAvgPool2d((1, 1)), 
+                                            nn.Flatten())}
+                except ImportError:
+                    raise ImportError('Fail to import segmentation repo. Do you forget to set SEG_PRETRAINED_ROOT ?')
+            else:
+                # NOTE: cannot check obs shape for obs_space is originally a tuple obs space
+                extractor_filters = model_config['conv_filters']
+                extractor_activation = model_config['conv_activation']
+                self.extractor = self._build_convnet(extractor_filters, extractor_activation, with_bn=with_bn)
+                feat_channel = extractor_filters[-1][1]
 
             if vec_branch_hiddens is not None:
                 self.vec_extractor = self._build_fcnet(vec_branch_hiddens, vec_branch_activation, with_bn=with_bn)
@@ -96,7 +132,13 @@ class Base(RecurrentNetwork, nn.Module):
                 obs = [img_obs, vec_obs]
             else:
                 obs = input_dict['obs'].permute(0, 3, 1, 2).float()
-                feat = self.extractor(obs)
+                if self.use_seg_pretrained:
+                    self.extractor['net'].eval() # NOTE: fix pretrained network weights
+                    with torch.no_grad():
+                        feat = self.extractor['net'](obs)[0]
+                        feat = self.extractor['reduce'](feat)
+                else:
+                    feat = self.extractor(obs)
         else:
             obs = input_dict['obs_flat']
             feat = self.extractor(obs)

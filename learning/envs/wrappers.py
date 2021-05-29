@@ -226,14 +226,17 @@ class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
 
 
 class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
-    def __init__(self, env, fx=1.0, fy=1.0, standardize=False, random_gamma=False, random_gamma_range=[0.5, 2.5]):
+    def __init__(self, env, fx=1.0, fy=1.0, custom_roi_crop=None, standardize=False, 
+                 imagenet_normalize=False, random_gamma=False, random_gamma_range=[0.5, 2.5]):
         super(PreprocessObservation, self).__init__(env)
         self.fx, self.fy = fx, fy
+        self.custom_roi_crop = custom_roi_crop
         self.standardize = standardize
+        self.imagenet_normalize = imagenet_normalize
         self.random_gamma = random_gamma
         self.random_gamma_range = random_gamma_range
         self.roi = env.world.agents[0].sensors[0].camera.get_roi() # NOTE: use sensor config from the first agent
-        (i1, j1, i2, j2) = self.roi
+        (i1, j1, i2, j2) = self.roi if self.custom_roi_crop is None else self.custom_roi_crop
         new_h, new_w = int((i2 - i1) * self.fy), int((j2 - j1) * self.fx)
         if self.standardize:
             low, high, dtype = -10., 10., np.float
@@ -264,6 +267,10 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
                         gamma = np.random.uniform(*self.random_gamma_range)
                         v[0] = self._adjust_gamma(v[0], gamma)
                     pp_obs = cv2.resize(v[0][i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
+                    if self.imagenet_normalize:
+                        out[k] = [self._imagenet_normalize(pp_obs)] + v[1:]
+                    else:
+                        out[k] = [pp_obs] + v[1:]
                     if self.standardize:
                         out[k] = [self._standardize(pp_obs)] + v[1:]
                     else:
@@ -273,6 +280,10 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
                         gamma = np.random.uniform(*self.random_gamma_range)
                         v = self._adjust_gamma(v, gamma)
                     pp_obs = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
+                    if self.imagenet_normalize:
+                        out[k] = self._imagenet_normalize(pp_obs)
+                    else:
+                        out[k] = pp_obs
                     if self.standardize:
                         out[k] = self._standardize(pp_obs)
                     else:
@@ -287,6 +298,12 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             raise NotImplementedError
             out = cv2.resize(observation[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
         return out
+
+    def _imagenet_normalize(self, x):
+        assert x.dtype == np.uint8
+        mean = np.array([0.485, 0.456, 0.406])
+        std = np.array([0.229, 0.224, 0.225])
+        return (x/255. - mean) / std
 
     def _standardize(self, x):
         """ follow https://www.tensorflow.org/api_docs/python/tf/image/per_image_standardization """
