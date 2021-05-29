@@ -15,6 +15,7 @@ class Base(RecurrentNetwork, nn.Module):
     def __init__(self, obs_space, action_space, num_outputs, model_config, name, 
                  value_fcnet_hiddens,
                  value_fcnet_activation,
+                 value_fcnet_dropout=0.,
                  vec_obs_dim=0,
                  vec_branch_hiddens=None,
                  vec_branch_activation=None,
@@ -22,6 +23,8 @@ class Base(RecurrentNetwork, nn.Module):
                  use_recurrent=False,
                  use_seg_pretrained=False,
                  seg_model_name=None,
+                 seg_out_channel=16,
+                 feat_roi_crop=None,
                  with_bn=False,
                  obs_idcs=[0, 1],
                  **kwargs):
@@ -29,6 +32,7 @@ class Base(RecurrentNetwork, nn.Module):
         super(Base, self).__init__(obs_space, action_space, num_outputs,
                                    model_config, name)
         self.use_recurrent = use_recurrent
+        self.feat_roi_crop = feat_roi_crop
         self.obs_idcs = obs_idcs
         
         # define feature extractor
@@ -49,20 +53,34 @@ class Base(RecurrentNetwork, nn.Module):
                     cfg.MODEL.weights_encoder = os.path.join(
                         os.environ.get('SEG_PRETRAINED_ROOT'),
                         cfg.DIR, 'encoder_' + cfg.TEST.checkpoint)
-                    assert os.path.exists(cfg.MODEL.weights_encoder) and \
-                        os.path.exists(cfg.MODEL.weights_decoder), 'checkpoint does not exitst!'
+                    assert os.path.exists(cfg.MODEL.weights_encoder), 'checkpoint does not exist!'
 
-                    self.net_encoder = ModelBuilder.build_encoder(
+                    self.extractor = ModelBuilder.build_encoder(
                         arch=cfg.MODEL.arch_encoder,
                         fc_dim=cfg.MODEL.fc_dim,
                         weights=cfg.MODEL.weights_encoder)
                     fake_inp = torch.zeros([1] + list(obs_space.shape)).permute(0, 3, 1, 2)
-                    feat_channel = self.net_encoder(fake_inp)[0].shape[1]
+                    fake_out = self.extractor(fake_inp)
+                    assert len(fake_out) == 1
+                    raw_feat_channel = fake_out[0].shape[1]
 
-                    self.extractor = {'net': self.net_encoder, 
-                                      'reduce': nn.Sequential(
-                                            nn.AdaptiveAvgPool2d((1, 1)), 
-                                            nn.Flatten())}
+                    if self.feat_roi_crop:
+                        ori_h, ori_w = fake_inp.shape[2:]
+                        feat_h, feat_w = fake_out[0].shape[2:]
+                        crop_i1 = int(np.floor(self.feat_roi_crop[0] / ori_h * feat_h))
+                        crop_i2 = int(np.ceil(self.feat_roi_crop[2] / ori_h * feat_h))
+                        crop_j1 = int(np.floor(self.feat_roi_crop[1] / ori_w * feat_w))
+                        crop_j2 = int(np.ceil(self.feat_roi_crop[3] / ori_w * feat_w))
+                        self.feat_roi_crop = (crop_i1, crop_j1, crop_i2, crop_j2)
+                        fake_out[0] = fake_out[0][:, :, crop_i1:crop_i2, crop_j1:crop_j2]
+
+                    if seg_out_channel is None: # set to default
+                        seg_out_channel = raw_feat_channel // 64
+                    self.extractor_post = nn.Sequential(
+                        nn.Conv2d(raw_feat_channel, seg_out_channel, 1, 1, 0),
+                        nn.Dropout2d(p=0.5),
+                        nn.Flatten())
+                    feat_channel = self.extractor_post(fake_out[0]).shape[1]
                 except ImportError:
                     raise ImportError('Fail to import segmentation repo. Do you forget to set SEG_PRETRAINED_ROOT ?')
             else:
@@ -82,6 +100,7 @@ class Base(RecurrentNetwork, nn.Module):
                 'Feature extractor input channel should be consistent with observation space'
             extractor_filters = model_config['fcnet_hiddens']
             extractor_activation = model_config['fcnet_activation']
+            assert False, 'Cannot set dropout here'
             self.extractor = self._build_fcnet(extractor_filters, extractor_activation, with_bn=with_bn)
             feat_channel = extractor_filters[-1]
         self.feat_channel = feat_channel
@@ -97,10 +116,11 @@ class Base(RecurrentNetwork, nn.Module):
                 if vec_branch_hiddens is not None:
                     self.vf_vec_extractor = self._build_fcnet(vec_branch_hiddens, vec_branch_activation, with_bn=with_bn)
             else:
+                assert False, 'Cannot set dropout here'
                 self.vf_extractor = self._build_fcnet(extractor_filters, 
                     extractor_activation, with_bn=with_bn)
         assert value_fcnet_hiddens[-1] == 1, 'Last channel should be 1 in value function'
-        self.vf_fcs = self._build_fcnet(value_fcnet_hiddens, value_fcnet_activation, 
+        self.vf_fcs = self._build_fcnet(value_fcnet_hiddens, value_fcnet_activation, dropout=value_fcnet_dropout,
             with_bn=with_bn, no_last_act=True) # NOTE: last layer is linear; not using NCP for value function
 
     def policy_inference(self):
@@ -123,7 +143,16 @@ class Base(RecurrentNetwork, nn.Module):
             if isinstance(input_dict['obs'], list):
                 img_obs = input_dict['obs'][self.obs_idcs[0]].permute(0, 3, 1, 2).float()
                 vec_obs = input_dict['obs'][self.obs_idcs[1]]
-                feat = self.extractor(img_obs)
+                if self.use_seg_pretrained:
+                    self.extractor.eval() # NOTE: fix pretrained network weights
+                    with torch.no_grad():
+                        feat = self.extractor(img_obs)[0]
+                    if self.feat_roi_crop:
+                        crop_i1, crop_j1, crop_i2, crop_j2 = self.feat_roi_crop
+                        feat = feat[:, :, crop_i1:crop_i2, crop_j1:crop_j2]
+                    feat = self.extractor_post(feat)
+                else:
+                    feat = self.extractor(img_obs)
                 if hasattr(self, 'vec_extractor'):
                     vec_feat = self.vec_extractor(vec_obs)
                 else:
@@ -133,10 +162,13 @@ class Base(RecurrentNetwork, nn.Module):
             else:
                 obs = input_dict['obs'].permute(0, 3, 1, 2).float()
                 if self.use_seg_pretrained:
-                    self.extractor['net'].eval() # NOTE: fix pretrained network weights
+                    self.extractor.eval() # NOTE: fix pretrained network weights
                     with torch.no_grad():
-                        feat = self.extractor['net'](obs)[0]
-                        feat = self.extractor['reduce'](feat)
+                        feat = self.extractor(obs)[0]
+                    if self.feat_roi_crop:
+                        crop_i1, crop_j1, crop_i2, crop_j2 = self.feat_roi_crop
+                        feat = feat[:, :, crop_i1:crop_i2, crop_j1:crop_j2]
+                    feat = self.extractor_post(feat)
                 else:
                     feat = self.extractor(obs)
         else:
@@ -184,30 +216,34 @@ class Base(RecurrentNetwork, nn.Module):
         values = self.vf_fcs(feat)
         return torch.reshape(values, [-1])
 
-    def _build_convnet(self, filters, activation, with_bn=False, no_last_act=False, to_nn_seq=True):
+    def _build_convnet(self, filters, activation, with_bn=False, no_last_act=False, dropout=0., to_nn_seq=True):
         activation = get_activation_fn(activation, 'torch')
         modules = nn.ModuleList()
-        for filt in filters:
+        for i, filt in enumerate(filters):
             modules.append(nn.Conv2d(*filt))
-            if not no_last_act:
+            if not (no_last_act and i == len(filters)-1):
                 if with_bn:
                     modules.append(nn.BatchNorm2d(filt[1]))
                 modules.append(activation())
+                if dropout > 0.:
+                    modules.append(nn.Dropout2d(p=dropout))
         modules.append(nn.AdaptiveAvgPool2d((1, 1)))
         modules.append(nn.Flatten())
         if to_nn_seq:
             modules = nn.Sequential(*modules)
         return modules
 
-    def _build_fcnet(self, filters, activation, with_bn=False, no_last_act=False, to_nn_seq=True):
+    def _build_fcnet(self, filters, activation, with_bn=False, no_last_act=False, dropout=0., to_nn_seq=True):
         activation = get_activation_fn(activation, 'torch')
         modules = nn.ModuleList()
         for i in range(len(filters)-1):
             modules.append(nn.Linear(filters[i], filters[i+1]))
-            if not no_last_act:
+            if not (no_last_act and i == len(filters)-2):
                 if with_bn:
                     modules.append(nn.BatchNorm1d(filters[i+1]))
                 modules.append(activation())
+                if dropout > 0.:
+                    modules.append(nn.Dropout(p=dropout))
         if to_nn_seq:
             modules = nn.Sequential(*modules)
         return modules
