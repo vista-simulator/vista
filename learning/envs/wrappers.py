@@ -250,7 +250,7 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             if custom_roi_crop is None else custom_roi_crop # NOTE: use sensor config from the first agent
         (i1, j1, i2, j2) = self.roi
         new_h, new_w = int((i2 - i1) * self.fy), int((j2 - j1) * self.fx)
-        if self.standardize:
+        if self.standardize or self.imagenet_normalize:
             low, high, dtype = -10., 10., np.float
         else:
             low, high, dtype = 0, 255, np.uint8

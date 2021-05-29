@@ -3,10 +3,12 @@
 
 USE_EGL=true
 
+export SEG_PRETRAINED_ROOT=$HOME/workspace/semantic-segmentation-pytorch
+
 if $USE_EGL
 then
   export PYOPENGL_PLATFORM=egl
-  export EGL_DEVICE_ID=$(nvidia-smi -q | grep "Minor Number" | cut -f 1 -d$'\n' | awk '{print substr($NF,0,1)}' | tail -1)
+  export EGL_DEVICE_ID=$GPU_DEVICE_ORDINAL
 else
   startx &
   sleep 5
