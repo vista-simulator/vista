@@ -230,13 +230,13 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
                  imagenet_normalize=False, random_gamma=False, random_gamma_range=[0.5, 2.5]):
         super(PreprocessObservation, self).__init__(env)
         self.fx, self.fy = fx, fy
-        self.custom_roi_crop = custom_roi_crop
         self.standardize = standardize
         self.imagenet_normalize = imagenet_normalize
         self.random_gamma = random_gamma
         self.random_gamma_range = random_gamma_range
-        self.roi = env.world.agents[0].sensors[0].camera.get_roi() # NOTE: use sensor config from the first agent
-        (i1, j1, i2, j2) = self.roi if self.custom_roi_crop is None else self.custom_roi_crop
+        self.roi = env.world.agents[0].sensors[0].camera.get_roi() \
+            if custom_roi_crop is None else custom_roi_crop # NOTE: use sensor config from the first agent
+        (i1, j1, i2, j2) = self.roi
         new_h, new_w = int((i2 - i1) * self.fy), int((j2 - j1) * self.fx)
         if self.standardize:
             low, high, dtype = -10., 10., np.float

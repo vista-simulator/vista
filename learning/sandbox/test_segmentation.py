@@ -119,7 +119,6 @@ def img_transform(_img):
     _img = _img.transpose((2, 0, 1))
     _img = normalize(torch.from_numpy(_img))
     return _img
-import pdb; pdb.set_trace()
 img = img[:,:,::-1] # NOTE RGB format
 img_pp = torch.unsqueeze(img_transform(img), 0)
 if args.cuda:

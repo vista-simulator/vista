@@ -14,7 +14,7 @@
  </VEHICLE>
 
  <SENSORS>
-     <CAMERA Name="camera_front" Type="gmsl">
+     <CAMERA Name="front_center" Type="gmsl">
         <PROPERTY Name="Model" Value="pinhole"/>
         <PROPERTY Name="Quaternion" Value="0.0 0.0 -0.0174524 0.9998477"/>
         <PROPERTY Name="Position" Value="0 1.7653 0"/>
@@ -27,7 +27,7 @@
         <PROPERTY Name="cy" Hint="intrinsic" Value="285.741420"/>
         <PROPERTY Name="fx" Hint="intrinsic" Value="262.242074"/>
         <PROPERTY Name="fy" Hint="intrinsic" Value="261.700119"/>
-        <PROPERTY Name="roi" Hint="region_of_interest" Value="270 264 375 729"/>
+        <PROPERTY Name="roi" Hint="region_of_interest" Value="270 264 405 729"/>
         <!-- <PROPERTY Name="roi" Hint="region_of_interest" Value="590 320 950 1640"/> 200 258 375 720 -->
         <PROPERTY Name="roi_angle" Hint="angle of ROI" Value="0"/>
      </CAMERA>

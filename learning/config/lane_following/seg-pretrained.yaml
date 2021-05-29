@@ -1,4 +1,4 @@
-lane-following-base:
+lane-following:
   local_dir: ~/tmp
   env: LaneFollowing
   run: PPO
@@ -9,7 +9,7 @@ lane-following-base:
     episode_reward_mean: 99999
     timesteps_total: 3e6
   ray_resources:
-    num_cpus: 40
+    num_cpus: 16
     num_gpus: 1
   config:
     num_workers: 10
@@ -23,9 +23,10 @@ lane-following-base:
       wrappers: [PreprocessObservation]
       wrappers_config:
         PreprocessObservation:
-          fx: 1
-          fy: 1
-          standardize: true
+          fx: 3 # NOTE: make sure image size is at least 300-400
+          fy: 3
+          custom_roi_crop: [33, 88, 135, 243] # NOTE: include sky for segmentation pretrained model
+          imagenet_normalize: true
     observation_filter: NoFilter
     callbacks: BasicCallbacks
     # policies
@@ -55,22 +56,25 @@ lane-following-base:
     # model
     model:
       vf_share_layers: true
-      custom_model: ConvNet
-      conv_filters: [
-        [3, 24, 5, 2, 2],
-        [24, 36, 5, 2, 2], 
-        [36, 48, 3, 2, 1], 
-        [48, 64, 3, 1, 1], 
-        [64, 64, 3, 1, 1]
-      ]
+      custom_model: SegPretrainedNet
+      conv_filters: []
       conv_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
-        with_bn: true
-        policy_hiddens: [64, 32, 2]
+        # ade20k-mobilenetv2dilated-c1_deepsup, ade20k-resnet18dilated-ppm_deepsup, ade20k-resnet50-upernet
+        seg_model_name: ade20k-mobilenetv2dilated-c1_deepsup # CHANGE THIS
+        seg_out_channel: 4 # CHANGE THIS: 4, 4, 32
+        # we want in RIG.xml format roi = [270, 264, 405, 729], where video size [600, 960]
+        # we are reading stream with shape [200, 320] --> target RIG.xml format roi = [90, 88, 135, 243]
+        # custom_roi_crop [33, 88, 135, 243] gives image shape [102, 155]
+        # fx=fy=3 gives imsage shape [306, 465]
+        # thus feat_roi_crop = [(90-33)*3=171, 0, 306, 465] in image ([306, 465]) pixel unit
+        # double-check by (306-171) == (135-90)*3
+        feat_roi_crop: [171, 0, 306, 465] # NOTE: unit is image pixel not based on feature map dimension
+        policy_hiddens: [4248, 1024, 2] # CHANGE THIS: 4248, 4248, 4800
         policy_activation: relu
         policy_dropout: 0.5
-        value_fcnet_hiddens: [64, 32, 1]
+        value_fcnet_hiddens: [4248, 1024, 1] # CHANGE THIS: 4248, 4248, 4800
         value_fcnet_activation: relu
         value_fcnet_dropout: 0.5
         custom_action_dist_config:

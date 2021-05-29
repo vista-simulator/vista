@@ -18,6 +18,7 @@ class ConvNet(Base):
     def __init__(self, obs_space, action_space, num_outputs, model_config, name,
                  value_fcnet_hiddens,
                  value_fcnet_activation,
+                 value_fcnet_dropout=0.,
                  vec_obs_dim=0,
                  vec_branch_hiddens=None,
                  vec_branch_activation=None,
@@ -26,19 +27,28 @@ class ConvNet(Base):
                  with_bn=False,
                  policy_hiddens=None,
                  policy_activation=None,
+                 policy_dropout=0.,
                  **kwargs):
         assert use_cnn, 'ConvNet must have use_cnn = True'
         assert not use_recurrent, 'ConvNet doesn\'t use recurrent network'
         nn.Module.__init__(self)
-        super(ConvNet, self).__init__(obs_space, action_space, num_outputs,
-                                      model_config, name, value_fcnet_hiddens,
-                                      value_fcnet_activation, vec_obs_dim, vec_branch_hiddens, 
-                                      vec_branch_activation, use_cnn, use_recurrent, with_bn, **kwargs)
+        super(ConvNet, self).__init__(obs_space, action_space, num_outputs, model_config, name, 
+                                      value_fcnet_hiddens=value_fcnet_hiddens, 
+                                      value_fcnet_activation=value_fcnet_activation, 
+                                      value_fcnet_dropout=value_fcnet_dropout, 
+                                      vec_obs_dim=vec_obs_dim, 
+                                      vec_branch_hiddens=vec_branch_hiddens, 
+                                      vec_branch_activation=vec_branch_activation, 
+                                      use_cnn=use_cnn, 
+                                      use_recurrent=use_recurrent,
+                                      with_bn=with_bn, 
+                                      **kwargs)
 
         # define policy
         assert policy_hiddens[0] == self.feat_channel
         assert policy_hiddens[-1] == self.num_outputs
-        self.policy = self._build_fcnet(policy_hiddens, policy_activation, with_bn=with_bn, no_last_act=True)
+        self.policy = self._build_fcnet(policy_hiddens, policy_activation, with_bn=with_bn, 
+                                        dropout=policy_dropout, no_last_act=True)
 
     def policy_inference(self, inputs, state, seq_lens):
         out = self.policy(inputs)

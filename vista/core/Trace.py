@@ -13,7 +13,7 @@ class Trace:
 
         self.trace_path = trace_path
         self.road_width = 5  # meters
-        self.which_camera = "camera_front"  # HARDCODING for now...
+        self.which_camera = "front_center"  # HARDCODING for now...
 
         self.masterClock = MultiFrame(trace_path)
         self.syncedLabeledFrames = self.getSyncedLabeledFrames(trace_path)
@@ -65,7 +65,7 @@ class Trace:
                 syncedLabeledFrames = self.masterClock.get_frames_from_times(
                     syncedLabeledTimestamps[start:i])
                 frames = {}
-                frames['camera_front'] = syncedLabeledFrames['camera_front']
+                frames['front_center'] = syncedLabeledFrames['front_center']
                 syncedLabeledFrames_.append(frames)
                 start = i + 1
 
