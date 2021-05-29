@@ -12,7 +12,7 @@ class Trace:
         print("Spawning {}".format(trace_path))
 
         self.trace_path = trace_path
-        self.road_width = 5  # meters
+        self.road_width = 4  # meters
         self.which_camera = "front_center"  # HARDCODING for now...
 
         self.masterClock = MultiFrame(trace_path)

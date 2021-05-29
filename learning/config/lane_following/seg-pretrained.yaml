@@ -1,4 +1,4 @@
-lane-following:
+lane-following-seg-pretrained:
   local_dir: ~/tmp
   env: LaneFollowing
   run: PPO
@@ -9,7 +9,7 @@ lane-following:
     episode_reward_mean: 99999
     timesteps_total: 3e6
   ray_resources:
-    num_cpus: 16
+    num_cpus: 40
     num_gpus: 1
   config:
     num_workers: 10
@@ -20,13 +20,18 @@ lane-following:
     env_config:
       trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop]
       reward_mode: default
-      wrappers: [PreprocessObservation]
+      wrappers: [PreprocessObservation, BasicManeuverReward]
       wrappers_config:
         PreprocessObservation:
           fx: 3 # NOTE: make sure image size is at least 300-400
           fy: 3
           custom_roi_crop: [33, 88, 135, 243] # NOTE: include sky for segmentation pretrained model
+          random_gamma: [0.5, 1.5]
+          color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
           imagenet_normalize: true
+        BasicManeuverReward:
+          center_coeff: 0.01
+          jitter_coeff: 0.0
     observation_filter: NoFilter
     callbacks: BasicCallbacks
     # policies

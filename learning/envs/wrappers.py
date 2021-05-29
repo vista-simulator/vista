@@ -3,10 +3,13 @@ from collections import deque
 import gym
 import numpy as np
 import cv2
+from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from shapely.geometry import LineString
 from descartes import PolygonPatch
+import torch
+import torchvision
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import vista
@@ -227,13 +230,22 @@ class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
 
 class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
     def __init__(self, env, fx=1.0, fy=1.0, custom_roi_crop=None, standardize=False, 
-                 imagenet_normalize=False, random_gamma=False, random_gamma_range=[0.5, 2.5]):
+                 imagenet_normalize=False, random_gamma=None, color_jitter=None):
         super(PreprocessObservation, self).__init__(env)
         self.fx, self.fy = fx, fy
         self.standardize = standardize
         self.imagenet_normalize = imagenet_normalize
         self.random_gamma = random_gamma
-        self.random_gamma_range = random_gamma_range
+        if self.random_gamma is not None:
+            assert len(random_gamma) == 2, 'Random gamma requires 2 params: min_gamma and max_gamma'
+        if color_jitter is not None:
+            assert len(color_jitter) == 4, 'Color jitter requires 4 params: brightness / contrast / saturation / hue'
+            self.color_jitter = torchvision.transforms.ColorJitter(
+                brightness=color_jitter[0],
+                contrast=color_jitter[1],
+                saturation=color_jitter[2],
+                hue=color_jitter[3]
+            )
         self.roi = env.world.agents[0].sensors[0].camera.get_roi() \
             if custom_roi_crop is None else custom_roi_crop # NOTE: use sensor config from the first agent
         (i1, j1, i2, j2) = self.roi
@@ -262,33 +274,25 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
         if isinstance(observation, dict):
             out = dict()
             for k, v in observation.items():
-                if isinstance(v, list):
-                    if self.random_gamma:
-                        gamma = np.random.uniform(*self.random_gamma_range)
-                        v[0] = self._adjust_gamma(v[0], gamma)
-                    pp_obs = cv2.resize(v[0][i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
-                    if self.imagenet_normalize:
-                        out[k] = [self._imagenet_normalize(pp_obs)] + v[1:]
-                    else:
-                        out[k] = [pp_obs] + v[1:]
-                    if self.standardize:
-                        out[k] = [self._standardize(pp_obs)] + v[1:]
-                    else:
-                        out[k] = [pp_obs] + v[1:]
-                else:
-                    if self.random_gamma:
-                        gamma = np.random.uniform(*self.random_gamma_range)
-                        v = self._adjust_gamma(v, gamma)
-                    pp_obs = cv2.resize(v[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
-                    if self.imagenet_normalize:
-                        out[k] = self._imagenet_normalize(pp_obs)
-                    else:
-                        out[k] = pp_obs
-                    if self.standardize:
-                        out[k] = self._standardize(pp_obs)
-                    else:
-                        out[k] = pp_obs
-                self.observation_for_render[k] = pp_obs
+                obs = v[0] if isinstance(v, list) else v
+                pp_obs = Image.fromarray(obs[:,:,::-1]) # PIL follows RGB
+                if self.random_gamma:
+                    gamma = np.random.uniform(*self.random_gamma)
+                    pp_obs = torchvision.transforms.functional.adjust_gamma(pp_obs, gamma)
+                if self.color_jitter is not None:
+                    pp_obs = self.color_jitter(pp_obs)
+                pp_obs = np.array(pp_obs)[:,:,::-1]
+
+                pp_obs = cv2.resize(pp_obs[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
+
+                if self.imagenet_normalize:
+                    pp_obs = self._imagenet_normalize(pp_obs)
+                if self.standardize:
+                    pp_obs = self._standardize(pp_obs)
+                out[k] = [pp_obs] + v[1:] if isinstance(v, list) else pp_obs
+    
+                cropped_obs = cv2.resize(obs[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
+                self.observation_for_render[k] = cropped_obs
         elif isinstance(observation, list):
             raise NotImplementedError
             out = []
@@ -311,8 +315,9 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
         adjusted_stddev = max(stddev, 1.0/np.sqrt(np.prod(x.shape)))
         return (x - mean) / adjusted_stddev
 
-    def _adjust_gamma(self, x, gamma=1.0):
+    def _random_gamma(self, x):
         """ follow https://www.pyimagesearch.com/2015/10/05/opencv-gamma-correction/ """
+        gamma = np.random.uniform(*self.random_gamma)
         invGamma = 1.0 / gamma
         table = np.array([((i / 255.0) ** invGamma) * 255
             for i in np.arange(0, 256)]).astype("uint8")
@@ -550,3 +555,32 @@ class RandomPermuteAgent(gym.Wrapper, MultiAgentEnv):
     def permute_data(self, data):
         new_data = {k: v for k, v in zip(self.permuted_keys, list(data.values()))}
         return new_data
+
+
+class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
+    def __init__(self, env, center_coeff=0.01, jitter_coeff=0.0):
+        super(BasicManeuverReward, self).__init__(env)
+        self.center_coeff = center_coeff
+        self.jitter_coeff = jitter_coeff
+        self.curvature_deque = deque(maxlen=30)
+
+    def reset(self, **kwargs):
+        self.curvature_deque.clear()
+        self.curvature_deque.append(0.)
+        return super().reset(**kwargs)
+
+    def step(self, action):
+        observation, reward, done, info = super().step(action)
+        for agent_id in reward.keys():
+            agent = self.world.agents[self.agent_ids.index(agent_id)]
+            # compute center reward
+            free_width = (agent.trace.road_width - agent.car_width) * self.free_width_mul
+            center_rew = 1. - (agent.relative_state.translation_x / free_width) ** 2
+            # compute jitter reward
+            self.curvature_deque.append(agent.model_curvature)
+            dcurvature = np.array(self.curvature_deque) / (self.upper_curvature_bound - self.lower_curvature_bound)
+            dcurvature = dcurvature[1:] - dcurvature[:-1]
+            jitter_rew = dcurvature.std()
+            # assign reward
+            reward[agent_id] = self.center_coeff * center_rew + self.jitter_coeff * jitter_rew
+        return observation, reward, done, info

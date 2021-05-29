@@ -19,13 +19,16 @@ lane-following-base:
     # environment
     env_config:
       trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop]
-      reward_mode: default
-      wrappers: [PreprocessObservation]
+      wrappers: [PreprocessObservation, BasicManeuverReward]
       wrappers_config:
         PreprocessObservation:
           fx: 1
           fy: 1
-          standardize: true
+          random_gamma: [0.5, 1.5]
+          color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
+        BasicManeuverReward:
+          center_coeff: 0.01
+          jitter_coeff: 0.0
     observation_filter: NoFilter
     callbacks: BasicCallbacks
     # policies
