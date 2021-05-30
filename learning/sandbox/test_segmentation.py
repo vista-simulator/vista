@@ -59,6 +59,15 @@ net_decoder = ModelBuilder.build_decoder(
     num_class=cfg.DATASET.num_class,
     weights=cfg.MODEL.weights_decoder,
     use_softmax=True)
+if False:
+    for module in net_encoder.modules():
+        if isinstance(module, nn.Conv2d):
+            if module.dilation[0] != 1:
+                n = module.dilation[0]
+                new_dilation = module.dilation[0] // n
+                new_padding = int(module.padding[0] - module.dilation[0] * (module.kernel_size[0] - 1) / 2 * (1 - 1 / n))
+                module.dilation = (new_dilation, new_dilation)
+                module.padding = (new_padding, new_padding)
 crit = nn.NLLLoss(ignore_index=-1)
 segmentation_module = SegmentationModule(net_encoder, net_decoder, crit)
 if args.cuda:
