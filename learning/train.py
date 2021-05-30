@@ -75,7 +75,15 @@ def main():
 
     # Register custom model and environments
     env_creator = misc.register_custom_env(exp['env'])
-    misc.register_custom_model(exp['config']['model'])
+    if exp['run'] == 'PPO':
+        misc.register_custom_model(exp['config']['model'])
+    elif exp['run'] == 'CustomSAC':
+        misc.register_custom_model(exp['config']['Q_model'], register_action_dist=False)
+        misc.register_custom_model(exp['config']['policy_model'], register_action_dist=False)
+
+        exp['config']['buffer_size'] = int(exp['config']['buffer_size'])
+    else:
+        raise NotImplementedError('Unrecognized algorithm {}'.format(exp['run']))
 
     # Start ray (earlier to accomodate in-the-env agent)
     args.temp_dir = os.path.abspath(os.path.expanduser(args.temp_dir))
@@ -93,19 +101,21 @@ def main():
         misc.set_callbacks(exp, agent_ids)
 
     # Setup multi-agent
-    policy_ids = exp['config']['multiagent']['policies']
-    exp['config']['multiagent']['policies'] = dict()
-    for p_id in policy_ids:
-        exp['config']['multiagent']['policies'][p_id] = policy_manager.get_policy(p_id)
-    exp['config']['multiagent']['policy_mapping_fn'] = policy_manager.get_policy_mapping_fn(
-        exp['config']['multiagent']['policy_mapping_fn'])
+    if 'multiagent' in exp['config'].keys():
+        policy_ids = exp['config']['multiagent']['policies']
+        exp['config']['multiagent']['policies'] = dict()
+        for p_id in policy_ids:
+            exp['config']['multiagent']['policies'][p_id] = policy_manager.get_policy(p_id)
+        exp['config']['multiagent']['policy_mapping_fn'] = policy_manager.get_policy_mapping_fn(
+            exp['config']['multiagent']['policy_mapping_fn'])
 
     # handle hyperparameter tuning NOTE: not working yet
-    tune_keys = ['lr', 'num_sgd_iter', 'train_batch_size', 'sgd_minibatch_size', 'vf_loss_coeff', 
-                 'vf_clip_param', 'entropy_coeff', 'kl_coeff', 'kl_target', 'clip_param']
-    for k, v in exp['config'].items():
-        if k in tune_keys and isinstance(v, list):
-            exp['config'][k] = tune.grid_search(v)
+    if exp['run'] == 'PPO':
+        tune_keys = ['lr', 'num_sgd_iter', 'train_batch_size', 'sgd_minibatch_size', 'vf_loss_coeff', 
+                    'vf_clip_param', 'entropy_coeff', 'kl_coeff', 'kl_target', 'clip_param']
+        for k, v in exp['config'].items():
+            if k in tune_keys and isinstance(v, list):
+                exp['config'][k] = tune.grid_search(v)
 
     # Convert to Experiment object
     exp['config']['env'] = exp["env"] # move env inside config to follow Experiment format

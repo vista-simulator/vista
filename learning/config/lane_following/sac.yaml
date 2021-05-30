@@ -1,0 +1,94 @@
+lane-following-sac:
+  local_dir: ~/tmp
+  env: LaneFollowing
+  run: CustomSAC
+  num_samples: 1
+  checkpoint_freq: 100
+  checkpoint_at_end: true
+  stop:
+    episode_reward_mean: 99999
+    timesteps_total: 3e6
+  ray_resources:
+    num_cpus: 40
+    num_gpus: 1
+  config:
+    num_workers: 16
+    num_gpus: 0.2
+    num_gpus_per_worker: 0.05
+    framework: torch
+    # environment
+    env_config:
+      trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop]
+      wrappers: [PreprocessObservation, BasicManeuverReward, SingleAgent]
+      wrappers_config:
+        PreprocessObservation:
+          fx: 1
+          fy: 1
+          random_gamma: [0.5, 1.5]
+          color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
+          standardize: true
+        BasicManeuverReward:
+          center_coeff: 0.01
+          jitter_coeff: 0.0
+    observation_filter: NoFilter
+    callbacks: BasicCallbacks
+    # policies NOTE: only works for single-agent now
+    # MDP-related
+    gamma: 0.99
+    rollout_fragment_length: 1
+    # model
+    policy_model:
+      custom_model: PureConvNet
+      custom_model_config:
+        with_bn: true
+        conv_filters: [
+          [3, 24, 5, 2, 2],
+          [24, 36, 5, 2, 2], 
+          [36, 48, 3, 2, 1], 
+          [48, 64, 3, 1, 1], 
+          [64, 64, 3, 1, 1]
+        ]
+        conv_activation: relu
+        fc_hiddens: [64, 32, 2]
+        fc_activation: relu
+        fc_dropout: 0.5
+    twin_q: true
+    Q_model:
+      custom_model: PureConvNet
+      custom_model_config:
+        with_bn: true
+        conv_filters: [
+          [3, 24, 5, 2, 2],
+          [24, 36, 5, 2, 2], 
+          [36, 48, 3, 2, 1], 
+          [48, 64, 3, 1, 1], 
+          [64, 64, 3, 1, 1]
+        ]
+        conv_activation: relu
+        fc_hiddens: [65, 32, 1] # 65 --> concat action
+        fc_activation: relu
+        fc_dropout: 0.5
+    normalize_actions: true
+    # learning
+    no_done_at_end: true
+    tau: 5e-3
+    initial_alpha: 0.1 # default is 1.0
+    target_entropy: auto
+    timesteps_per_iteration: 1000
+    # replay buffer
+    buffer_size: 1e6
+    prioritized_replay: false
+    prioritized_replay_alpha: 0.6
+    prioritized_replay_beta: 0.4
+    prioritized_replay_eps: 1e-6
+    prioritized_replay_beta_annealing_timesteps: 20000
+    final_prioritized_replay_beta: 0.4
+    # optimization
+    optimization:
+      actor_learning_rate: 3e-4
+      critic_learning_rate: 3e-4
+      entropy_learning_rate: 3e-4
+    grad_clip: null
+    train_batch_size: 256
+    learning_starts: 10000
+    target_network_update_freq: 1

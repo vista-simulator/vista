@@ -16,8 +16,8 @@ torch, nn = try_import_torch()
 
 class SegPretrainedNet(Base):
     def __init__(self, obs_space, action_space, num_outputs, model_config, name,
-                 value_fcnet_hiddens,
-                 value_fcnet_activation,
+                 value_fcnet_hiddens=None,
+                 value_fcnet_activation=None,
                  value_fcnet_dropout=0.,
                  vec_obs_dim=0,
                  vec_branch_hiddens=None,
@@ -29,6 +29,7 @@ class SegPretrainedNet(Base):
                  policy_hiddens=None,
                  policy_activation=None,
                  policy_dropout=0.,
+                 auto_append_policy_hiddens=False,
                  **kwargs):
         assert not use_recurrent, 'SegPretrainedNet doesn\'t use recurrent network'
         use_cnn = True
@@ -52,7 +53,7 @@ class SegPretrainedNet(Base):
                                                **kwargs)
 
         # define policy
-        if policy_hiddens[0] != self.feat_channel:
+        if policy_hiddens[0] != self.feat_channel and auto_append_policy_hiddens:
             print('The channel of the first layer in policy does not equal to that of feature extraction output. Append!!')
             policy_hiddens = [self.feat_channel] + policy_hiddens
         assert policy_hiddens[-1] == self.num_outputs

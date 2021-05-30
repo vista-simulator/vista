@@ -584,3 +584,21 @@ class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
             # assign reward
             reward[agent_id] = self.center_coeff * center_rew + self.jitter_coeff * jitter_rew
         return observation, reward, done, info
+
+
+class SingleAgent(gym.Wrapper):
+    def __init__(self, env, single_agent_id=None):
+        super(SingleAgent, self).__init__(env)
+        self.single_agent_id = self.ref_agent_id if single_agent_id is None else single_agent_id
+
+    def reset(self, **kwargs):
+        observation = super().reset(**kwargs)
+        return self._wrap_single_agent(observation)
+
+    def step(self, action):
+        action = {self.single_agent_id: action}
+        observation, reward, done, info = map(self._wrap_single_agent, super().step(action))
+        return observation, reward, done, info
+
+    def _wrap_single_agent(self, data):
+        return data[self.single_agent_id]

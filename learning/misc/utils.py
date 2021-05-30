@@ -150,19 +150,20 @@ def register_custom_env(env_name):
     return _env_creator
 
 
-def register_custom_model(model_config):
+def register_custom_model(model_config, register_action_dist=True):
     """ Register custom model in rllib. """
-    try: # TODO: hacky fix for checkpoints that doesn't save this attribute because of pop
-        action_dist_config = model_config['custom_model_config']['custom_action_dist_config']
-    except:
-        try:
-            action_dist_config = model_config.pop('custom_action_dist_config')
+    if register_action_dist:
+        try: # TODO: hacky fix for checkpoints that doesn't save this attribute because of pop
+            action_dist_config = model_config['custom_model_config']['custom_action_dist_config']
         except:
-            print('[!!!!!!!!!!!!!!!!!!!!] Use hardcoded action distribution config')
-            action_dist_config = {'low': [-5., -15.], 'high': [5., 15.]}
-    ActDist = getattr(models, model_config['custom_action_dist'])
-    ActDist = partialclass(ActDist, **action_dist_config)
-    ModelCatalog.register_custom_action_dist(model_config['custom_action_dist'], ActDist)
+            try:
+                action_dist_config = model_config.pop('custom_action_dist_config')
+            except:
+                print('[!!!!!!!!!!!!!!!!!!!!] Use hardcoded action distribution config')
+                action_dist_config = {'low': [-5., -15.], 'high': [5., 15.]}
+        ActDist = getattr(models, model_config['custom_action_dist'])
+        ActDist = partialclass(ActDist, **action_dist_config)
+        ModelCatalog.register_custom_action_dist(model_config['custom_action_dist'], ActDist)
 
     if 'custom_model' not in model_config.keys():
         return 
@@ -174,7 +175,7 @@ def register_custom_model(model_config):
 def set_callbacks(exp, agent_ids):
     """ Set callbacks to a callback class by string. """
     _callbacks = getattr(callbacks, exp['config']['callbacks'])
-    if 'callbacks_config' in exp['config']['multiagent'].keys():
+    if 'multiagent' in exp['config'].keys() and 'callbacks_config' in exp['config']['multiagent'].keys():
         kwargs = exp['config']['multiagent']['callbacks_config']
     else:
         kwargs = dict()

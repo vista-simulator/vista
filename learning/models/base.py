@@ -14,8 +14,8 @@ torch, nn = try_import_torch()
 
 class Base(RecurrentNetwork, nn.Module):
     def __init__(self, obs_space, action_space, num_outputs, model_config, name, 
-                 value_fcnet_hiddens,
-                 value_fcnet_activation,
+                 value_fcnet_hiddens=None,
+                 value_fcnet_activation=None,
                  value_fcnet_dropout=0.,
                  vec_obs_dim=0,
                  vec_branch_hiddens=None,
@@ -89,8 +89,12 @@ class Base(RecurrentNetwork, nn.Module):
                 feat_channel = self.extractor_post(fake_out[0]).shape[1]
             else:
                 # NOTE: cannot check obs shape for obs_space is originally a tuple obs space
-                extractor_filters = model_config['conv_filters']
-                extractor_activation = model_config['conv_activation']
+                if 'conv_filters' in kwargs.keys():
+                    extractor_filters = model_config['custom_model_config']['conv_filters']
+                    extractor_activation = model_config['custom_model_config']['conv_activation']
+                else:
+                    extractor_filters = model_config['conv_filters']
+                    extractor_activation = model_config['conv_activation']
                 self.extractor = self._build_convnet(extractor_filters, extractor_activation, with_bn=with_bn)
                 feat_channel = extractor_filters[-1][1]
 
@@ -110,23 +114,28 @@ class Base(RecurrentNetwork, nn.Module):
         self.feat_channel = feat_channel
 
         # define value function
-        if model_config['vf_share_layers']:
-            if value_fcnet_hiddens[0] != self.feat_channel:
-                print('The channel of the first layer in policy does not equal to that of feature extraction output. Append!!')
-                value_fcnet_hiddens = [self.feat_channel] + value_fcnet_hiddens
-        else:
-            if self.use_cnn:
-                self.vf_extractor = self._build_convnet(extractor_filters, 
-                    extractor_activation, with_bn=with_bn)
-                if vec_branch_hiddens is not None:
-                    self.vf_vec_extractor = self._build_fcnet(vec_branch_hiddens, vec_branch_activation, with_bn=with_bn)
+        if value_fcnet_hiddens is not None:
+            self.has_value_function = True
+
+            if model_config['vf_share_layers']:
+                if value_fcnet_hiddens[0] != self.feat_channel:
+                    print('The channel of the first layer in policy does not equal to that of feature extraction output. Append!!')
+                    value_fcnet_hiddens = [self.feat_channel] + value_fcnet_hiddens
             else:
-                assert False, 'Cannot set dropout here'
-                self.vf_extractor = self._build_fcnet(extractor_filters, 
-                    extractor_activation, with_bn=with_bn)
-        assert value_fcnet_hiddens[-1] == 1, 'Last channel should be 1 in value function'
-        self.vf_fcs = self._build_fcnet(value_fcnet_hiddens, value_fcnet_activation, dropout=value_fcnet_dropout,
-            with_bn=with_bn, no_last_act=True) # NOTE: last layer is linear; not using NCP for value function
+                if self.use_cnn:
+                    self.vf_extractor = self._build_convnet(extractor_filters, 
+                        extractor_activation, with_bn=with_bn)
+                    if vec_branch_hiddens is not None:
+                        self.vf_vec_extractor = self._build_fcnet(vec_branch_hiddens, vec_branch_activation, with_bn=with_bn)
+                else:
+                    assert False, 'Cannot set dropout here'
+                    self.vf_extractor = self._build_fcnet(extractor_filters, 
+                        extractor_activation, with_bn=with_bn)
+            assert value_fcnet_hiddens[-1] == 1, 'Last channel should be 1 in value function'
+            self.vf_fcs = self._build_fcnet(value_fcnet_hiddens, value_fcnet_activation, dropout=value_fcnet_dropout,
+                with_bn=with_bn, no_last_act=True) # NOTE: last layer is linear; not using NCP for value function
+        else:
+            self.has_value_function = False
 
     def policy_inference(self):
         raise NotImplementedError
@@ -179,7 +188,8 @@ class Base(RecurrentNetwork, nn.Module):
         else:
             obs = input_dict['obs_flat']
             feat = self.extractor(obs)
-        self.value_inp = feat if self.model_config['vf_share_layers'] else obs
+        if self.has_value_function:
+            self.value_inp = feat if self.model_config['vf_share_layers'] else obs
 
         # policy inference
         if self.use_recurrent:
@@ -205,21 +215,24 @@ class Base(RecurrentNetwork, nn.Module):
 
     @override(ModelV2)
     def value_function(self):
-        if self.model_config['vf_share_layers']:
-            feat = self.value_inp
-        else:
-            if isinstance(self.value_inp, list):
-                img_obs, vec_obs = self.value_inp
-                feat = self.vf_extractor(img_obs)
-                if hasattr(self, 'vf_vec_extractor'):
-                    vec_feat = self.vf_vec_extractor(vec_obs)
-                else:
-                    vec_feat = vec_obs
-                feat = torch.cat([feat, vec_feat], -1)
+        if self.has_value_function:
+            if self.model_config['vf_share_layers']:
+                feat = self.value_inp
             else:
-                feat = self.vf_extractor(self.value_inp)
-        values = self.vf_fcs(feat)
-        return torch.reshape(values, [-1])
+                if isinstance(self.value_inp, list):
+                    img_obs, vec_obs = self.value_inp
+                    feat = self.vf_extractor(img_obs)
+                    if hasattr(self, 'vf_vec_extractor'):
+                        vec_feat = self.vf_vec_extractor(vec_obs)
+                    else:
+                        vec_feat = vec_obs
+                    feat = torch.cat([feat, vec_feat], -1)
+                else:
+                    feat = self.vf_extractor(self.value_inp)
+            values = self.vf_fcs(feat)
+            return torch.reshape(values, [-1])
+        else:
+            raise ValueError('There is no value function.')
 
     def _build_convnet(self, filters, activation, with_bn=False, no_last_act=False, dropout=0., to_nn_seq=True):
         activation = get_activation_fn(activation, 'torch')
