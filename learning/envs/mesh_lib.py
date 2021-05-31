@@ -96,6 +96,14 @@ class MeshLib(object):
             # wheel, glass, optic, body = range(len(tm_list))
             body = np.argmax([v.triangles.shape[0] for v in tm_list]) # NOTE: hacky way to get body mesh
             color = np.random.choice(list(tm['extra']['body_images'].keys()))
+
+            ### DEBUG
+            if 'Red' in list(tm['extra']['body_images'].keys()):
+                color = 'Red'
+            elif 'Green' in list(tm['extra']['body_images'].keys()):
+                color = 'Green'
+            ### DEBUG
+
             tm_list[body].visual.material.image = tm['extra']['body_images'][color]
             Ns = np.random.randint(10, 300) # specular highlight (0-1000)
             tm_list[body].visual.material.kwargs.update(Ns=Ns)
@@ -109,6 +117,9 @@ class MeshLib(object):
             # randomization in mesh object
             mesh = pyrender.Mesh.from_trimesh(tm_list)
             intensity = np.random.uniform(0., 1.) # don't change base color; only change intensity
+
+            intensity = 1. # DEBUG
+
             mesh.primitives[body].material.baseColorFactor = np.array([intensity]*3 + [1.])
             mesh.primitives[body].material.metallicFactor = np.random.uniform(0.9, 1.0)
             mesh.primitives[body].material.roughnessFactor = np.random.uniform(0.0, 0.3)
@@ -128,8 +139,11 @@ class MeshLib(object):
         pts_max = all_pts.max(0)
         pts_range = pts_max - pts_min
         pts_midpoint = (pts_min + pts_max) / 2.
-        xzy_shift = [-pts_midpoint[0], -pts_max[1], -pts_midpoint[2]] # zero-height is camera height
-        scale = 1. / (pts_range[0] / 2.) # car width = 2, didn't check car length = 4
+        xzy_shift = [-pts_midpoint[0], -pts_min[1], -pts_midpoint[2]] # on the ground
+        if np.abs(pts_range[0] - 2.) > 0.4:
+            scale = 1. / (pts_range[0] / 2.) # car width = 2, didn't check car length = 4
+        else:
+            scale = 1. # keep original car width
         for i in range(len(tm)):
             tm[i].apply_translation(xzy_shift)
             tm[i].apply_scale(scale)

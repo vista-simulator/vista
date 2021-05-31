@@ -65,8 +65,10 @@ class ViewSynthesis:
 
         # Projection and re-projection parameters
         self.K = camera.get_K()
+        ### DEBUG
         self.K[0, 2] = camera.get_width() / 2.
         self.K[1, 2] = camera.get_height() / 2.
+        ### DEBUG
         self.K_inv = np.linalg.inv(self.K)  # camera.get_K_inv()
 
         # Mesh coordinates, faces, and rays
@@ -76,13 +78,12 @@ class ViewSynthesis:
 
         # Objects for rendering the scene
         self.scene = pyrender.Scene(ambient_light=[1., 1., 1.],
-                                    bg_color=[0, 0, 0])
+                                    # bg_color=[0, 0, 0])
+                                    bg_color=[255, 255, 255]) # DEBUG
         self.render_camera = pyrender.IntrinsicsCamera(fx=camera._fx,
                                                        fy=camera._fy,
-                                                       cx=camera.get_width()/2.,
-                                                       cy=camera.get_height()/2.,
-                                                    #    cx=camera._cx,
-                                                    #    cy=camera._cy,
+                                                       cx=self.K[0, 2],
+                                                       cy=self.K[1, 2],
                                                        znear=0.01,
                                                        zfar=100000)
         self.renderer = pyrender.OffscreenRenderer(camera.get_width(),
@@ -229,6 +230,11 @@ class ViewSynthesis:
             # Render
             color, depth = self.renderer.render(
                 self.scene, flags=pyrender.constants.RenderFlags.FLAT)
+
+            ### DEBUG
+            cv2.imwrite('test.png', color)
+            import pdb; pdb.set_trace()
+            ### DEBUG
 
         return color, depth
 

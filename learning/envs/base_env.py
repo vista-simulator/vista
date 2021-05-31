@@ -22,6 +22,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         'video.frames_per_second': 10
     }
     drop_obs_space_def = False
+    camera_offset = [0., 1.9053, 0.455] # x, z (camera height = 1.7653), y 
+    camera_pitch = 0.04
 
     def __init__(self, trace_paths, n_agents=1, mesh_dir=None, 
                  collision_overlap_threshold=0.2, init_agent_range=[8, 20],
@@ -378,9 +380,18 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             # compute relative pose to ego agent
             trans_x, trans_y, theta = self.compute_relative_transform( \
                 agent.ego_dynamics, ego_agent.human_dynamics)
+            ### DEBUG
+            trans_x = 0. #-1.6
+            trans_y = 16.33 #16.33
+            theta = 0.
+            ### DEBUG
             rot = np.array([0, 1, 0, theta])
             rot = rot / np.linalg.norm(rot) # unit vector for quaternion
-            trans = np.array([trans_x, 0, trans_y])
+            trans = np.array([trans_x, 0, trans_y]) - np.array(self.camera_offset)
+            # compensate for camera pitch (check RIG.xml)
+            long_dist = trans[2]
+            trans[1] += long_dist * np.sin(self.camera_pitch)
+            trans[2] = long_dist * np.cos(self.camera_pitch)
             # convert to scene node
             agent_node = self.mesh_lib.get_mesh_node(i, trans, rot)
             other_agents_nodes.append(agent_node)
