@@ -66,8 +66,10 @@ class ViewSynthesis:
         # Projection and re-projection parameters
         self.K = camera.get_K()
         ### DEBUG
-        self.K[0, 2] = camera.get_width() / 2.
-        self.K[1, 2] = camera.get_height() / 2.
+        # self.K[0, 2] = 231 #camera.get_width() / 2.
+        # self.K[1, 2] = camera.get_height() / 2.
+        self.K[0, 2] = camera.get_width() / 2. - (self.K[0, 2] - camera.get_width() / 2.)
+        self.K[1, 2] = camera.get_height() / 2. #- (self.K[1, 2] - camera.get_height() / 2.)
         ### DEBUG
         self.K_inv = np.linalg.inv(self.K)  # camera.get_K_inv()
 
@@ -232,6 +234,7 @@ class ViewSynthesis:
                 self.scene, flags=pyrender.constants.RenderFlags.FLAT)
 
             ### DEBUG
+            color = cv2.circle(cv2.UMat(color), (color.shape[1]//2, color.shape[0]//2), 3, (0,0,255), -1)
             cv2.imwrite('test.png', color)
             import pdb; pdb.set_trace()
             ### DEBUG

@@ -38,7 +38,7 @@ class MeshLib(object):
                 tm = trimesh.load(fpath)
                 tm = list(tm.geometry.values()) # convert from scene to trimesh
                 tm, mesh_dim = self.calibrate_tm(tm)
-                if os.path.basename(os.path.dirname(os.path.dirname(fpath))) == 'carpack01':
+                if True:#DEBUG os.path.basename(os.path.dirname(os.path.dirname(fpath))) == 'carpack01':
                     source = 'carpack01'
                     body_images = dict()
                     for color in ['Black', 'Blue', 'Green', 'Red', 'White', 'Yellow', 'Grey']:
@@ -88,7 +88,7 @@ class MeshLib(object):
             self.agents_meshes_dim.append(self.tmeshes[idx]['mesh_dim'])
     
     def tmesh2mesh(self, tm):
-        if tm['source'] == 'carpack01':
+        if True: #DEBUG tm['source'] == 'carpack01':
             # make a copy to keep the original tmesh intact
             tm_list = copy.deepcopy(tm['tmesh'])
 
@@ -102,6 +102,8 @@ class MeshLib(object):
                 color = 'Red'
             elif 'Green' in list(tm['extra']['body_images'].keys()):
                 color = 'Green'
+            elif 'Yellow' in list(tm['extra']['body_images'].keys()):
+                color = 'Yellow'
             ### DEBUG
 
             tm_list[body].visual.material.image = tm['extra']['body_images'][color]
@@ -140,10 +142,7 @@ class MeshLib(object):
         pts_range = pts_max - pts_min
         pts_midpoint = (pts_min + pts_max) / 2.
         xzy_shift = [-pts_midpoint[0], -pts_min[1], -pts_midpoint[2]] # on the ground
-        if np.abs(pts_range[0] - 2.) > 0.4:
-            scale = 1. / (pts_range[0] / 2.) # car width = 2, didn't check car length = 4
-        else:
-            scale = 1. # keep original car width
+        scale = 1. / (pts_range[0] / 2.) # car width = 2, didn't check car length = 4
         for i in range(len(tm)):
             tm[i].apply_translation(xzy_shift)
             tm[i].apply_scale(scale)
