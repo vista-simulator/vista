@@ -31,7 +31,6 @@ class SegPretrainedNet(Base):
                  policy_dropout=0.,
                  auto_append_policy_hiddens=False,
                  **kwargs):
-        assert not use_recurrent, 'SegPretrainedNet doesn\'t use recurrent network'
         use_cnn = True
         use_seg_pretrained = True
         with_bn = False
@@ -50,17 +49,51 @@ class SegPretrainedNet(Base):
                                                seg_model_name=seg_model_name, 
                                                seg_out_channel=seg_out_channel, 
                                                feat_roi_crop=feat_roi_crop, 
+                                               auto_append_policy_hiddens=auto_append_policy_hiddens,
                                                **kwargs)
 
         # define policy
+        if self.use_recurrent:
+            assert not auto_append_policy_hiddens, 'Do not use auto_append_policy_hiddens with recurrent network.'
         if policy_hiddens[0] != self.feat_channel and auto_append_policy_hiddens:
             print('The channel of the first layer in policy does not equal to that of feature extraction output. Append!!')
             policy_hiddens = [self.feat_channel] + policy_hiddens
         assert policy_hiddens[-1] == self.num_outputs
+        if self.use_recurrent:
+            self.cell_size = model_config['lstm_cell_size']
+            assert policy_dropout == value_fcnet_dropout, 'Shared recurrent net thus only the same dropout allowed'
+            assert self.rnn_num_layers == 1 and policy_dropout == 0, 'Multi-layer LSTM is not ready yet.'
+            self.lstm = nn.LSTM(self.feat_channel, self.cell_size, batch_first=not self.time_major, 
+                                dropout=policy_dropout, num_layers=self.rnn_num_layers)
         self.policy = self._build_fcnet(policy_hiddens, policy_activation, with_bn=with_bn,
                                         dropout=policy_dropout, no_last_act=True)
 
     def policy_inference(self, inputs, state, seq_lens):
-        out = self.policy(inputs)
+        if self.use_recurrent:
+            # inference lstm
+            if self.rnn_num_layers > 1:
+                lstm_feat, [h, c] = self.lstm(inputs, [state[0].permute(1,0,2).contiguous(), state[1].permute(1,0,2).contiguous()])
+            else:
+                lstm_feat, [h, c] = self.lstm(inputs, [torch.unsqueeze(state[0], 0), torch.unsqueeze(state[1], 0)])
+            state = [torch.squeeze(h, 0), torch.squeeze(c, 0)]
+            out = self.policy(lstm_feat)
+            # update value function input
+            self.value_inp = lstm_feat
+        else:
+            out = self.policy(inputs)
 
         return out, state
+
+    @override(ModelV2)
+    def get_initial_state(self):
+        device = next(self.parameters()).device
+        if self.rnn_num_layers > 1:
+            return [
+                torch.zeros((self.rnn_num_layers, self.cell_size), dtype=torch.float32).to(device),
+                torch.zeros((self.rnn_num_layers, self.cell_size), dtype=torch.float32).to(device)
+            ]
+        else:
+            return [
+                torch.zeros((self.cell_size), dtype=torch.float32).to(device),
+                torch.zeros((self.cell_size), dtype=torch.float32).to(device)
+            ]

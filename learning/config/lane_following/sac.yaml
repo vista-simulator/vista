@@ -72,7 +72,7 @@ lane-following-sac:
     # learning
     no_done_at_end: true
     tau: 5e-3
-    initial_alpha: 0.1 # default is 1.0
+    initial_alpha: 0.1 # default is 1.0; 0.1 seems converge faster comparing to 1.0
     target_entropy: auto
     timesteps_per_iteration: 1000
     # replay buffer

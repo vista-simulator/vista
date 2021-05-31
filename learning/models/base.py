@@ -28,11 +28,14 @@ class Base(RecurrentNetwork, nn.Module):
                  feat_roi_crop=None,
                  with_bn=False,
                  obs_idcs=[0, 1],
+                 auto_append_policy_hiddens=False,
+                 rnn_num_layers=1,
                  **kwargs):
         nn.Module.__init__(self)
         super(Base, self).__init__(obs_space, action_space, num_outputs,
                                    model_config, name)
         self.use_recurrent = use_recurrent
+        self.rnn_num_layers = rnn_num_layers
         self.feat_roi_crop = feat_roi_crop
         self.obs_idcs = obs_idcs
         
@@ -118,7 +121,7 @@ class Base(RecurrentNetwork, nn.Module):
             self.has_value_function = True
 
             if model_config['vf_share_layers']:
-                if value_fcnet_hiddens[0] != self.feat_channel:
+                if value_fcnet_hiddens[0] != self.feat_channel and auto_append_policy_hiddens:
                     print('The channel of the first layer in policy does not equal to that of feature extraction output. Append!!')
                     value_fcnet_hiddens = [self.feat_channel] + value_fcnet_hiddens
             else:
