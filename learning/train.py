@@ -12,6 +12,11 @@ from policies import PolicyManager
 from trainers import get_trainer_class
 
 
+from ray.rllib.utils.framework import try_import_torch
+torch, nn = try_import_torch()
+torch.backends.cudnn.enabled = False # HACKY
+
+
 def parse_args():
     # Set default arguments based on https://github.com/ray-project/ray/blob/master/python/ray/tune/config_parser.py
     parser = make_parser(

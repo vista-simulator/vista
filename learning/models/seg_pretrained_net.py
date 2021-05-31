@@ -70,6 +70,7 @@ class SegPretrainedNet(Base):
 
     def policy_inference(self, inputs, state, seq_lens):
         if self.use_recurrent:
+            self.lstm.train() # HACKY
             # inference lstm
             if self.rnn_num_layers > 1:
                 lstm_feat, [h, c] = self.lstm(inputs, [state[0].permute(1,0,2).contiguous(), state[1].permute(1,0,2).contiguous()])
@@ -87,13 +88,16 @@ class SegPretrainedNet(Base):
     @override(ModelV2)
     def get_initial_state(self):
         device = next(self.parameters()).device
-        if self.rnn_num_layers > 1:
-            return [
-                torch.zeros((self.rnn_num_layers, self.cell_size), dtype=torch.float32).to(device),
-                torch.zeros((self.rnn_num_layers, self.cell_size), dtype=torch.float32).to(device)
-            ]
+        if self.use_recurrent:
+            if self.rnn_num_layers > 1:
+                return [
+                    torch.zeros((self.rnn_num_layers, self.cell_size), dtype=torch.float32).to(device),
+                    torch.zeros((self.rnn_num_layers, self.cell_size), dtype=torch.float32).to(device)
+                ]
+            else:
+                return [
+                    torch.zeros((self.cell_size), dtype=torch.float32).to(device),
+                    torch.zeros((self.cell_size), dtype=torch.float32).to(device)
+                ]
         else:
-            return [
-                torch.zeros((self.cell_size), dtype=torch.float32).to(device),
-                torch.zeros((self.cell_size), dtype=torch.float32).to(device)
-            ]
+            return torch.zeros((1,))
