@@ -8,8 +8,8 @@ from .base_env import BaseEnv
 class Overtaking(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
                  respawn_distance=15, speed_scale_range=[0.0, 0.8], 
-                 motion_model='random_speed', with_velocity=False, 
-                 target_velocity=None, **kwargs):
+                 motion_model='random_speed', constant_speed_range=[0., 6.], 
+                 with_velocity=False, target_velocity=None, **kwargs):
         super(Overtaking, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -19,6 +19,7 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         self.respawn_distance = respawn_distance
         self.speed_scale_range = speed_scale_range
         self.motion_model = motion_model
+        self.constant_speed_range = constant_speed_range
         self.with_velocity = with_velocity
         self.target_velocity = target_velocity
 
@@ -47,7 +48,7 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         observations = self.wrap_data(observations)
         self.observation_for_render = self.wrap_data(self.observation_for_render) # for render
         if self.motion_model == 'constant_speed':
-            self.constant_speed = np.random.uniform(0., 6.) # make sure not faster than ego car
+            self.constant_speed = np.random.uniform(*self.constant_speed_range) # make sure not faster than ego car
         return observations
 
     def step(self, action):
@@ -168,6 +169,8 @@ if __name__ == "__main__":
     if args.preprocess:
         from .wrappers import PreprocessObservation
         env = PreprocessObservation(env)
+    from .wrappers import BasicManeuverReward # DEBUG
+    env = BasicManeuverReward(env, inherit_reward=True) # DEBUG
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run

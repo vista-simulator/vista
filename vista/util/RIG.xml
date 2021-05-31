@@ -16,7 +16,7 @@
  <SENSORS>
      <CAMERA Name="front_center" Type="gmsl">
         <PROPERTY Name="Model" Value="pinhole"/>
-        <PROPERTY Name="Quaternion" Value="0.0 0.0 -0.0174524 0.9998477"/>
+        <PROPERTY Name="Quaternion" Value="0.0 0.0 -0.0436194 0.9990482"/>
         <PROPERTY Name="Position" Value="0 1.7653 0"/>
         <PROPERTY Name="Yaw" Value="0.04"/>
         <PROPERTY Name="params" Value=""/>

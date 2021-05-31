@@ -559,10 +559,11 @@ class RandomPermuteAgent(gym.Wrapper, MultiAgentEnv):
 
 
 class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
-    def __init__(self, env, center_coeff=0.01, jitter_coeff=0.0):
+    def __init__(self, env, center_coeff=0.01, jitter_coeff=0.0, inherit_reward=False):
         super(BasicManeuverReward, self).__init__(env)
         self.center_coeff = center_coeff
         self.jitter_coeff = jitter_coeff
+        self.inherit_reward = inherit_reward
         self.curvature_deque = deque(maxlen=30)
 
     def reset(self, **kwargs):
@@ -583,7 +584,10 @@ class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
             dcurvature = dcurvature[1:] - dcurvature[:-1]
             jitter_rew = -dcurvature.std()
             # assign reward
-            reward[agent_id] = self.center_coeff * center_rew + self.jitter_coeff * jitter_rew
+            if self.inherit_reward:
+                reward[agent_id] += self.center_coeff * center_rew + self.jitter_coeff * jitter_rew
+            else:
+                reward[agent_id] = self.center_coeff * center_rew + self.jitter_coeff * jitter_rew
         return observation, reward, done, info
 
 
