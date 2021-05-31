@@ -16,8 +16,7 @@ class Camera(BaseSensor):
         # Camera sensors synthesize new images from a view synthesizer
         self.which_camera = self.parent.trace.which_camera
         self.camera = CameraParams(self.which_camera)
-        # self.camera.resize(200, 320)  #Hardcode FIXME
-        self.camera.resize(300, 480)  #DEBUG
+        self.camera.resize(200, 320)  #Hardcode FIXME
         self.view_synthesizer = ViewSynthesis(self.camera, rendering_config).synthesize
         self.stream = None
 

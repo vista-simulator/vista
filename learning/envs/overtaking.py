@@ -155,11 +155,19 @@ if __name__ == "__main__":
         default=None,
         type=float,
         help='Target velocity.')
+    parser.add_argument(
+        '--preprocess',
+        action='store_true',
+        default=False,
+        help='Use image preprocessor.')
     args = parser.parse_args()
 
     # initialize simulator
     env = Overtaking(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[6,10],
         with_velocity=args.with_velocity, target_velocity=args.target_velocity)
+    if args.preprocess:
+        from .wrappers import PreprocessObservation
+        env = PreprocessObservation(env)
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run

@@ -236,9 +236,10 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
         self.standardize = standardize
         self.imagenet_normalize = imagenet_normalize
         self.random_gamma = random_gamma
+        self.color_jitter = color_jitter
         if self.random_gamma is not None:
             assert len(random_gamma) == 2, 'Random gamma requires 2 params: min_gamma and max_gamma'
-        if color_jitter is not None:
+        if self.color_jitter is not None:
             assert len(color_jitter) == 4, 'Color jitter requires 4 params: brightness / contrast / saturation / hue'
             self.color_jitter = torchvision.transforms.ColorJitter(
                 brightness=color_jitter[0],

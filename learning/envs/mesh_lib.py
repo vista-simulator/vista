@@ -38,7 +38,7 @@ class MeshLib(object):
                 tm = trimesh.load(fpath)
                 tm = list(tm.geometry.values()) # convert from scene to trimesh
                 tm, mesh_dim = self.calibrate_tm(tm)
-                if True:#DEBUG os.path.basename(os.path.dirname(os.path.dirname(fpath))) == 'carpack01':
+                if os.path.basename(os.path.dirname(os.path.dirname(fpath))) == 'carpack01':
                     source = 'carpack01'
                     body_images = dict()
                     for color in ['Black', 'Blue', 'Green', 'Red', 'White', 'Yellow', 'Grey']:
@@ -88,7 +88,7 @@ class MeshLib(object):
             self.agents_meshes_dim.append(self.tmeshes[idx]['mesh_dim'])
     
     def tmesh2mesh(self, tm):
-        if True: #DEBUG tm['source'] == 'carpack01':
+        if tm['source'] == 'carpack01':
             # make a copy to keep the original tmesh intact
             tm_list = copy.deepcopy(tm['tmesh'])
 
@@ -96,15 +96,6 @@ class MeshLib(object):
             # wheel, glass, optic, body = range(len(tm_list))
             body = np.argmax([v.triangles.shape[0] for v in tm_list]) # NOTE: hacky way to get body mesh
             color = np.random.choice(list(tm['extra']['body_images'].keys()))
-
-            ### DEBUG
-            if 'Red' in list(tm['extra']['body_images'].keys()):
-                color = 'Red'
-            elif 'Green' in list(tm['extra']['body_images'].keys()):
-                color = 'Green'
-            elif 'Yellow' in list(tm['extra']['body_images'].keys()):
-                color = 'Yellow'
-            ### DEBUG
 
             tm_list[body].visual.material.image = tm['extra']['body_images'][color]
             Ns = np.random.randint(10, 300) # specular highlight (0-1000)
@@ -119,8 +110,6 @@ class MeshLib(object):
             # randomization in mesh object
             mesh = pyrender.Mesh.from_trimesh(tm_list)
             intensity = np.random.uniform(0., 1.) # don't change base color; only change intensity
-
-            intensity = 1. # DEBUG
 
             mesh.primitives[body].material.baseColorFactor = np.array([intensity]*3 + [1.])
             mesh.primitives[body].material.metallicFactor = np.random.uniform(0.9, 1.0)
