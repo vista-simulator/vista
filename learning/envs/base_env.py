@@ -22,8 +22,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         'video.frames_per_second': 10
     }
     drop_obs_space_def = False
-    camera_offset = [0., 1.7053, 0.385] # x, z (camera height = 1.7653), y 
-    camera_rotation = [0., np.deg2rad(2), 0.04] # raw pitch yaw
+    camera_offset = [0., 1.7653, 0.2] # x, z (camera height = 1.7653), y 
+    camera_rotation = [0., np.deg2rad(5), 0.04] # raw pitch yaw
 
     def __init__(self, trace_paths, n_agents=1, mesh_dir=None, 
                  collision_overlap_threshold=0.2, init_agent_range=[8, 20],

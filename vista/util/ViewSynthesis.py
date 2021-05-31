@@ -69,7 +69,7 @@ class ViewSynthesis:
         # self.K[0, 2] = 231 #camera.get_width() / 2.
         # self.K[1, 2] = camera.get_height() / 2.
         self.K[0, 2] = camera.get_width() / 2. - (self.K[0, 2] - camera.get_width() / 2.)
-        self.K[1, 2] = camera.get_height() / 2. #- (self.K[1, 2] - camera.get_height() / 2.)
+        self.K[1, 2] = camera.get_height() / 2. - (self.K[1, 2] - camera.get_height() / 2.)
         ### DEBUG
         self.K_inv = np.linalg.inv(self.K)  # camera.get_K_inv()
 
@@ -80,8 +80,8 @@ class ViewSynthesis:
 
         # Objects for rendering the scene
         self.scene = pyrender.Scene(ambient_light=[1., 1., 1.],
-                                    # bg_color=[0, 0, 0])
-                                    bg_color=[255, 255, 255]) # DEBUG
+                                    bg_color=[0, 0, 0])
+                                    # bg_color=[255, 255, 255]) # DEBUG
         self.render_camera = pyrender.IntrinsicsCamera(fx=camera._fx,
                                                        fy=camera._fy,
                                                        cx=self.K[0, 2],
@@ -233,11 +233,46 @@ class ViewSynthesis:
             color, depth = self.renderer.render(
                 self.scene, flags=pyrender.constants.RenderFlags.FLAT)
 
-            ### DEBUG
-            color = cv2.circle(cv2.UMat(color), (color.shape[1]//2, color.shape[0]//2), 3, (0,0,255), -1)
-            cv2.imwrite('test.png', color)
+        # For calibration
+        if True:
+            height = -1.7653
+            half_width = 1.6
+            pitch = np.deg2rad(-5)
+            center_shift = 0
+            tms = [trimesh.creation.cylinder(radius=0.05,height=1000)] * 2
+            for tm in tms:
+                tm.visual.face_colors = np.stack([[255,0,0,255]] * tm.visual.face_colors.shape[0], axis=0)
+                tm.visual.vertex_colors = np.stack([[255,0,0,255]] * tm.visual.vertex_colors.shape[0], axis=0)
+            # rot = np.array([1, 0, 0, pitch])
+            # rot = rot / np.linalg.norm(rot) # unit vector for quaternion
+            
+            from scipy.spatial.transform import Rotation
+            rot_pitch = Rotation.from_euler('y', pitch)
+            rot_yaw = Rotation.from_euler('z', 0.04)
+            rot = (rot_yaw * rot_pitch).as_quat()[[3,0,2,1]]
+
+            cylinder_left = pyrender.Node(mesh=pyrender.Mesh.from_trimesh(tms[0]), translation=[-half_width,height,0], rotation=rot)
+            cylinder_right = pyrender.Node(mesh=pyrender.Mesh.from_trimesh(tms[0]), translation=[half_width,height,0], rotation=rot)
+            self.scene.add_node(cylinder_left)
+            self.scene.add_node(cylinder_right)
+
+            rgb, depth = self.renderer.render(self.scene, flags=pyrender.constants.RenderFlags.FLAT)
+
+            rgb = cv2.circle(cv2.UMat(rgb), (rgb.shape[1]//2+center_shift, rgb.shape[0]//2), 3, (0,0,255), -1)
+
+            i1, j1, i2, j2 = self.camera.get_roi()
+            cv2.rectangle(rgb,(j1,i2),(j2,i1),(0,255,0),2) 
+
+            cv2.imwrite('test.png', rgb) # DEBUG
+
             import pdb; pdb.set_trace()
-            ### DEBUG
+
+
+            # ### DEBUG
+            # color = cv2.circle(cv2.UMat(color), (color.shape[1]//2, color.shape[0]//2), 3, (0,0,255), -1)
+            # cv2.imwrite('test.png', color)
+            # import pdb; pdb.set_trace()
+            # ### DEBUG
 
         return color, depth
 
