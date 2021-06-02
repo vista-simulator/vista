@@ -1,6 +1,6 @@
-lane-following-base:
+overtaking-base:
   local_dir: ~/tmp
-  env: LaneFollowing
+  env: Overtaking
   run: PPO
   num_samples: 1
   checkpoint_freq: 10
@@ -19,6 +19,14 @@ lane-following-base:
     # environment
     env_config:
       trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop]
+      mesh_dir: ~/data/carpack01/
+      init_agent_range: [6, 12]
+      collision_overlap_threshold: 0.01
+      task_mode: episodic
+      motion_model: constant_speed # motion model for other non-controllable agents
+      respawn_distance: 15
+      speed_scale_range: [0.0, 0.8] # only used for random speed motion model
+      with_velocity: false
       wrappers: [PreprocessObservation, StackObservation, BasicManeuverReward]
       wrappers_config:
         PreprocessObservation:

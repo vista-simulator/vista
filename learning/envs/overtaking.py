@@ -55,6 +55,9 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         # augment nominal action
         for agent_id, agent in zip(self.agent_ids, self.world.agents):
             if agent_id == self.ref_agent_id:
+                if self.rigid_body_collision and not self.with_velocity: # append nominal speed only
+                    human_velocity = agent.trace.f_speed(agent.get_current_timestamp())
+                    action[agent_id] = np.array([action[agent_id][0], human_velocity])
                 continue
             # nominal curvature but slower speed
             current_timestamp = agent.get_current_timestamp()

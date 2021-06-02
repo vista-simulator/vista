@@ -145,7 +145,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
     def step(self, action):
         # modify action for rigid body collision
         if self.rigid_body_collision:
-            assert np.all([v.shape[0] == 2 for v in action.values()]), 'Need to include velocity for rigid body collision'
+            # assert np.all([v.shape[0] == 2 for v in action.values()]), 'Need to include velocity for rigid body collision'
             # get pairwise projected speed
             agent_order = self.get_agent_order()
             proj_speed = 9999 * np.ones((self.n_agents, self.n_agents))
