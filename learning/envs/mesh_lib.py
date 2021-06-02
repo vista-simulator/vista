@@ -70,27 +70,33 @@ class MeshLib(object):
         # convert to OpenGL coordinates
         trans[2] *= -1 # (x, z, y) -> (x, z, -y)
         rot[3] *= -1 # negate theta in quaternion
-        mesh_node = pyrender.Node(name='agent_{}'.format(agent_idx), 
-                                  mesh=self.agents_meshes[agent_idx],
-                                  translation=trans,
-                                  rotation=rot)
-        return mesh_node
+        if hasattr(self, 'mesh_node'):
+            self.mesh_node.mesh = self.agents_meshes[agent_idx]
+            self.mesh_node.translation = trans
+            self.mesh_node.rotation = rot
+        else:
+            self.mesh_node = pyrender.Node(name='agent_{}'.format(agent_idx), 
+                                    mesh=self.agents_meshes[agent_idx],
+                                    translation=trans,
+                                    rotation=rot)
+        return self.mesh_node
 
     def reset(self, n_agents, random=True):
         n_tmeshes = len(self.tmeshes)
-        idcs = np.random.choice(n_tmeshes, n_agents) if random else np.arange(n_tmeshes)
-        
-        self.agents_meshes = []
-        self.agents_meshes_dim = []
-        for idx in idcs:
-            mesh = self.tmesh2mesh(self.tmeshes[idx])
-            self.agents_meshes.append(mesh)
-            self.agents_meshes_dim.append(self.tmeshes[idx]['mesh_dim'])
+        if not hasattr(self, 'agents_meshes'):
+            idcs = np.random.choice(n_tmeshes, n_agents) if random else np.arange(n_tmeshes)
+            
+            self.agents_meshes = []
+            self.agents_meshes_dim = []
+            for idx in idcs:
+                mesh = self.tmesh2mesh(self.tmeshes[idx])
+                self.agents_meshes.append(mesh)
+                self.agents_meshes_dim.append(self.tmeshes[idx]['mesh_dim'])
     
     def tmesh2mesh(self, tm):
         if tm['source'] == 'carpack01':
-            # make a copy to keep the original tmesh intact
-            tm_list = copy.deepcopy(tm['tmesh'])
+            # NOTE: cannot make a copy to keep the original tmesh intact otherwise will cause memory leak
+            tm_list = tm['tmesh']
 
             # randomization in tmesh object
             # wheel, glass, optic, body = range(len(tm_list))
