@@ -30,6 +30,8 @@ class Base(RecurrentNetwork, nn.Module):
                  obs_idcs=[0, 1],
                  auto_append_policy_hiddens=False,
                  rnn_num_layers=1,
+                 avgpool_after_extractor=[-1,-1], # only for seg pretrained now
+                 extractor_post_dropout=0.0,
                  **kwargs):
         nn.Module.__init__(self)
         super(Base, self).__init__(obs_space, action_space, num_outputs,
@@ -44,6 +46,7 @@ class Base(RecurrentNetwork, nn.Module):
         self.use_seg_pretrained = use_seg_pretrained
         if self.use_cnn:
             if self.use_seg_pretrained:
+                import gym
                 sys.path.insert(0, os.environ.get('SEG_PRETRAINED_ROOT'))
                 try:
                     from mit_semseg.models import ModelBuilder
@@ -67,7 +70,10 @@ class Base(RecurrentNetwork, nn.Module):
                     weights=cfg.MODEL.weights_encoder)
                 for param in self.extractor.parameters():
                     param.requires_grad = False
-                fake_inp = torch.zeros([1] + list(obs_space.shape)).permute(0, 3, 1, 2)
+                if len(obs_space.shape) == 4:
+                    fake_inp = torch.zeros([1] + list(obs_space.shape)).permute(0, 3, 1, 2)
+                else:
+                    fake_inp = torch.zeros([1] + feat_roi_crop[2:] + [3]).permute(0, 3, 1, 2)
                 fake_out = self.extractor(fake_inp)
                 assert len(fake_out) == 1
                 raw_feat_channel = fake_out[0].shape[1]
@@ -84,11 +90,15 @@ class Base(RecurrentNetwork, nn.Module):
 
                 if seg_out_channel is None: # set to default
                     seg_out_channel = raw_feat_channel // 64
-                self.extractor_post = nn.Sequential(
-                    nn.Conv2d(raw_feat_channel, seg_out_channel, 1, 1, 0),
-                    nn.ReLU(),
-                    nn.Dropout2d(p=0.5),
-                    nn.Flatten())
+                self.extractor_post = [nn.Conv2d(raw_feat_channel, seg_out_channel, 1, 1, 0)]
+                if extractor_post_dropout > 0.:
+                    self.extractor_post.append(nn.Dropout2d(p=extractor_post_dropout))
+                if avgpool_after_extractor != [-1, -1]:
+                    avgpool_after_extractor = np.where(np.array(avgpool_after_extractor)==-1, 
+                        fake_out[0].shape[2:], avgpool_after_extractor)
+                    self.extractor_post.append(nn.AdaptiveMaxPool2d(avgpool_after_extractor))
+                self.extractor_post.append(nn.Flatten())
+                self.extractor_post = nn.Sequential(*self.extractor_post)
                 feat_channel = self.extractor_post(fake_out[0]).shape[1]
             else:
                 # NOTE: cannot check obs shape for obs_space is originally a tuple obs space

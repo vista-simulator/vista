@@ -83,15 +83,14 @@ class MeshLib(object):
 
     def reset(self, n_agents, random=True):
         n_tmeshes = len(self.tmeshes)
-        if not hasattr(self, 'agents_meshes'):
-            idcs = np.random.choice(n_tmeshes, n_agents) if random else np.arange(n_tmeshes)
-            
-            self.agents_meshes = []
-            self.agents_meshes_dim = []
-            for idx in idcs:
-                mesh = self.tmesh2mesh(self.tmeshes[idx])
-                self.agents_meshes.append(mesh)
-                self.agents_meshes_dim.append(self.tmeshes[idx]['mesh_dim'])
+        idcs = np.random.choice(n_tmeshes, n_agents) if random else np.arange(n_tmeshes)
+        
+        self.agents_meshes = []
+        self.agents_meshes_dim = []
+        for idx in idcs:
+            mesh = self.tmesh2mesh(self.tmeshes[idx])
+            self.agents_meshes.append(mesh)
+            self.agents_meshes_dim.append(self.tmeshes[idx]['mesh_dim'])
     
     def tmesh2mesh(self, tm):
         if tm['source'] == 'carpack01':
