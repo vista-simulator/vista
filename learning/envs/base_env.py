@@ -50,6 +50,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.rendering_config = rendering_config
         self.free_width_mul = free_width_mul
         self.max_rot_mul = max_rot_mul
+        self.soft_collision = 0.
         self.perturb_heading_in_random_init = True # set False for car following nominal traj 
 
         if self.n_agents > 1:
@@ -130,7 +131,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.observation_for_render = observation
 
         # for rigid body collision
-        if self.rigid_body_collision:
+        if self.rigid_body_collision or self.soft_collision > 0.:
             self.rigid_body_info = {
                 'crash': np.zeros((self.n_agents, self.n_agents), dtype=bool),
                 'overlap': np.zeros((self.n_agents, self.n_agents)),
@@ -209,19 +210,20 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             done[agent_id] = off_lane or max_rot or agent.trace_done
             info[agent_id]['off_lane'] = off_lane
             info[agent_id]['max_rot'] = max_rot
+            info[agent_id]['trace_done'] = np.any([_a.trace_done for _a in self.world.agents])
             reward[agent_id] = 1 if not agent.isCrashed else 0 # default reward
         # check agents' collision
         polys = [self.agent2poly(a, self.ref_agent.human_dynamics) for a in self.world.agents]
         crash, overlap = self.check_collision(polys, return_overlap=True)
         self.crash_to_others, self.overlap_ratio = np.any(crash, axis=1), np.sum(overlap, axis=1) # legacy code
-        if self.rigid_body_collision:
+        if self.rigid_body_collision or self.soft_collision > 0.:
+            self.rigid_body_info['crash'] = crash
+            self.rigid_body_info['overlap'] = overlap
             for i, agent_id in enumerate(info.keys()):
                 info[agent_id]['collide'] = np.any(self.rigid_body_info['crash'][i])
                 self.rigid_body_info['cum_collide'][i] += float(info[agent_id]['collide'])
                 info[agent_id]['cum_collide'] = self.rigid_body_info['cum_collide'][i]
                 info[agent_id]['has_collided'] = info[agent_id]['cum_collide'] > 0
-            self.rigid_body_info['crash'] = crash
-            self.rigid_body_info['overlap'] = overlap
             # NOTE: don't end due to collision unless pass hard overlap threshold
         else:
             done = {k: v or c for (k, v), c in zip(done.items(), self.crash_to_others)}

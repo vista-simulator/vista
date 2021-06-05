@@ -117,7 +117,9 @@ class _MultiAgentMonitor(gym.Wrapper):
         c, s = np.cos(ref_theta), np.sin(ref_theta)
         R_T = np.array([[c, -s], [s, c]])
         road_in_ref = np.matmul(road_in_ref, R_T)
-        patch = LineString(road_in_ref).buffer(self.ref_agent.trace.road_width / 2.)
+        free_width = (self.ref_agent.trace.road_width - self.ref_agent.car_width) * self.free_width_mul
+        road_half_width = free_width + self.ref_agent.car_width / 2.
+        patch = LineString(road_in_ref).buffer(road_half_width)
         patch = PolygonPatch(patch, fc=self.road_color, ec=self.road_color, zorder=1)
         self.update_patch(self.ax_birdseye, 'patch:road', patch)
 
@@ -131,10 +133,17 @@ class _MultiAgentMonitor(gym.Wrapper):
         for agent_id in self.agents_with_sensor.keys():
             i = self.agent_ids.index(agent_id)
             obs = self.observation_for_render[agent_id]
+            off_lane = self.info[agent_id]['off_lane'] if hasattr(self, 'info') else False
+            max_rot = self.info[agent_id]['max_rot'] if hasattr(self, 'info') else False
+            trace_done = self.info[agent_id]['trace_done'] if hasattr(self, 'info') else False
             if self.crash_to_others[i]:
                 text = 'Crash Into Another Car'
-            elif self.world.agents[i].isCrashed:
-                text = 'Out-of-lane / Exceed Max Rotation'
+            elif off_lane:
+                text = 'Out-of-lane' 
+            elif max_rot:
+                text = 'Exceed Max Rotation'
+            elif trace_done:
+                text = 'Trace Done'
             else:
                 text = 'Running'
             self.ax_obs[agent_id].set_title(text, color='white', size=20, weight='bold')
@@ -220,6 +229,7 @@ class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
     def step(self, action):
         self._before_step(action)
         observation, reward, done, info = self.env.step(action)
+        self.env.info = info
         self._after_step(observation['agent_0'], reward['agent_0'], done['__all__'], info['agent_0'])
 
         return observation, reward, done, info

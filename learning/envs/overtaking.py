@@ -9,7 +9,8 @@ class Overtaking(BaseEnv, MultiAgentEnv):
     def __init__(self, trace_paths, mesh_dir=None, task_mode='episodic', 
                  respawn_distance=15, speed_scale_range=[0.0, 0.8], 
                  motion_model='random_speed', constant_speed_range=[0., 6.], 
-                 with_velocity=False, target_velocity=None, **kwargs):
+                 with_velocity=False, target_velocity=None, 
+                 soft_collision=0., soft_collision_ub=0.05, **kwargs):
         super(Overtaking, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -22,6 +23,8 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         self.constant_speed_range = constant_speed_range
         self.with_velocity = with_velocity
         self.target_velocity = target_velocity
+        self.soft_collision = soft_collision
+        self.soft_collision_ub = soft_collision_ub
 
         # use curvature only or with velocity as action
         if self.with_velocity:
@@ -79,6 +82,7 @@ class Overtaking(BaseEnv, MultiAgentEnv):
             reward[self.ref_agent_id] = 1 if in_lane_center and np.all(passed) else 0
             done[self.ref_agent_id] = (in_lane_center and np.all(passed)) or done[self.ref_agent_id]
             info[self.ref_agent_id]['success'] = in_lane_center and np.all(passed)
+            info[self.ref_agent_id]['passed_cars'] = np.sum(passed)
         else:
             for agent, passed_this in zip(other_agents, passed):
                 if passed_this:
@@ -113,6 +117,10 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         if self.rigid_body_collision:
             for agent_id in reward.keys():
                 reward[agent_id] -= self.rigid_body_collision_coef * float(info[agent_id]['collide'])
+        if self.soft_collision > 0.:
+            for i, agent_id in enumerate(reward.keys()):
+                reward[agent_id] -= self.soft_collision * self.overlap_ratio[i]
+                done[agent_id] = done[agent_id] or self.overlap_ratio[i] >= self.soft_collision_ub
         done['__all__'] = done[self.ref_agent_id]
         return observation, reward, done, info
 

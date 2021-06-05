@@ -125,7 +125,7 @@ class Base(RecurrentNetwork, nn.Module):
             assert False, 'Cannot set dropout here'
             self.extractor = self._build_fcnet(extractor_filters, extractor_activation, with_bn=with_bn)
             feat_channel = extractor_filters[-1]
-        self.feat_channel = feat_channel
+        self.feat_channel = int(feat_channel)
 
         # define value function
         if value_fcnet_hiddens is not None:

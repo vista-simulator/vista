@@ -12,16 +12,19 @@ overtaking-lstm:
     num_cpus: 40 # CHANGE
     num_gpus: 1
   config:
-    num_workers: 10
+    num_workers: 16
     num_gpus: 0.2
-    num_gpus_per_worker: 0.08
+    num_gpus_per_worker: 0.05
     framework: torch
     # environment
     env_config:
-      trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop]
+      trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop,
+                    ~/data/traces/20210527-131709_lexus_devens_center_outerloop_reverse]
       mesh_dir: ~/data/carpack01/
       init_agent_range: [6, 12]
       collision_overlap_threshold: 0.05
+      soft_collision_ub: 0.05
+      soft_collision: 2.0
       task_mode: episodic
       motion_model: constant_speed # motion model for other non-controllable agents
       respawn_distance: 15
@@ -35,8 +38,6 @@ overtaking-lstm:
           fy: 1
           random_gamma: [0.5, 1.5]
           color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
-        StackObservation:
-          frame_stack: 5
         BasicManeuverReward:
           center_coeff: 0.001
           jitter_coeff: 0.0001
