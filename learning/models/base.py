@@ -108,8 +108,9 @@ class Base(RecurrentNetwork, nn.Module):
                 else:
                     extractor_filters = model_config['conv_filters']
                     extractor_activation = model_config['conv_activation']
-                self.extractor = self._build_convnet(extractor_filters, extractor_activation, with_bn=with_bn)
-                feat_channel = extractor_filters[-1][1]
+                self.extractor = self._build_convnet(extractor_filters, extractor_activation, with_bn=with_bn, 
+                                                     avgpool_after_extractor=avgpool_after_extractor)
+                feat_channel = extractor_filters[-1][1] * np.prod(avgpool_after_extractor)
 
             if vec_branch_hiddens is not None:
                 self.vec_extractor = self._build_fcnet(vec_branch_hiddens, vec_branch_activation, with_bn=with_bn)
@@ -247,7 +248,8 @@ class Base(RecurrentNetwork, nn.Module):
         else:
             raise ValueError('There is no value function.')
 
-    def _build_convnet(self, filters, activation, with_bn=False, no_last_act=False, dropout=0., to_nn_seq=True):
+    def _build_convnet(self, filters, activation, with_bn=False, no_last_act=False, dropout=0., 
+                       to_nn_seq=True, avgpool_after_extractor=[1, 1]):
         activation = get_activation_fn(activation, 'torch')
         modules = nn.ModuleList()
         for i, filt in enumerate(filters):
@@ -258,7 +260,7 @@ class Base(RecurrentNetwork, nn.Module):
                 modules.append(activation())
                 if dropout > 0.:
                     modules.append(nn.Dropout2d(p=dropout))
-        modules.append(nn.AdaptiveAvgPool2d((1, 1)))
+        modules.append(nn.AdaptiveAvgPool2d(avgpool_after_extractor))
         modules.append(nn.Flatten())
         if to_nn_seq:
             modules = nn.Sequential(*modules)

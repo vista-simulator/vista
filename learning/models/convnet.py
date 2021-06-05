@@ -54,10 +54,9 @@ class ConvNet(Base):
         assert policy_hiddens[-1] == self.num_outputs
         if self.use_recurrent:
             self.cell_size = model_config['lstm_cell_size']
-            assert policy_dropout == value_fcnet_dropout, 'Shared recurrent net thus only the same dropout allowed'
-            assert self.rnn_num_layers == 1 and policy_dropout == 0, 'Multi-layer LSTM is not ready yet.'
+            assert self.rnn_num_layers == 1, 'Multi-layer LSTM is not ready yet.'
             self.lstm = nn.LSTM(self.feat_channel, self.cell_size, batch_first=not self.time_major, 
-                                dropout=policy_dropout, num_layers=self.rnn_num_layers)
+                                num_layers=self.rnn_num_layers)
         self.policy = self._build_fcnet(policy_hiddens, policy_activation, with_bn=with_bn,
                                         dropout=policy_dropout, no_last_act=True)
 

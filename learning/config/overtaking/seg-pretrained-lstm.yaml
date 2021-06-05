@@ -12,21 +12,22 @@ overtaking-seg-pretrained-lstm:
     num_cpus: 40 # CHANGE
     num_gpus: 1
   config:
-    num_workers: 10
+    num_workers: 16
     num_gpus: 0.2
-    num_gpus_per_worker: 0.08
+    num_gpus_per_worker: 0.05
     framework: torch
     # environment
     env_config:
       trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop]
       mesh_dir: ~/data/carpack01/
       init_agent_range: [6, 12]
-      collision_overlap_threshold: 0.01
+      collision_overlap_threshold: 0.05
       task_mode: episodic
       motion_model: constant_speed # motion model for other non-controllable agents
       respawn_distance: 15
       speed_scale_range: [0.0, 0.8] # only used for random speed motion model
       with_velocity: false
+      free_width_mul: 0.75 # effective road width = 5
       wrappers: [PreprocessObservation, BasicManeuverReward]
       wrappers_config:
         PreprocessObservation:
@@ -37,8 +38,8 @@ overtaking-seg-pretrained-lstm:
           color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
           imagenet_normalize: true
         BasicManeuverReward:
-          center_coeff: 0.01
-          jitter_coeff: 0.0
+          center_coeff: 0.001
+          jitter_coeff: 0.0001
           inherit_reward: true
     observation_filter: NoFilter
     callbacks: BasicCallbacks
@@ -54,8 +55,8 @@ overtaking-seg-pretrained-lstm:
     lr: 0.0002
     lr_schedule: null
     num_sgd_iter: 8
-    train_batch_size: 5120
-    sgd_minibatch_size: 128
+    train_batch_size: 32000
+    sgd_minibatch_size: 512
     # value function
     vf_loss_coeff: 1.0
     vf_clip_param: 1000.0
@@ -70,16 +71,20 @@ overtaking-seg-pretrained-lstm:
     model:
       vf_share_layers: true
       lstm_cell_size: 128
+      max_seq_len: 5
       custom_model: SegPretrainedNet
       conv_filters: []
       conv_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
         use_recurrent: true
-        rnn_num_layers: 1 # not ready yet
+        rnn_num_layers: 1
+        max_seq_len: 5
+        avgpool_after_extractor: [1, -1]
+        extractor_post_dropout: 0.3
         # ade20k-mobilenetv2dilated-c1_deepsup, ade20k-resnet18dilated-ppm_deepsup, ade20k-resnet50-upernet
         seg_model_name: ade20k-mobilenetv2dilated-c1_deepsup
-        seg_out_channel: 16
+        seg_out_channel: 320
         # we want in RIG.xml format roi = [270, 264, 405, 729], where video size [600, 960]
         # we are reading stream with shape [200, 320] --> target roi = [90, 88, 135, 243]
         # custom_roi_crop [80, 88, 135, 243] gives image shape [55, 155]
