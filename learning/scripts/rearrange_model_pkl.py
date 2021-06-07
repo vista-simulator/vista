@@ -18,10 +18,10 @@ config = """dataset:
   lookaheads: [0]
 
 model:
+  from_mavista: true
   extractors:
     fcamera:
       name: convnet_ma
-      standardize: True
   estimator:
     name: deterministic_ma
 
@@ -43,6 +43,7 @@ for subdname in os.listdir(root_dir):
                 ckpt_dir = os.path.join(ssubdir, ckpt_dname)
                 ckpt_path = os.path.join(ckpt_dir, ckpt_name)
                 if os.path.exists(ckpt_path):
+                    # copy model ckpt
                     out_dir = os.path.join(out_root_dir, *replace_weird_str(ssubdir).split('/')[-3:-1], ckpt_dname)
                     if not os.path.isdir(out_dir):
                         os.makedirs(out_dir)
@@ -50,6 +51,7 @@ for subdname in os.listdir(root_dir):
                     shutil.copy(ckpt_path, out_path)
                     print('Copy to {}'.format(out_path))
 
+                    # copy config
                     if False:
                         if 'sTrue' in ssubdir:
                             if 'standardize: False' in config:
@@ -57,10 +59,14 @@ for subdname in os.listdir(root_dir):
                         else:
                             if 'standardize: True' in config:
                                 config = config.replace('standardize: True', 'standardize: False')
-
                     config_out_path = os.path.join(out_dir, config_name)
                     with open(config_out_path, 'w') as f:
                         f.write(config)            
                     n_valid_ckpt += 1
+
+                    # copy params.json
+                    params_path = os.path.join(os.path.dirname(ckpt_dir), 'params.json')
+                    params_out_path = os.path.join(out_dir, 'params.json')
+                    shutil.copy(params_path, params_out_path)
         if n_valid_ckpt == 0:
             colored('No valid checkpoint found in {}'.format(ssubdir), 'red')
