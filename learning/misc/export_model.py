@@ -99,8 +99,14 @@ def main():
                 if key.startswith('extractor.'):
                     key = key.replace('extractor.', 'module.extractors.fcamera.features.')
                     new_state_dict[key] = value
+                elif key.startswith('extractor_post.'):
+                    key = key.replace('extractor_post.', 'module.extractors.fcamera.features_post.')
+                    new_state_dict[key] = value
                 elif key.startswith('policy.'):
                     key = key.replace('policy.', 'module.transform.')
+                    new_state_dict[key] = value
+                elif key.startswith('lstm.'):
+                    key = key.replace('lstm.', 'module.lstm.')
                     new_state_dict[key] = value
                 # drop value function
             saved_data = {'model': new_state_dict}
@@ -110,8 +116,14 @@ def main():
                 if key.startswith('extractor.'):
                     key = key.replace('extractor.', 'extractor.')
                     new_state_dict[key] = value
+                elif key.startswith('extractor_post.'):
+                    key = key.replace('extractor_post.', 'extractor_post.')
+                    new_state_dict[key] = value
                 elif key.startswith('policy.'):
                     key = key.replace('policy.', 'policy.')
+                    new_state_dict[key] = value
+                elif key.startswith('lstm.'):
+                    key = key.replace('lstm.', 'lstm.')
                     new_state_dict[key] = value
             saved_data = new_state_dict
         
@@ -150,57 +162,91 @@ def test_exported_model(agent, config, export_path):
         act_dist_config = {'low': -0.3, 'high': 0.3}
 
     # run
-    obs = env.reset()
-    done = False
-    episode_reward = dict()
-    for agent_id in obs.keys():
-        episode_reward[agent_id] = 0.
-    n_steps = 0
-    while not done:
-        # get action from rllib agent object
-        act = dict()
-        act_info = dict()
-        for agent_id, a_obs in obs.items():
-            policy = agent.get_policy(policy_id=policy_mapping_fn(agent_id))
-            a_act, _, a_act_info = policy.compute_single_action(a_obs)
-            act[agent_id] = a_act
-            act_info[agent_id] = a_act_info
-
-        # get action from exported model
-        act_exported = dict()
-        act_info_exported = dict()
-        for agent_id, a_obs in obs.items():
-            input_dict = {'obs': torch.Tensor(a_obs[None,...]).cuda()}
-            with torch.no_grad():
-                act_dist_inputs, _ = exported_model(input_dict, None, None)
-            act_dist = act_dist_cls(act_dist_inputs, exported_model, **act_dist_config)
-            a_act = act_dist.sample()
-            act_exported[agent_id] = a_act
-            act_info_exported[agent_id] = {
-                'action_dist_inputs': act_dist_inputs.cpu().numpy(),
-                'action_logp': act_dist.logp(a_act).cpu().numpy(),
-                'rllib_action_logp': act_dist.logp(torch.Tensor(act[agent_id]).cuda()).cpu().numpy(),
-            }
-
-        # check action logprob
+    all_results = {
+        'rew': [],
+        'steps': [],
+        'success': [],
+        'off_lane': [],
+        'max_rot': [],
+        'trace_done': [],
+        'has_collided': [],
+    }
+    for ep in range(100):
+        obs = env.reset()
+        done = False
+        episode_reward = dict()
         for agent_id in obs.keys():
-            a_act_info = act_info[agent_id]
-            a_act_info_exported = act_info_exported[agent_id]
-            if not np.allclose(a_act_info['action_logp'], a_act_info_exported['rllib_action_logp']):
-                err = np.abs(a_act_info['action_logp'] - a_act_info_exported['rllib_action_logp'])
-                print('Not allclose. Error = {}'.format(err))
+            episode_reward[agent_id] = 0.
+        n_steps = 0
+        state = dict()
+        em_state = dict()
+        for agent_id in obs.keys():
+            policy = agent.get_policy(policy_id=policy_mapping_fn(agent_id))
+            state[agent_id] = policy.model.get_initial_state()
+            em_state[agent_id] = [v[None,...] for v in exported_model.get_initial_state()] # append batch dimension
+        while not done:
+            # get action from rllib agent object
+            act = dict()
+            act_info = dict()
+            for agent_id, a_obs in obs.items():
+                policy = agent.get_policy(policy_id=policy_mapping_fn(agent_id))
+                a_act, a_state, a_act_info = policy.compute_single_action(a_obs, state=state[agent_id])
+                act[agent_id] = a_act
+                act_info[agent_id] = a_act_info
+                state[agent_id] = a_state
 
-        # step environment
-        next_obs, rew, done, info = env.step(act)
-        
-        # update data
-        for agent_id, a_rew in rew.items():
-            episode_reward[agent_id] += a_rew
-        done = np.any(list(done.values()))
-        obs = next_obs
-        n_steps += 1
+            # get action from exported model
+            act_exported = dict()
+            act_info_exported = dict()
+            for agent_id, a_obs in obs.items():
+                input_dict = {'obs': torch.Tensor(a_obs[None,...]).cuda()}
+                with torch.no_grad():
+                    act_dist_inputs, em_state[agent_id] = exported_model(input_dict, em_state[agent_id], np.array([1]))
+                act_dist = act_dist_cls(act_dist_inputs, exported_model, **act_dist_config)
+                a_act = act_dist.sample()
+                act_exported[agent_id] = a_act
+                act_info_exported[agent_id] = {
+                    'action_dist_inputs': act_dist_inputs.cpu().numpy(),
+                    'action_logp': act_dist.logp(a_act).cpu().numpy(),
+                    'rllib_action_logp': act_dist.logp(torch.Tensor(act[agent_id]).cuda()).cpu().numpy(),
+                }
 
-    print("Reward: {}, #Steps: {}".format(episode_reward, n_steps))
+            # check action logprob
+            for agent_id in obs.keys():
+                a_act_info = act_info[agent_id]
+                a_act_info_exported = act_info_exported[agent_id]
+                if not np.allclose(a_act_info['action_logp'], a_act_info_exported['rllib_action_logp']):
+                    err = np.abs(a_act_info['action_logp'] - a_act_info_exported['rllib_action_logp'])
+                    print('Not allclose. Error = {}'.format(err))
+
+            # step environment
+            next_obs, rew, done, info = env.step(act)
+            
+            # update data
+            for agent_id, a_rew in rew.items():
+                episode_reward[agent_id] += a_rew
+            done = np.any(list(done.values()))
+            obs = next_obs
+            n_steps += 1
+
+        print("Reward: {}, #Steps: {}".format(episode_reward, n_steps), end='')
+        if config['env'] in ['Overtaking']:
+            print(', success: {success}'.format(**info[env.ref_agent_id]), end='')
+        print((', off_lane: {off_lane}, max_rot: {max_rot}, trace_done: {trace_done}, ' +
+                'has_collided: {has_collided}').format(**info[env.ref_agent_id]))
+        for k in all_results.keys():
+            if k in info[env.ref_agent_id].keys():
+                all_results[k].append(info[env.ref_agent_id][k])
+        all_results['rew'].append(episode_reward[env.ref_agent_id])
+        all_results['steps'].append(n_steps)
+    print('')
+    print('Average reward = {}, Average steps = {}'.format(np.mean(all_results['rew']), np.mean(all_results['steps'])))
+    if config['env'] in ['Overtaking']:
+        print('Success rate: {}'.format(np.mean(all_results['success'])))
+    print('Off-lane rate: {}'.format(np.mean(all_results['off_lane'])))
+    print('Max-rot rate: {}'.format(np.mean(all_results['max_rot'])))
+    print('Trace-done rate: {}'.format(np.mean(all_results['trace_done'])))
+    print('Has-collided rate: {}'.format(np.mean(all_results['has_collided'])))
 
 
 if __name__ == '__main__':
