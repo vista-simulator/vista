@@ -29,7 +29,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                  collision_overlap_threshold=0.2, init_agent_range=[8, 20],
                  max_horizon=500, rigid_body_collision=False,
                  rigid_body_collision_coef=0.0, rigid_body_collision_repulsive_coef=0.9,
-                 rendering_config=None, free_width_mul=0.5, max_rot_mul=0.1):
+                 rendering_config=None, free_width_mul=0.5, max_rot_mul=0.1,
+                 curv_reset_mode='default'):
         trace_paths = [os.path.abspath(os.path.expanduser(tp)) for tp in trace_paths]
         self.world = vista.World(trace_paths)
         self.ref_agent_idx = 0
@@ -52,6 +53,10 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.max_rot_mul = max_rot_mul
         self.soft_collision = 0.
         self.perturb_heading_in_random_init = True # set False for car following nominal traj 
+
+        self.curv_reset_mode = curv_reset_mode
+        for trace in self.world.traces:
+            trace.reset_mode = self.curv_reset_mode
 
         if self.n_agents > 1:
             assert mesh_dir is not None, "Specify mesh_dir if n_agents > 1"
@@ -181,11 +186,15 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             info[agent_id] = {
                 'model_curvature': agent.model_curvature,
                 'model_velocity': agent.model_velocity,
+                'human_curvature': agent.trace.f_curvature(agent.get_current_timestamp()),
                 'model_angle': agent.curvature_to_steering(agent.model_curvature),
                 'distance': agent.trace.f_distance(agent.timestamp) - \
                             agent.trace.f_distance(agent.first_time),
                 'rotation': agent.relative_state.theta,
                 'translation': agent.relative_state.translation_x,
+                # NOTE: not saving trace index
+                'segment_index': agent.current_segment_index,
+                'frame_index': agent.current_frame_index,
             }
         self.info_for_render = info
         # get agents' sensory measurement

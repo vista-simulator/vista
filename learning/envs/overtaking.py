@@ -122,6 +122,13 @@ class Overtaking(BaseEnv, MultiAgentEnv):
                 reward[agent_id] -= self.soft_collision * self.overlap_ratio[i]
                 done[agent_id] = done[agent_id] or self.overlap_ratio[i] >= self.soft_collision_ub
         done['__all__'] = done[self.ref_agent_id]
+        # add other agent info
+        other_agent_id = [v for v in self.agent_ids if v != self.ref_agent_id]
+        assert len(other_agent_id) == 1
+        other_agent_id = other_agent_id[0]
+        other_agent = self.world.agents[self.agent_ids.index(other_agent_id)]
+        info[self.ref_agent_id]['other_velocity'] = other_agent.model_velocity
+        info[self.ref_agent_id]['other_translation'] = other_agent.relative_state.translation_x
         return observation, reward, done, info
 
     def wrap_data(self, data):

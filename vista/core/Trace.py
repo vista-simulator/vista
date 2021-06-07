@@ -7,11 +7,12 @@ from ..util import MultiFrame, LabelSearch, TopicNames, \
 
 
 class Trace:
-    def __init__(self, trace_path):
+    def __init__(self, trace_path, reset_mode='default'):
 
         print("Spawning {}".format(trace_path))
 
         self.trace_path = trace_path
+        self.reset_mode = reset_mode
         self.road_width = 4  # meters
         self.which_camera = "front_center"  # HARDCODING for now...
 
@@ -104,17 +105,23 @@ class Trace:
         return f_position, f_speed, f_curvature, f_distance
 
     def get_curv_reset_probs(self, segment_index):
-        # Computing probablities for resetting to places with higher curvature for current trace
-        current_timestamps = self.syncedLabeledTimestamps[segment_index]
-        # curvatures = np.abs(f_curvature(self.syncedLabeledTimestamps))
-        curvatures = np.abs(self.f_curvature(current_timestamps))  # MODIFIED
-        curvatures = np.clip(curvatures, 0, 1 / 3.)
-        hist, bin_edges = np.histogram(curvatures, 100, density=False)
-        bins = np.digitize(curvatures, bin_edges, right=True)
-        hist_density = hist / float(np.sum(hist))
-        smoothing_factor = 0.001
-        curv_reset_probs = 1.0 / (hist_density[bins - 1] + smoothing_factor)
-        curv_reset_probs /= np.sum(curv_reset_probs)
+        if self.reset_mode == 'default':
+            # Computing probablities for resetting to places with higher curvature for current trace
+            current_timestamps = self.syncedLabeledTimestamps[segment_index]
+            # curvatures = np.abs(f_curvature(self.syncedLabeledTimestamps))
+            curvatures = np.abs(self.f_curvature(current_timestamps))  # MODIFIED
+            curvatures = np.clip(curvatures, 0, 1 / 3.)
+            hist, bin_edges = np.histogram(curvatures, 100, density=False)
+            bins = np.digitize(curvatures, bin_edges, right=True)
+            hist_density = hist / float(np.sum(hist))
+            smoothing_factor = 0.001
+            curv_reset_probs = 1.0 / (hist_density[bins - 1] + smoothing_factor)
+            curv_reset_probs /= np.sum(curv_reset_probs)
+        elif self.reset_mode == 'uniform':
+            n_timestamps = len(self.syncedLabeledTimestamps[segment_index])
+            curv_reset_probs = np.ones((n_timestamps,)) / n_timestamps
+        else:
+            raise NotImplementedError('Unrecognized curve reset mode {}'.format(self.reset_mode))
 
         # ''' HARDCODING RESET TO END OF TRACE FOR TESTING PURPOSES'''
         # end_reset_probs = np.zeros(np.size(curv_reset_probs))
