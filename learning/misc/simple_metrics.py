@@ -54,6 +54,11 @@ def compute_avg_maxlatshift(data, agent_id='agent_0', exclude=['trace_done']):
     return np.mean([np.max(v) for v in results])
 
 
+def compute_passed_cars_rate(data, agent_id='agent_0', exclude=['trace_done']):
+    results = collect_last_step_info(data, 'passed_cars', agent_id, exclude)
+    return np.mean(results)
+
+
 def plot_mean_metric_at_key(data, metric, key, bins, xlabel, agent_id='agent_0', 
                             exclude=['trace_done'], mode=2):
     results = collect_last_step_info(data, metric, agent_id, exclude)
@@ -64,6 +69,7 @@ def plot_mean_metric_at_key(data, metric, key, bins, xlabel, agent_id='agent_0',
     ax.set_xlabel(xlabel)
     ylabel = ' '.join([v.capitalize() for v in metric.split('_')])
     ax.set_ylabel(ylabel)
+    ax.set_ylim(0., 1.)
     if mode == 1:
         mean_values_true = mean_values[np.array(results)]
         ax.hist(mean_values_true, bins)
@@ -85,6 +91,7 @@ ALL_METRICS = {
     'collision_rate': compute_collision_rate,
     'maxrot_rate': compute_maxrot_rate,
     'avg_maxlatshift': compute_avg_maxlatshift,
+    'passed_cars': compute_passed_cars_rate,
 }
 
 
@@ -131,10 +138,10 @@ def main():
 
     # compute and print metrics
     if args.task == 'Overtaking':
-        metrics = ['success_rate', 'collision_rate', 'offlane_rate', 'maxrot_rate', 'avg_maxlatshift']
+        metrics = ['success_rate', 'collision_rate', 'offlane_rate', 'maxrot_rate', 'avg_maxlatshift', 'passed_cars']
         plots = [
-            ('mean_metric_at_key', {'metric': 'success', 'key': 'human_curvature', 'bins': 5, 'xlabel': 'Absolute Road Curvature'}),
-            ('mean_metric_at_key', {'metric': 'success', 'key': 'other_velocity', 'bins': 5, 'xlabel': 'Other Vehicle Speed'}),
+            ('mean_metric_at_key', {'metric': 'success', 'key': 'human_curvature', 'bins': 7, 'xlabel': 'Absolute Road Curvature'}),
+            ('mean_metric_at_key', {'metric': 'success', 'key': 'other_velocity', 'bins': 7, 'xlabel': 'Other Vehicle Speed'}),
             ('mean_metric_at_key', {'metric': 'success', 'key': 'other_translation', 'bins': 5, 'xlabel': 'Other Vehicle Lateral Shift'}),
         ]
     else:
