@@ -1,6 +1,6 @@
-overtaking-base:
+car-following-v2-seg-pretrained:
   local_dir: ~/tmp
-  env: Overtaking
+  env: CarFollowingv2
   run: PPO
   num_samples: 1
   checkpoint_freq: 10
@@ -21,27 +21,22 @@ overtaking-base:
       trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop,
                     ~/data/traces/20210527-131709_lexus_devens_center_outerloop_reverse]
       mesh_dir: ~/data/carpack01/
-      init_agent_range: [6, 12]
-      collision_overlap_threshold: 0.05
-      soft_collision_ub: 0.05
-      soft_collision: 2.0
-      task_mode: episodic
-      motion_model: constant_speed # motion model for other non-controllable agents
-      respawn_distance: 15
-      speed_scale_range: [0.0, 0.8] # only used for random speed motion model
-      with_velocity: false
-      free_width_mul: 0.75 # effective road width = 5
-      wrappers: [PreprocessObservation, StackObservation, BasicManeuverReward]
+      wrappers: [PreprocessObservation, BasicManeuverReward]
+      init_agent_range: [6., 8.]
+      following_reward_coeff: 0.001
+      task_mode: lane_change
+      free_width_mul: 1.0
+      lane_change_freq: 300
       wrappers_config:
         PreprocessObservation:
-          fx: 1
-          fy: 1
+          fx: 1.2 # NOTE: better if the image size is at least 300-400 (3x) but too slow
+          fy: 1.2
+          custom_roi_crop: [80, 88, 135, 243] # NOTE: include some sky for segmentation pretrained model [240, 264, 405, 729] in RIG.xml
           random_gamma: [0.5, 1.5]
           color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
-        StackObservation:
-          frame_stack: 5
+          imagenet_normalize: true
         BasicManeuverReward:
-          center_coeff: 0.001
+          center_coeff: 0.0
           jitter_coeff: 0.0001
           inherit_reward: true
     observation_filter: NoFilter
@@ -73,24 +68,27 @@ overtaking-base:
     # model
     model:
       vf_share_layers: true
-      custom_model: ConvNet
-      conv_filters: [
-        [15, 24, 5, 2, 2],
-        [24, 36, 5, 2, 2], 
-        [36, 48, 3, 2, 1], 
-        [48, 64, 3, 1, 1], 
-        [64, 64, 3, 1, 1]
-      ]
+      custom_model: SegPretrainedNet
+      conv_filters: []
       conv_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
-        auto_append_policy_hiddens: true
-        avgpool_after_extractor: [1, 20]
-        with_bn: true
-        policy_hiddens: [64, 32, 2]
+        avgpool_after_extractor: [1, 24]
+        extractor_post_dropout: 0.3
+        # ade20k-mobilenetv2dilated-c1_deepsup, ade20k-resnet18dilated-ppm_deepsup, ade20k-resnet50-upernet
+        seg_model_name: ade20k-mobilenetv2dilated-c1_deepsup
+        seg_out_channel: 320
+        # we want in RIG.xml format roi = [270, 264, 405, 729], where video size [600, 960]
+        # we are reading stream with shape [200, 320] --> target roi = [90, 88, 135, 243]
+        # custom_roi_crop [80, 88, 135, 243] gives image shape [55, 155]
+        # fx=fy=1.2 gives imsage shape [66, 186]
+        # thus feat_roi_crop = [(90-80)*1.2=12, 0, 66, 186] in image ([66, 186]) pixel unit
+        # double-check by (66-12) == (135-90)*1.2
+        feat_roi_crop: [12, 0, 66, 186] # NOTE: unit is image pixel not based on feature map dimension
+        policy_hiddens: [7680, 128, 2]
         policy_activation: relu
-        policy_dropout: 0.0
-        value_fcnet_hiddens: [64, 32, 1]
+        policy_dropout: 0.0 # must be the same as value_fcnet_dropout and only takes effect when rnn layers > 1
+        value_fcnet_hiddens: [7680, 128, 1]
         value_fcnet_activation: relu
         value_fcnet_dropout: 0.0
         custom_action_dist_config:

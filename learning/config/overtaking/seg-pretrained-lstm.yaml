@@ -18,10 +18,13 @@ overtaking-seg-pretrained-lstm:
     framework: torch
     # environment
     env_config:
-      trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop]
+      trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop,
+                    ~/data/traces/20210527-131709_lexus_devens_center_outerloop_reverse]
       mesh_dir: ~/data/carpack01/
       init_agent_range: [6, 12]
       collision_overlap_threshold: 0.05
+      soft_collision_ub: 0.05
+      soft_collision: 2.0
       task_mode: episodic
       motion_model: constant_speed # motion model for other non-controllable agents
       respawn_distance: 15
@@ -80,7 +83,7 @@ overtaking-seg-pretrained-lstm:
         use_recurrent: true
         rnn_num_layers: 1
         max_seq_len: 5
-        avgpool_after_extractor: [1, -1]
+        avgpool_after_extractor: [1, 24]
         extractor_post_dropout: 0.3
         # ade20k-mobilenetv2dilated-c1_deepsup, ade20k-resnet18dilated-ppm_deepsup, ade20k-resnet50-upernet
         seg_model_name: ade20k-mobilenetv2dilated-c1_deepsup
