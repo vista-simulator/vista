@@ -5,6 +5,7 @@ from .overtaking import Overtaking
 from .placing_obstacle import PlacingObstacle
 from .cutting_off import CuttingOff
 from .car_following import CarFollowing
+from .car_following_v2 import CarFollowingv2
 from .multi_agent_cutting_off import MultiAgentCuttingOff
 from .multi_agent_overtaking import MultiAgentOvertaking
 from .state_obs import StateObs # NOTE: need to be after all envs
