@@ -31,6 +31,7 @@ class Car(Entity):
         self.car_length = 5
         self.wheel_base = 2.78
         self.steering_ratio = 14.7
+        self.direction = 'forward'
 
         # Reset the car in the world, this will reset several properties:
         # 1. The trace in the world where the car is located
@@ -107,23 +108,29 @@ class Car(Entity):
         time = self.get_timestamp(index)
         human = human.copy()  # dont edit the original
         closest_dist = float('inf')
+        if self.direction == 'forward':
+            index_step = 1
+        elif self.direction == 'backward':
+            index_step = -1
+        else:
+            raise NotImplementedError('Unrecognized agent direction {}'.format(self.direction))
         while True:
             next_time = self.get_timestamp(index)
 
             last_human = human.copy()
             human.step(curvature=self.trace.f_curvature(time),
                        velocity=self.trace.f_speed(time),
-                       delta_t=next_time - time)
+                       delta_t=next_time-time)
 
             dist = np.linalg.norm(human.numpy()[:2] - desired_ego.numpy()[:2])
             time = next_time
             if dist < closest_dist:
                 closest_dist = dist
-                index += 1
+                index += index_step
             else:
                 break
 
-        self.current_frame_index = index - 1
+        self.current_frame_index = index - index_step
         closest_time = self.get_current_timestamp()
         return closest_time, last_human
 

@@ -32,7 +32,7 @@ class StateDynamics(object):
         self.y_state = 0
 
     def step(self, curvature, velocity, delta_t):
-        arc_length = abs(velocity * delta_t)
+        arc_length = velocity * delta_t
         theta = arc_length * curvature  # angle of traversed circle
 
         # Compute R
