@@ -1,6 +1,6 @@
 car-following-v2-base:
   local_dir: ~/tmp
-  env: LaneFollowing
+  env: CarFollowingv2
   run: PPO
   num_samples: 1
   checkpoint_freq: 10
@@ -12,13 +12,15 @@ car-following-v2-base:
     num_cpus: 40
     num_gpus: 1
   config:
-    num_workers: 10
+    num_workers: 16
     num_gpus: 0.2
-    num_gpus_per_worker: 0.08
+    num_gpus_per_worker: 0.05
     framework: torch
     # environment
     env_config:
-      trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop]
+      trace_paths: [~/data/traces/20210527-131252_lexus_devens_center_outerloop,
+                    ~/data/traces/20210527-131709_lexus_devens_center_outerloop_reverse]
+      mesh_dir: ~/data/carpack01/
       wrappers: [PreprocessObservation, BasicManeuverReward]
       init_agent_range: [6., 8.]
       following_reward_coeff: 0.001
@@ -31,9 +33,12 @@ car-following-v2-base:
           fy: 1
           random_gamma: [0.5, 1.5]
           color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
+        StackObservation:
+          frame_stack: 5
         BasicManeuverReward:
           center_coeff: 0.0
           jitter_coeff: 0.0001
+          inherit_reward: true
     observation_filter: NoFilter
     callbacks: BasicCallbacks
     # policies
@@ -48,8 +53,8 @@ car-following-v2-base:
     lr: 0.0002
     lr_schedule: null
     num_sgd_iter: 8
-    train_batch_size: 5120
-    sgd_minibatch_size: 128
+    train_batch_size: 32000
+    sgd_minibatch_size: 512
     # value function
     vf_loss_coeff: 1.0
     vf_clip_param: 1000.0
@@ -65,7 +70,7 @@ car-following-v2-base:
       vf_share_layers: true
       custom_model: ConvNet
       conv_filters: [
-        [3, 24, 5, 2, 2],
+        [15, 24, 5, 2, 2],
         [24, 36, 5, 2, 2], 
         [36, 48, 3, 2, 1], 
         [48, 64, 3, 1, 1], 
@@ -74,13 +79,15 @@ car-following-v2-base:
       conv_activation: relu
       custom_action_dist: TorchBeta # prevent inf logprob
       custom_model_config:
+        auto_append_policy_hiddens: true
+        avgpool_after_extractor: [1, 20]
         with_bn: true
         policy_hiddens: [64, 32, 2]
         policy_activation: relu
-        policy_dropout: 0.5
+        policy_dropout: 0.0
         value_fcnet_hiddens: [64, 32, 1]
         value_fcnet_activation: relu
-        value_fcnet_dropout: 0.5
+        value_fcnet_dropout: 0.0
         custom_action_dist_config:
           low: -0.3
           high: 0.3
