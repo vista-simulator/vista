@@ -129,6 +129,8 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         other_agent = self.world.agents[self.agent_ids.index(other_agent_id)]
         info[self.ref_agent_id]['other_velocity'] = other_agent.model_velocity
         info[self.ref_agent_id]['other_translation'] = other_agent.relative_state.translation_x
+        info[self.ref_agent_id]['pose_wrt_others'] = self.compute_relative_transform(self.ref_agent.ego_dynamics, other_agent.ego_dynamics)
+        info[self.ref_agent_id]['other_dim'] = [other_agent.car_length, other_agent.car_width]
         return observation, reward, done, info
 
     def wrap_data(self, data):
