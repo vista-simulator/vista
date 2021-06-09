@@ -391,8 +391,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             # compute relative pose to ego agent
             trans_x, trans_y, theta = self.compute_relative_transform( \
                 agent.ego_dynamics, ego_agent.human_dynamics)
-            rot = np.array([0, 1, 0, theta])
-            rot = rot / np.linalg.norm(rot) # unit vector for quaternion
+            theta = np.pi - theta
+            rot = np.array([0, np.sin(theta/2.), 0, np.cos(theta/2.)])
             trans = np.array([trans_x, 0, trans_y]) 
             # compensate for camera position
             trans = trans - np.array(self.camera_offset)
