@@ -80,29 +80,17 @@ class OnComingTraffic(BaseEnv, MultiAgentEnv):
         free_width = (self.ref_agent.trace.road_width - self.ref_agent.car_width) * 0.5
         self.lat_lane_target = np.random.uniform(-free_width, free_width)
 
-    def check_agent_pass_other(self, agent, other_agent): # NOTE: override
-        origin_dist = agent.trace.f_distance(agent.first_time)
-        dist = agent.trace.f_distance(agent.get_current_timestamp()) - origin_dist
-        other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
-        print(dist, other_dist, agent.current_frame_index, other_agent.current_frame_index)
-        passed = (dist - other_dist) > ((other_agent.car_length + agent.car_length) / 2.)
-        return passed
-
     def convert_to_scene_node(self, ego_agent, other_agents): # NOTE: override
         other_agents_nodes = []
         for i, agent in other_agents.items():
             # compute relative pose to ego agent
-            agent_dynamics = agent.ego_dynamics.copy()
-            # agent_dynamics.theta_state *= -1
             trans_x, trans_y, theta = self.compute_relative_transform( \
-                agent_dynamics, ego_agent.human_dynamics)
-            rot = np.array([0, 1, 0, theta])
-            rot = rot / np.linalg.norm(rot) # unit vector for quaternion
+                agent.ego_dynamics, ego_agent.human_dynamics)
+            theta = np.pi + (np.pi - theta) # swap head and rear
+            rot = np.array([0, np.sin(theta/2.), 0, np.cos(theta/2.)])
             trans = np.array([trans_x, 0, trans_y]) 
             # compensate for camera position
-            camera_offset = np.array(self.camera_offset)
-            # camera_offset[2] *= -1
-            trans = trans - camera_offset
+            trans = trans - np.array(self.camera_offset)
             # compensate for camera rotation, pitch and yaw (check RIG.xml)
             # NOTE: this is different from the car heading theta
             long_dist = trans[2]
@@ -151,16 +139,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # initialize simulator
-    env = OnComingTraffic(args.trace_paths, args.mesh_dir)
+    env = OnComingTraffic(args.trace_paths, args.mesh_dir, dilate_ref_agent=[1.,0.4], free_width_mul=0.75)
     if args.preprocess:
         from .wrappers import PreprocessObservation
         env = PreprocessObservation(env)
-    from .wrappers import BasicManeuverReward # DEBUG
-    env = BasicManeuverReward(env, center_coeff=0.0, jitter_coeff=0.0001, inherit_reward=True) # DEBUG
+    from .wrappers import BasicManeuverReward
+    env = BasicManeuverReward(env, center_coeff=0.001, jitter_coeff=0.0001, inherit_reward=True)
     env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
 
     # run
-    for ep in range(1):
+    for ep in range(10):
         done = False
         obs = env.reset()
         ep_rew = 0

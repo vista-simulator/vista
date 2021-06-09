@@ -30,7 +30,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                  max_horizon=500, rigid_body_collision=False,
                  rigid_body_collision_coef=0.0, rigid_body_collision_repulsive_coef=0.9,
                  rendering_config=None, free_width_mul=0.5, max_rot_mul=0.1,
-                 curv_reset_mode='default'):
+                 curv_reset_mode='default', dilate_ref_agent=[0., 0.]):
         trace_paths = [os.path.abspath(os.path.expanduser(tp)) for tp in trace_paths]
         self.world = vista.World(trace_paths)
         self.ref_agent_idx = 0
@@ -57,6 +57,10 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.curv_reset_mode = curv_reset_mode
         for trace in self.world.traces:
             trace.reset_mode = self.curv_reset_mode
+
+        self.dilate_ref_agent = dilate_ref_agent
+        self.ref_agent.car_length += dilate_ref_agent[0]
+        self.ref_agent.car_width += dilate_ref_agent[1]
 
         if self.n_agents > 1:
             assert mesh_dir is not None, "Specify mesh_dir if n_agents > 1"
@@ -441,7 +445,10 @@ class BaseEnv(gym.Env, MultiAgentEnv):
     def check_agent_off_lane_or_max_rot(self, agent):
         tx = agent.relative_state.translation_x
         theta = agent.relative_state.theta
-        free_width = agent.trace.road_width - agent.car_width
+        if agent == self.ref_agent: # don't use dilation while determining off-lane
+            free_width = agent.trace.road_width - (agent.car_width - self.dilate_ref_agent[1])
+        else:
+            free_width = agent.trace.road_width - agent.car_width
         off_lane = abs(tx) > (free_width * self.free_width_mul)
         max_rot = abs(theta) > (np.pi * self.max_rot_mul)
         return off_lane, max_rot
@@ -450,8 +457,9 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.mesh_lib.reset(self.n_agents)
         # assign car width and length based on mesh size
         for i, agent in enumerate(self.world.agents):
-            agent.car_width = self.mesh_lib.agents_meshes_dim[i][0]
-            agent.car_length = self.mesh_lib.agents_meshes_dim[i][1]
+            if i != self.ref_agent_idx:
+                agent.car_width = self.mesh_lib.agents_meshes_dim[i][0]
+                agent.car_length = self.mesh_lib.agents_meshes_dim[i][1]
 
     def init_scene_state(self, road_buffer_size):
         self.road_buffer_size = road_buffer_size # unit is frame
