@@ -579,6 +579,7 @@ class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
     def reset(self, **kwargs):
         self.curvature_deque.clear()
         self.curvature_deque.append(0.)
+        self.curvature_deque.append(0.)
         return super().reset(**kwargs)
 
     def step(self, action):
@@ -590,9 +591,11 @@ class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
             center_rew = 1. - (agent.relative_state.translation_x / free_width) ** 2
             # compute jitter reward
             self.curvature_deque.append(agent.model_curvature)
-            dcurvature = np.array(self.curvature_deque) / (self.upper_curvature_bound - self.lower_curvature_bound)
-            dcurvature = dcurvature[1:] - dcurvature[:-1]
-            jitter_rew = -dcurvature.std()
+            curvature = np.array(self.curvature_deque) / (self.upper_curvature_bound - self.lower_curvature_bound)
+            dcurvature = curvature[1:] - curvature[:-1]
+            ddcurvature = dcurvature[1:] - dcurvature[:-1]
+            jitter_rew = -np.abs(ddcurvature).mean()
+            print(self.curvature_deque, jitter_rew) # DEBUG
             # assign reward
             if self.inherit_reward:
                 reward[agent_id] += self.center_coeff * center_rew + self.jitter_coeff * jitter_rew

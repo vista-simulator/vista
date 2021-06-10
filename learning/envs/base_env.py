@@ -13,8 +13,8 @@ from .mesh_lib import MeshLib
 
 
 class BaseEnv(gym.Env, MultiAgentEnv):
-    lower_curvature_bound = -1 / 3.
-    upper_curvature_bound = 1 / 3.
+    lower_curvature_bound = -0.07
+    upper_curvature_bound = 0.07
     lower_velocity_bound = 0.
     upper_velocity_bound = 15.
     metadata = {
@@ -24,6 +24,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
     drop_obs_space_def = False
     camera_offset = [0., 1.7653, 0.2] # x, z (camera height = 1.7653), y 
     camera_rotation = [0., np.deg2rad(5), 0.04] # raw pitch yaw
+    standard_car_area = 5 * 2 # car length x car width
 
     def __init__(self, trace_paths, n_agents=1, mesh_dir=None, 
                  collision_overlap_threshold=0.2, init_agent_range=[8, 20],
@@ -364,7 +365,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                     overlap[i,j] = 0.
                 else:
                     intersect = polys[i].intersection(polys[j])
-                    overlap_ratio = intersect.area / polys[i].area
+                    overlap_ratio = intersect.area / self.standard_car_area
                     crash[i,j] = overlap_ratio >= self.collision_overlap_threshold
                     overlap[i,j] = overlap_ratio
         if return_overlap:

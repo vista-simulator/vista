@@ -191,7 +191,8 @@ if __name__ == "__main__":
         env = PreprocessObservation(env)
     from .wrappers import BasicManeuverReward # DEBUG
     env = BasicManeuverReward(env, inherit_reward=True) # DEBUG
-    env = MultiAgentMonitor(env, os.path.expanduser('~/tmp/monitor'), video_callable=lambda x: True, force=True)
+    tmp_dir = os.path.join(os.environ['TMPDIR'], 'monitor')
+    env = MultiAgentMonitor(env, tmp_dir, video_callable=lambda x: True, force=True)
 
     # run
     for ep in range(1):

@@ -4,11 +4,12 @@
 USE_EGL=true
 
 export SEG_PRETRAINED_ROOT=$HOME/workspace/semantic-segmentation-pytorch
+export DATA_DIR=$TMPDIR
 
 if $USE_EGL
 then
   export PYOPENGL_PLATFORM=egl
-  export EGL_DEVICE_ID=$GPU_DEVICE_ORDINAL
+  # export EGL_DEVICE_ID=$GPU_DEVICE_ORDINAL
 else
   startx &
   sleep 5
@@ -17,5 +18,4 @@ else
   glxinfo
 fi
 
-eval "$(conda shell.bash hook)"
-conda activate vista
+module load anaconda/2020b
