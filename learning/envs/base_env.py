@@ -127,10 +127,10 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         # get sensor measurement
         observation = []
         for i, agent in enumerate(self.world.agents):
-            other_agents = {_ai: self.world.agents[_ai] for _ai in range(self.n_agents) if _ai != i}
-            other_agents = self.convert_to_scene_node(agent, other_agents)
             # NOTE: only support one sensor now
             if len(agent.sensors) == 1:
+                other_agents = {_ai: self.world.agents[_ai] for _ai in range(self.n_agents) if _ai != i}
+                other_agents = self.convert_to_scene_node(agent, other_agents)
                 obs = agent.sensors[0].capture(agent.first_time, other_agents=other_agents)
             else:
                 obs = None
@@ -206,12 +206,12 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         observation = dict()
         for i, agent_id in enumerate(self.agent_ids):
             agent = self.world.agents[i]
-            other_agents = {_ai: self.world.agents[_ai] for _ai in range(self.n_agents) if _ai != i}
-            other_agents = self.convert_to_scene_node(agent, other_agents)
-            agent.step_sensors(other_agents=other_agents)
-            obs = agent.observations
             # NOTE: only support one sensor now
             if len(agent.sensors) == 1:
+                other_agents = {_ai: self.world.agents[_ai] for _ai in range(self.n_agents) if _ai != i}
+                other_agents = self.convert_to_scene_node(agent, other_agents)
+                agent.step_sensors(other_agents=other_agents)
+                obs = agent.observations
                 observation[agent_id] = obs[agent.sensors[0].id]
             else:
                 observation[agent_id] = None

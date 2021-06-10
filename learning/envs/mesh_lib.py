@@ -71,6 +71,7 @@ class MeshLib(object):
         trans[2] *= -1 # (x, z, y) -> (x, z, -y)
         rot[3] *= -1 # negate theta in quaternion
         if hasattr(self, 'mesh_node'):
+            self.mesh_node.name = 'agent_{}'.format(agent_idx)
             self.mesh_node.mesh = self.agents_meshes[agent_idx]
             self.mesh_node.translation = trans
             self.mesh_node.rotation = rot

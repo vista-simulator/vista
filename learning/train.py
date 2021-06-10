@@ -58,13 +58,18 @@ def main():
     exp['trial_name_creator'] = trial_name_creator
     path_keys = ['local_dir', 'config:env_config:trace_paths', 'config:env_config:mesh_dir']
     for k in path_keys:
-        paths = misc.get_dict_value_by_str(exp, k)
-        paths = [paths] if not isinstance(paths, list) else paths
-        for i, path in enumerate(paths):
-            path = [os.environ[_v[1:]] if _v.startswith('$') else _v for _v in path.split('/')]
-            path = os.path.abspath(os.path.expanduser(os.path.join(*path)))
-            paths[i] = path
-        misc.set_dict_value_by_str(exp, k, paths)
+        try:
+            paths = misc.get_dict_value_by_str(exp, k)
+            is_list = isinstance(paths, list)
+            paths = [paths] if not is_list else paths
+            for i, path in enumerate(paths):
+                path = [os.environ[_v[1:]] if _v.startswith('$') else _v for _v in path.split('/')]
+                path = os.path.abspath(os.path.expanduser(os.path.join(*path)))
+                paths[i] = path
+            paths = paths if is_list else paths[0]
+            misc.set_dict_value_by_str(exp, k, paths)
+        except KeyError:
+            pass
     verbose = 1
     if args.v:
         exp['config']['log_level'] = 'INFO'

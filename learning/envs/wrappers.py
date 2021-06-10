@@ -595,7 +595,6 @@ class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
             dcurvature = curvature[1:] - curvature[:-1]
             ddcurvature = dcurvature[1:] - dcurvature[:-1]
             jitter_rew = -np.abs(ddcurvature).mean()
-            print(self.curvature_deque, jitter_rew) # DEBUG
             # assign reward
             if self.inherit_reward:
                 reward[agent_id] += self.center_coeff * center_rew + self.jitter_coeff * jitter_rew
