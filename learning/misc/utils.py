@@ -93,7 +93,7 @@ def update_by_job_array_exp(exp, job_array_module, job_array_task_id):
                 all_task_exp[-1].append([k, v[i]])
     else:
         raise NotImplementedError('Unrecognized search method {}'.format(search_method))
-    task_exp = all_task_exp[job_array_task_id - 1] # LLsub triples start with 1 by default
+    task_exp = all_task_exp[job_array_task_id]
     exp_name = []
     def update_weird_str(_s):
         return _s.replace('\'', '').replace(',', '').replace(' ', '').replace('[', '').replace(']', '').replace('~','').replace('/','_')
