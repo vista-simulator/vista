@@ -10,7 +10,8 @@ class Overtaking(BaseEnv, MultiAgentEnv):
                  respawn_distance=15, speed_scale_range=[0.0, 0.8], 
                  motion_model='random_speed', constant_speed_range=[0., 6.], 
                  with_velocity=False, target_velocity=None, 
-                 soft_collision=0., soft_collision_ub=0.05, **kwargs):
+                 soft_collision=0., soft_collision_ub=0.05, 
+                 ego_constant_speed_range=None, **kwargs):
         super(Overtaking, self).__init__(trace_paths, n_agents=2, 
             mesh_dir=mesh_dir, **kwargs)
 
@@ -25,6 +26,7 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         self.target_velocity = target_velocity
         self.soft_collision = soft_collision
         self.soft_collision_ub = soft_collision_ub
+        self.ego_constant_speed_range = ego_constant_speed_range
 
         # use curvature only or with velocity as action
         if self.with_velocity:
@@ -50,17 +52,28 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         observations = super().reset(**kwargs)
         observations = self.wrap_data(observations)
         self.observation_for_render = self.wrap_data(self.observation_for_render) # for render
+        if self.ego_constant_speed_range is not None:
+            self.ego_constant_speed = np.random.uniform(*self.ego_constant_speed_range)
         if self.motion_model == 'constant_speed':
-            self.constant_speed = np.random.uniform(*self.constant_speed_range) # make sure not faster than ego car
+            low = self.constant_speed_range[0]
+            high = self.constant_speed_range[1]
+            if hasattr(self, 'ego_constant_speed'):
+                high = min(high, self.ego_constant_speed)
+            self.constant_speed = np.random.uniform(low, high) # make sure not faster than ego car
         return observations
 
     def step(self, action):
         # augment nominal action
         for agent_id, agent in zip(self.agent_ids, self.world.agents):
             if agent_id == self.ref_agent_id:
-                if self.rigid_body_collision and not self.with_velocity: # append nominal speed only
-                    human_velocity = agent.trace.f_speed(agent.get_current_timestamp())
-                    action[agent_id] = np.array([action[agent_id][0], human_velocity])
+                if self.ego_constant_speed_range is not None:
+                    ego_velocity = self.ego_constant_speed
+                else:
+                    ego_velocity = agent.trace.f_speed(agent.get_current_timestamp())
+                if action[agent_id].shape == ():
+                    action[agent_id] = np.array([action[agent_id], ego_velocity])
+                else:
+                    action[agent_id] = np.array([action[agent_id][0], ego_velocity])
                 continue
             # nominal curvature but slower speed
             current_timestamp = agent.get_current_timestamp()

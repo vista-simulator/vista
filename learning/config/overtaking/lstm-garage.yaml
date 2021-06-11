@@ -9,12 +9,12 @@ overtaking-lstm-garage:
     episode_reward_mean: 99999
     timesteps_total: 1e7 #NOTE 3e6
   ray_resources:
-    num_cpus: 20
+    num_cpus: 40
     num_gpus: 1
   config:
-    num_workers: 16
-    num_gpus: 0.2
-    num_gpus_per_worker: 0.05
+    num_workers: 12
+    num_gpus: 0.28
+    num_gpus_per_worker: 0.06
     framework: torch
     # environment
     env_config:
@@ -34,6 +34,7 @@ overtaking-lstm-garage:
       task_mode: episodic
       motion_model: constant_speed # motion model for other non-controllable agents
       constant_speed_range: [0., 0.]
+      ego_constant_speed_range: [3., 6.]
       curv_reset_mode: segment_start
       dilate_ref_agent: [1.0, 0.4]
       with_velocity: false
@@ -47,7 +48,7 @@ overtaking-lstm-garage:
           color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
         BasicManeuverReward:
           center_coeff: 0.001
-          jitter_coeff: 0.0
+          jitter_coeff: 0.001
           inherit_reward: true
     observation_filter: NoFilter
     callbacks: BasicCallbacks
@@ -79,7 +80,7 @@ overtaking-lstm-garage:
     model:
       vf_share_layers: true
       lstm_cell_size: 64
-      max_seq_len: 5
+      max_seq_len: 20
       custom_model: ConvNet
       conv_filters: [
         [3, 24, 5, 2, 2],
