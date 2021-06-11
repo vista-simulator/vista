@@ -13,8 +13,8 @@ from .mesh_lib import MeshLib
 
 
 class BaseEnv(gym.Env, MultiAgentEnv):
-    lower_curvature_bound = -0.07
-    upper_curvature_bound = 0.07
+    lower_curvature_bound = -0.3
+    upper_curvature_bound = 0.3
     lower_velocity_bound = 0.
     upper_velocity_bound = 15.
     metadata = {
@@ -31,7 +31,8 @@ class BaseEnv(gym.Env, MultiAgentEnv):
                  max_horizon=500, rigid_body_collision=False,
                  rigid_body_collision_coef=0.0, rigid_body_collision_repulsive_coef=0.9,
                  rendering_config=None, free_width_mul=0.5, max_rot_mul=0.1,
-                 curv_reset_mode='default', dilate_ref_agent=[0., 0.]):
+                 curv_reset_mode='default', dilate_ref_agent=[0., 0.], 
+                 init_lat_shift_range=None):
         trace_paths = [os.path.abspath(os.path.expanduser(tp)) for tp in trace_paths]
         self.world = vista.World(trace_paths)
         self.ref_agent_idx = 0
@@ -52,6 +53,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         self.rendering_config = rendering_config
         self.free_width_mul = free_width_mul
         self.max_rot_mul = max_rot_mul
+        self.init_lat_shift_range = init_lat_shift_range
         self.soft_collision = 0.
         self.perturb_heading_in_random_init = True # set False for car following nominal traj 
 
@@ -307,7 +309,11 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         else:
             dtheta = 0
 
-        lat_shift = np.random.choice([-1, 1]) * np.random.uniform(agent.car_width / 2., agent.car_width)
+        if self.init_lat_shift_range is None:
+            init_lat_shift_range = [agent.car_width / 2., agent.car_width]
+        else:
+            init_lat_shift_range = self.init_lat_shift_range
+        lat_shift = np.random.choice([-1, 1]) * np.random.uniform(*init_lat_shift_range)
 
         # place agent
         self.place_agent(agent, ref_dynamics, dist, dtheta, lat_shift)
@@ -428,11 +434,15 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         return in_lane_center
 
     def check_agent_pass_other(self, agent, other_agent):
+        dist_diff = self.get_agent_dist_diff(agent, other_agent)
+        passed = dist_diff > ((other_agent.car_length + agent.car_length) / 2.)
+        return passed
+
+    def get_agent_dist_diff(self, agent, other_agent):
         origin_dist = agent.trace.f_distance(agent.first_time)
         dist = agent.trace.f_distance(agent.get_current_timestamp()) - origin_dist
         other_dist = other_agent.trace.f_distance(other_agent.get_current_timestamp()) - origin_dist
-        passed = (dist - other_dist) > ((other_agent.car_length + agent.car_length) / 2.)
-        return passed
+        return dist - other_dist
 
     def get_agent_order(self):
         ref_agent = self.ref_agent

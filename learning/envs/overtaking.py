@@ -79,10 +79,15 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         passed = [self.check_agent_pass_other(self.ref_agent, _a) for _a in other_agents]
         if self.task_mode == 'episodic': # success when passed all cars and back to lane center
             in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
-            reward[self.ref_agent_id] = 1 if in_lane_center and np.all(passed) else 0
-            done[self.ref_agent_id] = (in_lane_center and np.all(passed)) or done[self.ref_agent_id]
-            info[self.ref_agent_id]['success'] = in_lane_center and np.all(passed)
-            info[self.ref_agent_id]['passed_cars'] = np.sum(passed)
+            good_terminal_cond = self.get_agent_dist_diff(self.ref_agent, other_agents[0]) > 10
+            if good_terminal_cond: # already pass
+                if in_lane_center:
+                    reward[self.ref_agent_id] = 2
+                else:
+                    reward[self.ref_agent_id] = 1
+            done[self.ref_agent_id] = good_terminal_cond or done[self.ref_agent_id]
+            info[self.ref_agent_id]['success'] = in_lane_center and good_terminal_cond
+            info[self.ref_agent_id]['passed_cars'] = np.sum(passed) * float(good_terminal_cond)
         else:
             for agent, passed_this in zip(other_agents, passed):
                 if passed_this:

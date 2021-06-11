@@ -13,6 +13,7 @@ import torchvision
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 import vista
+from vista.util.Image import draw_noodle
 
 
 class _MultiAgentMonitor(gym.Wrapper):
@@ -147,8 +148,17 @@ class _MultiAgentMonitor(gym.Wrapper):
             else:
                 text = 'Running'
             self.ax_obs[agent_id].set_title(text, color='white', size=20, weight='bold')
+            obs_render = obs[:,:,-3:][:,:,::-1] # handle stacked frames
+            curvature = self.info[agent_id]['model_curvature'] if hasattr(self, 'info') else 0.
+            camera = self.world.agents[i].sensors[0].camera
+            noodle_coords = draw_noodle(curvature, camera)
+            if hasattr(self, 'roi'):
+                noodle_coords = noodle_coords - np.array(self.roi[:2])[:,None]
+            obs_render = obs_render.astype(np.float32)
+            obs_render = cv2.polylines(obs_render, np.int32([noodle_coords.T]), False, (0,0, 255), 2)
+            obs_render = np.clip(obs_render, 0, 255).astype(np.uint8)
             self.artists['im:{}'.format(agent_id)].set_data(self.fit_img_to_ax(
-                self.ax_obs[agent_id], obs[:,:,-3:][:,:,::-1])) # handle stacked frames
+                self.ax_obs[agent_id], obs_render))
 
         # add speed and steering wheel
         for agent_id, agent in self.agents_with_sensor.items():
@@ -569,12 +579,14 @@ class RandomPermuteAgent(gym.Wrapper, MultiAgentEnv):
 
 
 class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
-    def __init__(self, env, center_coeff=0.01, jitter_coeff=0.0, inherit_reward=False):
+    def __init__(self, env, center_coeff=0.01, jitter_coeff=0.0, 
+                 inherit_reward=False, curvature_deque_len=3):
         super(BasicManeuverReward, self).__init__(env)
         self.center_coeff = center_coeff
         self.jitter_coeff = jitter_coeff
         self.inherit_reward = inherit_reward
-        self.curvature_deque = deque(maxlen=30)
+        assert curvature_deque_len >= 3, 'Otherwise cannot compute second derivative'
+        self.curvature_deque = deque(maxlen=curvature_deque_len)
 
     def reset(self, **kwargs):
         self.curvature_deque.clear()
@@ -594,7 +606,9 @@ class BasicManeuverReward(gym.Wrapper, MultiAgentEnv):
             curvature = np.array(self.curvature_deque) / (self.upper_curvature_bound - self.lower_curvature_bound)
             dcurvature = curvature[1:] - curvature[:-1]
             ddcurvature = dcurvature[1:] - dcurvature[:-1]
-            jitter_rew = -np.abs(ddcurvature).mean()
+            jitter = np.abs(ddcurvature).mean()
+            info[agent_id]['jitter'] = jitter
+            jitter_rew = -jitter
             # assign reward
             if self.inherit_reward:
                 reward[agent_id] += self.center_coeff * center_rew + self.jitter_coeff * jitter_rew
