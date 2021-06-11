@@ -85,6 +85,8 @@ class Overtaking(BaseEnv, MultiAgentEnv):
                     reward[self.ref_agent_id] = 2
                 else:
                     reward[self.ref_agent_id] = 1
+            else:
+                reward[self.ref_agent_id] = 0
             done[self.ref_agent_id] = good_terminal_cond or done[self.ref_agent_id]
             info[self.ref_agent_id]['success'] = in_lane_center and good_terminal_cond
             info[self.ref_agent_id]['passed_cars'] = np.sum(passed) * float(good_terminal_cond)
