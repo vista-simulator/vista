@@ -30,6 +30,8 @@ overtaking-lstm:
                     $DATA_DIR/traces/20210609-175037_lexus_devens_outerloop_reverse,
                     $DATA_DIR/traces/20210609-175503_lexus_devens_outerloop]
       mesh_dir: $DATA_DIR/carpack01/
+      rendering_config:
+        use_lighting: false
       init_agent_range: [8, 15]
       init_lat_shift_range: [1.5, 2.0]
       collision_overlap_threshold: 0.05
@@ -37,7 +39,7 @@ overtaking-lstm:
       soft_collision: 0.01
       task_mode: episodic
       motion_model: constant_speed # motion model for other non-controllable agents
-      constant_speed_range: [0., 6.]
+      constant_speed_range: [0., 4.]
       ego_constant_speed_range: [4., 10.]
       curv_reset_mode: default
       dilate_ref_agent: [1.0, 0.4]
@@ -50,6 +52,8 @@ overtaking-lstm:
           fy: 1
           random_gamma: [0.5, 1.5]
           color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
+          standardize: true
+          randomize_at_episode: true
         BasicManeuverReward:
           center_coeff: 0.001
           jitter_coeff: 0.001

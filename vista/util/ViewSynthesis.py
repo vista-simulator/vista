@@ -58,7 +58,10 @@ class ViewSynthesis:
             mode=DepthModes.FIXED_PLANE):
 
         self.camera = camera
-        self.rendering_config = rendering_config if rendering_config is not None else DEFAULT_RENDERING_CONFIG
+        self.rendering_config = DEFAULT_RENDERING_CONFIG
+        for k, v in rendering_config.items():
+            self.rendering_config.update({k: v})
+        # self.rendering_config = rendering_config if rendering_config is not None else DEFAULT_RENDERING_CONFIG
         self.dims = (self.camera.get_height(), self.camera.get_width())
         self.baseline = baseline
         self.mode = mode

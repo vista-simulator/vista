@@ -55,6 +55,7 @@ class ConvNet(Base):
         if self.use_recurrent:
             self.cell_size = model_config['lstm_cell_size']
             assert self.rnn_num_layers == 1, 'Multi-layer LSTM is not ready yet.'
+            self.pre_lstm_dropout = nn.Dropout(policy_dropout)
             self.lstm = nn.LSTM(self.feat_channel, self.cell_size, batch_first=not self.time_major, 
                                 num_layers=self.rnn_num_layers)
         self.policy = self._build_fcnet(policy_hiddens, policy_activation, with_bn=with_bn,
@@ -64,6 +65,7 @@ class ConvNet(Base):
         if self.use_recurrent:
             self.lstm.train() # HACKY
             # inference lstm
+            inputs = self.pre_lstm_dropout(inputs)
             if self.rnn_num_layers > 1:
                 lstm_feat, [h, c] = self.lstm(inputs, [state[0].permute(1,0,2).contiguous(), state[1].permute(1,0,2).contiguous()])
             else:

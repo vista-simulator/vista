@@ -10,7 +10,7 @@ overtaking-lstm-garage:
     timesteps_total: 1e7 #NOTE 3e6
   ray_resources:
     num_cpus: 40
-    num_gpus: 1
+    num_gpus: 2
   config:
     num_workers: 12
     num_gpus: 0.28
@@ -24,8 +24,13 @@ overtaking-lstm-garage:
                     $DATA_DIR/traces/20210610-220605_lexus_lexus_garage_p2,
                     $DATA_DIR/traces/20210610-221427_lexus_garage_p2_last_two,
                     $DATA_DIR/traces/20210610-222420_lexus_garage_p1_cont,
-                    $DATA_DIR/traces/20210610-222555_lexus_garage_p1_cont2]
+                    $DATA_DIR/traces/20210610-222555_lexus_garage_p1_cont2,
+                    $DATA_DIR/traces/20210611-221519_lexus_garage_p2,
+                    $DATA_DIR/traces/20210611-222321_lexus_garage_p1,
+                    $DATA_DIR/traces/20210611-223030_lexus_garage_p1_cont]
       mesh_dir: $DATA_DIR/carpack01/
+      rendering_config:
+        use_lighting: false
       init_agent_range: [8, 15]
       init_lat_shift_range: [1.5, 2.0]
       collision_overlap_threshold: 0.05
@@ -34,7 +39,7 @@ overtaking-lstm-garage:
       task_mode: episodic
       motion_model: constant_speed # motion model for other non-controllable agents
       constant_speed_range: [0., 0.]
-      ego_constant_speed_range: [3., 6.]
+      ego_constant_speed_range: [1.5, 2.5]
       curv_reset_mode: segment_start
       dilate_ref_agent: [1.0, 0.4]
       with_velocity: false
@@ -46,6 +51,8 @@ overtaking-lstm-garage:
           fy: 1
           random_gamma: [0.5, 1.5]
           color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
+          standardize: true
+          randomize_at_episode: true
         BasicManeuverReward:
           center_coeff: 0.001
           jitter_coeff: 0.001

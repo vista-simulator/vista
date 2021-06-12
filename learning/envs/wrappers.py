@@ -248,31 +248,33 @@ class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
         self._env.close() # to avoid max recursion in __del__
 
 
-class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
+class PreprocessObservation(gym.Wrapper, MultiAgentEnv):
     def __init__(self, env, fx=1.0, fy=1.0, custom_roi_crop=None, standardize=False, 
-                 imagenet_normalize=False, random_gamma=None, color_jitter=None):
+                 imagenet_normalize=False, random_gamma=None, color_jitter=None,
+                 randomize_at_episode=False):
         super(PreprocessObservation, self).__init__(env)
         self.fx, self.fy = fx, fy
         self.standardize = standardize
         self.imagenet_normalize = imagenet_normalize
         self.random_gamma = random_gamma
         self.color_jitter = color_jitter
+        self.randomize_at_episode = randomize_at_episode
         if self.random_gamma is not None:
             assert len(random_gamma) == 2, 'Random gamma requires 2 params: min_gamma and max_gamma'
         if self.color_jitter is not None:
             assert len(color_jitter) == 4, 'Color jitter requires 4 params: brightness / contrast / saturation / hue'
-            self.color_jitter = torchvision.transforms.ColorJitter(
-                brightness=color_jitter[0],
-                contrast=color_jitter[1],
-                saturation=color_jitter[2],
-                hue=color_jitter[3]
-            )
+            # self.color_jitter = torchvision.transforms.ColorJitter(
+            #     brightness=color_jitter[0],
+            #     contrast=color_jitter[1],
+            #     saturation=color_jitter[2],
+            #     hue=color_jitter[3]
+            # )
         self.roi = env.world.agents[0].sensors[0].camera.get_roi() \
             if custom_roi_crop is None else custom_roi_crop # NOTE: use sensor config from the first agent
         (i1, j1, i2, j2) = self.roi
         new_h, new_w = int(np.round((i2 - i1) * self.fy)), int(np.round((j2 - j1) * self.fx))
         if self.standardize or self.imagenet_normalize:
-            low, high, dtype = -10., 10., np.float
+            low, high, dtype = -100., 100., np.float
         else:
             low, high, dtype = 0, 255, np.uint8
         cropped_obs_space = gym.spaces.Box(
@@ -289,8 +291,28 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             ])
         else:
             self.observation_space = cropped_obs_space
+
+    def reset(self, **kwargs):
+        # regular reset
+        observation = super().reset(**kwargs)
+        # sample episode-level data aug
+        if self.randomize_at_episode:
+            if self.random_gamma:
+                self.episode_gamma = np.random.uniform(*self.random_gamma)
+            if self.color_jitter is not None:
+                self.episode_brightness = np.random.uniform(1.-self.color_jitter[0], 1.+self.color_jitter[0])
+                self.episode_contrast = np.random.uniform(1.-self.color_jitter[1], 1.+self.color_jitter[1])
+                self.episode_saturation = np.random.uniform(1.-self.color_jitter[2], 1.+self.color_jitter[2])
+                self.episode_hue = np.random.uniform(-self.color_jitter[3], +self.color_jitter[3])
+        observation = self.pp_observation(observation)
+        return observation
+
+    def step(self, action):
+        observation, reward, done, info = super().step(action)
+        observation = self.pp_observation(observation)
+        return observation, reward, done, info
     
-    def observation(self, observation):
+    def pp_observation(self, observation):
         (i1, j1, i2, j2) = self.roi
         if isinstance(observation, dict):
             out = dict()
@@ -298,10 +320,15 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
                 obs = v[0] if isinstance(v, list) else v
                 pp_obs = Image.fromarray(obs[:,:,::-1]) # PIL follows RGB
                 if self.random_gamma:
-                    gamma = np.random.uniform(*self.random_gamma)
-                    pp_obs = torchvision.transforms.functional.adjust_gamma(pp_obs, gamma)
+                    # gamma = np.random.uniform(*self.random_gamma)
+                    # pp_obs = torchvision.transforms.functional.adjust_gamma(pp_obs, gamma)
+                    pp_obs = self._adjust_gamma(pp_obs)
                 if self.color_jitter is not None:
-                    pp_obs = self.color_jitter(pp_obs)
+                    # pp_obs = self.color_jitter(pp_obs)
+                    pp_obs = self._adjust_brightness(pp_obs)
+                    pp_obs = self._adjust_contrast(pp_obs)
+                    pp_obs = self._adjust_saturation(pp_obs)
+                    pp_obs = self._adjust_hue(pp_obs)
                 pp_obs = np.array(pp_obs)[:,:,::-1]
 
                 pp_obs = cv2.resize(pp_obs[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
@@ -323,6 +350,49 @@ class PreprocessObservation(gym.ObservationWrapper, MultiAgentEnv):
             raise NotImplementedError
             out = cv2.resize(observation[i1:i2, j1:j2], None, fx=self.fx, fy=self.fy)
         return out
+
+    def _adjust_hue(self, x):
+        if self.randomize_at_episode:
+            factor = self.episode_hue
+        else:
+            low = -self.color_jitter[3] # NOTE: hue factor range from -0.5 to 0.5
+            high = self.color_jitter[3]
+            factor = np.random.uniform(low, high)
+        return torchvision.transforms.functional.adjust_hue(x, factor)
+
+    def _adjust_saturation(self, x):
+        if self.randomize_at_episode:
+            factor = self.episode_saturation
+        else:
+            low = 1. - self.color_jitter[2]
+            high = 1. + self.color_jitter[2]
+            factor = np.random.uniform(low, high)
+        return torchvision.transforms.functional.adjust_saturation(x, factor)
+
+    def _adjust_contrast(self, x):
+        if self.randomize_at_episode:
+            factor = self.episode_contrast
+        else:
+            low = 1. - self.color_jitter[1]
+            high = 1. + self.color_jitter[1]
+            factor = np.random.uniform(low, high)
+        return torchvision.transforms.functional.adjust_contrast(x, factor)
+
+    def _adjust_brightness(self, x):
+        if self.randomize_at_episode:
+            factor = self.episode_brightness
+        else:
+            low = 1. - self.color_jitter[0]
+            high = 1. + self.color_jitter[0]
+            factor = np.random.uniform(low, high)
+        return torchvision.transforms.functional.adjust_brightness(x, factor)
+
+    def _adjust_gamma(self, x):
+        if self.randomize_at_episode:
+            factor = self.episode_gamma
+        else:
+            factor = np.random.uniform(*self.random_gamma)
+        return torchvision.transforms.functional.adjust_gamma(x, factor)
 
     def _imagenet_normalize(self, x):
         assert x.dtype == np.uint8

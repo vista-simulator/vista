@@ -92,7 +92,8 @@ class Overtaking(BaseEnv, MultiAgentEnv):
         passed = [self.check_agent_pass_other(self.ref_agent, _a) for _a in other_agents]
         if self.task_mode == 'episodic': # success when passed all cars and back to lane center
             in_lane_center = self.check_agent_in_lane_center(self.ref_agent)
-            good_terminal_cond = self.get_agent_dist_diff(self.ref_agent, other_agents[0]) > 10
+            good_terminal_cond = self.get_agent_dist_diff(self.ref_agent, other_agents[0]) > 10 or \
+                (self.get_agent_dist_diff(self.ref_agent, other_agents[0]) > 5 and self.ref_agent.trace_done)
             if good_terminal_cond: # already pass
                 if in_lane_center:
                     reward[self.ref_agent_id] = 2
@@ -204,18 +205,21 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # initialize simulator
-    env = Overtaking(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[6,10],
-        with_velocity=args.with_velocity, target_velocity=args.target_velocity)
+    env = Overtaking(args.trace_paths, args.mesh_dir, args.task_mode, init_agent_range=[8,5],
+        with_velocity=args.with_velocity, target_velocity=args.target_velocity, 
+        curv_reset_mode='segment_start', init_lat_shift_range=[1.5,2.0],
+        collision_overlap_threshold=0.5, soft_collision_ub=0.05,
+        soft_collision=0.01, dilate_ref_agent=[1.0,0.4], rendering_config={'use_lighting': True})
     if args.preprocess:
         from .wrappers import PreprocessObservation
-        env = PreprocessObservation(env)
-    from .wrappers import BasicManeuverReward # DEBUG
-    env = BasicManeuverReward(env, inherit_reward=True) # DEBUG
+        env = PreprocessObservation(env, standardize=False, color_jitter=[0.5,0.7,0.5,0.0], randomize_at_episode=True)
+    from .wrappers import BasicManeuverReward
+    env = BasicManeuverReward(env, center_coeff=0.001, jitter_coeff=0.001, inherit_reward=True)
     tmp_dir = os.path.join(os.environ['TMPDIR'], 'monitor')
     env = MultiAgentMonitor(env, tmp_dir, video_callable=lambda x: True, force=True)
 
     # run
-    for ep in range(1):
+    for ep in range(10):
         done = False
         obs = env.reset()
         ep_rew = 0
@@ -223,7 +227,7 @@ if __name__ == "__main__":
         while not done:
             act = dict()
             for _i, k in enumerate(env.agent_ids):
-                if True: # follow human trajectory
+                if False: # follow human trajectory
                     ts = env.world.agents[_i].get_current_timestamp()
                     act[k] = env.world.agents[_i].trace.f_curvature(ts)
                 else: # random action

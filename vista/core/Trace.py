@@ -1,5 +1,6 @@
 import numpy as np
 import os
+from numpy.testing._private.nosetester import _numpy_tester
 from scipy.interpolate import interp1d
 
 from ..util import MultiFrame, LabelSearch, TopicNames, \
@@ -122,8 +123,13 @@ class Trace:
             curv_reset_probs = np.ones((n_timestamps,)) / n_timestamps
         elif self.reset_mode == 'segment_start':
             n_timestamps = len(self.syncedLabeledTimestamps[segment_index])
-            curv_reset_probs = np.exp(np.cumsum(0.05 * np.ones((n_timestamps,)))[::-1])
-            curv_reset_probs = curv_reset_probs / curv_reset_probs.sum()
+            if True: # sample first N%
+                first_n_percent = int(0.4 * n_timestamps)
+                curv_reset_probs = np.zeros((n_timestamps,))
+                curv_reset_probs[:first_n_percent] = 1. / first_n_percent
+            else: # only sample start
+                curv_reset_probs = np.exp(np.cumsum(0.05 * np.ones((n_timestamps,)))[::-1])
+                curv_reset_probs = curv_reset_probs / curv_reset_probs.sum()
         else:
             raise NotImplementedError('Unrecognized curve reset mode {}'.format(self.reset_mode))
 
