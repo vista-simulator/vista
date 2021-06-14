@@ -12,9 +12,9 @@ overtaking-lstm:
     num_cpus: 40
     num_gpus: 1
   config:
-    num_workers: 12
-    num_gpus: 0.28
-    num_gpus_per_worker: 0.06
+    num_workers: 16
+    num_gpus: 0.2
+    num_gpus_per_worker: 0.05
     framework: torch
     # environment
     env_config:
@@ -28,7 +28,13 @@ overtaking-lstm:
                     $DATA_DIR/traces/20210609-155238_lexus_devens_outerloop,
                     $DATA_DIR/traces/20210609-155752_lexus_devens_subroad,
                     $DATA_DIR/traces/20210609-175037_lexus_devens_outerloop_reverse,
-                    $DATA_DIR/traces/20210609-175503_lexus_devens_outerloop]
+                    $DATA_DIR/traces/20210609-175503_lexus_devens_outerloop,
+                    $DATA_DIR/traces/20210613-171636_lexus_devens_outerloop,
+                    $DATA_DIR/traces/20210613-172102_lexus_devens_outerloop_reverse,
+                    $DATA_DIR/traces/20210613-193120_lexus_devens_outerloop,
+                    $DATA_DIR/traces/20210613-193528_lexus_devens_outerloop_reverse,
+                    $DATA_DIR/traces/20210613-194157_lexus_devens_subroad,
+                    $DATA_DIR/traces/20210613-194324_lexus_devens_subroad_reverse]
       mesh_dir: $DATA_DIR/carpack01/
       rendering_config:
         use_lighting: false
@@ -40,11 +46,11 @@ overtaking-lstm:
       task_mode: episodic
       motion_model: constant_speed # motion model for other non-controllable agents
       constant_speed_range: [0., 4.]
-      ego_constant_speed_range: [4., 10.]
+      # ego_constant_speed_range: [4., 10.]
       curv_reset_mode: default
       dilate_ref_agent: [1.0, 0.4]
       with_velocity: false
-      free_width_mul: 0.5 # effective road width = 4
+      free_width_mul: 0.75 # effective road width = 5
       wrappers: [PreprocessObservation, BasicManeuverReward]
       wrappers_config:
         PreprocessObservation:
@@ -56,7 +62,7 @@ overtaking-lstm:
           randomize_at_episode: true
         BasicManeuverReward:
           center_coeff: 0.001
-          jitter_coeff: 0.001
+          jitter_coeff: 0.0
           inherit_reward: true
     observation_filter: NoFilter
     callbacks: BasicCallbacks
@@ -89,6 +95,7 @@ overtaking-lstm:
       vf_share_layers: true
       lstm_cell_size: 64
       max_seq_len: 20
+      post_lstm_dropout: true # NOTE check this
       custom_model: ConvNet
       conv_filters: [
         [3, 24, 5, 2, 2],
@@ -106,7 +113,7 @@ overtaking-lstm:
         with_bn: true
         policy_hiddens: [64, 2]
         policy_activation: relu
-        policy_dropout: 0.0
+        policy_dropout: 0.3
         value_fcnet_hiddens: [64, 1]
         value_fcnet_activation: relu
         value_fcnet_dropout: 0.0 

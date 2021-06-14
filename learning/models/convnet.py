@@ -29,6 +29,7 @@ class ConvNet(Base):
                  policy_activation=None,
                  policy_dropout=0.,
                  auto_append_policy_hiddens=False,
+                 post_lstm_dropout=False,
                  **kwargs):
         assert use_cnn, 'ConvNet must have use_cnn = True'
         nn.Module.__init__(self)
@@ -58,6 +59,8 @@ class ConvNet(Base):
             self.pre_lstm_dropout = nn.Dropout(policy_dropout)
             self.lstm = nn.LSTM(self.feat_channel, self.cell_size, batch_first=not self.time_major, 
                                 num_layers=self.rnn_num_layers)
+            if post_lstm_dropout:
+                self.post_lstm_dropout = nn.Dropout(policy_dropout)
         self.policy = self._build_fcnet(policy_hiddens, policy_activation, with_bn=with_bn,
                                         dropout=policy_dropout, no_last_act=True)
 
@@ -71,6 +74,8 @@ class ConvNet(Base):
             else:
                 lstm_feat, [h, c] = self.lstm(inputs, [torch.unsqueeze(state[0], 0), torch.unsqueeze(state[1], 0)])
             state = [torch.squeeze(h, 0), torch.squeeze(c, 0)]
+            if hasattr(self, 'post_lstm_dropout'):
+                lstm_feat = self.post_lstm_dropout(lstm_feat)
             out = self.policy(lstm_feat)
             # update value function input
             self.value_inp = lstm_feat
