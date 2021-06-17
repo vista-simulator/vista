@@ -19,16 +19,17 @@ DEFAULT_RENDERING_CONFIG = {
         'y': 0.,
         'theta': 0.
     },
-    'use_lighting': False,
+    'use_lighting': True, #False,
     'lighting_dr': False,
     'ambient_light_factor': 0.2,
     'recoloring_factor': 0.5,
-    'harmonization': False,
+    'harmonization': True, #False,
     'harmonization_config': {
         'model': ['deeplab_r34_idih256', 'hrnet18_idih256', 'hrnet18s_idih256',
                   'hrnet18_v2p_idih256', 'hrnet32_idih256', 'improved_dih256',
-                  'improved_ssam256'][1],
-        'ckpt': '~/workspace/misc/image_harmonization/ckpt/hrnet18_idih256.pth',
+                  'improved_ssam256'][6],#[1],
+        # 'ckpt': '~/workspace/misc/image_harmonization/ckpt/hrnet18_idih256.pth',
+        'ckpt': '~/workspace/misc/image_harmonization/ckpt/improved_ssam256.pth',
         'resize': 512,
     }
 }
@@ -223,6 +224,9 @@ class ViewSynthesis:
 
                 if self.rendering_config['harmonization_config']['resize'] > 0:
                     color = cv2.resize(color, ori_shape[::-1], interpolation=cv2.INTER_LANCZOS4)
+
+            cv2.imwrite('test.png', color)
+            import pdb; pdb.set_trace() # DEBUG
         else:
             # Add other agents to the scene
             for other_agent in other_agents:
