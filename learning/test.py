@@ -133,6 +133,23 @@ def main():
     else:
         eval_config = config
 
+    # Handle environment variable
+    path_keys = ['env_config:trace_paths', 'env_config:mesh_dir']
+    for k in path_keys:
+        try:
+            paths = misc.get_dict_value_by_str(config, k)
+            is_list = isinstance(paths, list)
+            paths = [paths] if not is_list else paths
+            for i, path in enumerate(paths):
+                path = [os.environ[_v[1:]] if _v.startswith('$') else _v for _v in path.split('/')]
+                path = os.path.abspath(os.path.expanduser(os.path.join(*path)))
+                paths[i] = path
+            paths = paths if is_list else paths[0]
+            misc.set_dict_value_by_str(config, k, paths)
+        except KeyError:
+            pass
+    eval_config = config
+
     # Register custom model
     misc.register_custom_env(config['env'])
     misc.register_custom_model(config['model'])

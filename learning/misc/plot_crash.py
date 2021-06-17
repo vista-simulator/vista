@@ -59,16 +59,18 @@ def main():
         colors = [np.array(list(c) + [0.3]) for c in colors]
         colors = list(map(rgba2rgb, colors))
 
-    ref_alpha = 0.03
+    ref_alpha = 0.15 # 0.03
     traj_alpha = 0.1
     ego_color = colors[1] + [ref_alpha]
-    other_color = colors[0] + [max(ref_alpha / n_episodes, 0.002)]
+    other_color = colors[0] + [max(ref_alpha / n_episodes, 0.02)]
 
     # plot
     fig, ax = plt.subplots(1, 1)
-    ax.set_title('Trajectories and the last step of ego-car in crashes')
-    ax.set_xlim(-6., 6.)
-    ax.set_ylim(-8., 8.)
+    ax.set_title('Traces Of Ego-Car In Crashes')
+    ax.set_xlim(-12., 12.)
+    ax.set_ylim(-16., 8.)
+    ax.set_xticks([])
+    ax.set_yticks([])
     ego_car_dim = (5, 2) # length, width
     for ep_data in data:
         # plot last step
