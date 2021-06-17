@@ -36,7 +36,7 @@ class World:
         # Reset favoring places with higher curvatures
         new_frame_index = trace.find_curvature_reset(curv_reset_probs)
 
-        new_frame_index = 210 # DEBUG
+        new_frame_index = 220 # DEBUG
 
         return new_trace_index, current_segment_index, new_frame_index
 

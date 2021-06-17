@@ -209,7 +209,7 @@ if __name__ == "__main__":
         with_velocity=args.with_velocity, target_velocity=args.target_velocity, 
         curv_reset_mode='segment_start', init_lat_shift_range=[1.5,2.0],
         collision_overlap_threshold=0.5, soft_collision_ub=0.05,
-        soft_collision=0.01, dilate_ref_agent=[1.0,0.4], rendering_config={'use_lighting': True})
+        soft_collision=0.01, dilate_ref_agent=[1.0,0.4])# DEBUG, rendering_config={'use_lighting': False})
     if args.preprocess:
         from .wrappers import PreprocessObservation
         env = PreprocessObservation(env, standardize=False, color_jitter=[0.5,0.7,0.5,0.0], randomize_at_episode=True)

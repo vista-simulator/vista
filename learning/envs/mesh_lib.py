@@ -222,9 +222,9 @@ def main():
         mesh_lib.reset(mesh_lib.n_meshes, random=False)
         all_colors.append([])
         for i in range(mesh_lib.n_meshes):
-            trans = [-0.5, 0.8, 3.5]
-            rot = np.array([0, 1, 0, np.deg2rad(30)])
-            rot = rot / np.linalg.norm(rot)
+            trans = [0.5, -0.6, 3.2]
+            theta = np.deg2rad(50)
+            rot = np.array([0, np.sin(theta/2.), 0, np.cos(theta/2.)])
             mesh_node = mesh_lib.get_mesh_node(i, trans, rot)
             scene.add_node(mesh_node)
 
@@ -241,8 +241,12 @@ def main():
 
             scene.remove_node(mesh_node)
     
-    row_imgs = [np.concatenate(vl, axis=0) for vl in all_colors]
-    merged_img = np.concatenate(row_imgs, axis=1)
+    if False: # row image
+        row_imgs = [np.concatenate(vl, axis=0) for vl in all_colors]
+        merged_img = np.concatenate(row_imgs, axis=1)
+    else:
+        row_imgs = [np.concatenate(vl, axis=1) for vl in all_colors]
+        merged_img = np.concatenate(row_imgs, axis=0)
     if args.dump_merged:
         fpath = os.path.join(args.out_dir, 'merged.png')
         cv2.imwrite(fpath, merged_img)

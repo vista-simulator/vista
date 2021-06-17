@@ -315,7 +315,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
             init_lat_shift_range = self.init_lat_shift_range
         lat_shift = np.random.choice([-1, 1]) * np.random.uniform(*init_lat_shift_range)
 
-        dist = 8 # DEBUG
+        dist = 6 # DEBUG
         lat_shift = 0.8 # DEBUG
 
         # place agent

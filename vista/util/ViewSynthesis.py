@@ -224,9 +224,6 @@ class ViewSynthesis:
 
                 if self.rendering_config['harmonization_config']['resize'] > 0:
                     color = cv2.resize(color, ori_shape[::-1], interpolation=cv2.INTER_LANCZOS4)
-
-            cv2.imwrite('test.png', color)
-            import pdb; pdb.set_trace() # DEBUG
         else:
             # Add other agents to the scene
             for other_agent in other_agents:
@@ -235,6 +232,10 @@ class ViewSynthesis:
             # Render
             color, depth = self.renderer.render(
                 self.scene, flags=pyrender.constants.RenderFlags.FLAT)
+
+        cv2.imwrite('test.png', color)
+        import pdb; pdb.set_trace() # DEBUG
+        
         return color, depth
 
     def _get_homogeneous_image_coords(self, camera, get_mesh=False):
