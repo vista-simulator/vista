@@ -19,17 +19,16 @@ DEFAULT_RENDERING_CONFIG = {
         'y': 0.,
         'theta': 0.
     },
-    'use_lighting': True, #False,
+    'use_lighting': False,
     'lighting_dr': False,
     'ambient_light_factor': 0.2,
     'recoloring_factor': 0.5,
-    'harmonization': True, #False,
+    'harmonization': False,
     'harmonization_config': {
         'model': ['deeplab_r34_idih256', 'hrnet18_idih256', 'hrnet18s_idih256',
                   'hrnet18_v2p_idih256', 'hrnet32_idih256', 'improved_dih256',
-                  'improved_ssam256'][6],#[1],
-        # 'ckpt': '~/workspace/misc/image_harmonization/ckpt/hrnet18_idih256.pth',
-        'ckpt': '~/workspace/misc/image_harmonization/ckpt/improved_ssam256.pth',
+                  'improved_ssam256'][1],
+        'ckpt': '~/workspace/misc/image_harmonization/ckpt/hrnet18_idih256.pth',
         'resize': 512,
     }
 }
@@ -232,9 +231,6 @@ class ViewSynthesis:
             # Render
             color, depth = self.renderer.render(
                 self.scene, flags=pyrender.constants.RenderFlags.FLAT)
-
-        cv2.imwrite('test.png', color)
-        import pdb; pdb.set_trace() # DEBUG
         
         return color, depth
 

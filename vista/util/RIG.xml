@@ -32,24 +32,6 @@
         <PROPERTY Name="roi_angle" Hint="angle of ROI" Value="0"/>
      </CAMERA>
 
-     <CAMERA Name="camera_front" Type="gmsl">
-        <PROPERTY Name="Model" Value="pinhole"/>
-        <PROPERTY Name="Quaternion" Value="0 0 -0.035265025029250387 0.9996807883070832"/>
-        <PROPERTY Name="Position" Value="0 1.6 0"/>
-        <PROPERTY Name="Yaw" Value="0.05"/>
-        <PROPERTY Name="params" Value=""/>
-        <PROPERTY Name="width" Hint="intrinsic" Value="1920"/>
-        <PROPERTY Name="height" Hint="intrinsic" Value="1208"/>
-        <PROPERTY Name="distortion" Hint="intrinsic" Value="-0.29318516 0.06609604 -0.00103823 -0.0016309 0."/>
-        <PROPERTY Name="cx" Hint="intrinsic" Value="982.06345972"/>
-        <PROPERTY Name="cy" Hint="intrinsic" Value="617.04862261"/>
-        <PROPERTY Name="fx" Hint="intrinsic" Value="942.21001829"/>
-        <PROPERTY Name="fy" Hint="intrinsic" Value="942.91483399"/>
-        <PROPERTY Name="roi" Hint="region_of_interest" Value="590 520 950 1440"/>
-        <!-- <PROPERTY Name="roi" Hint="region_of_interest" Value="590 320 950 1640"/> -->
-        <PROPERTY Name="roi_angle" Hint="angle of ROI" Value="0"/>
-     </CAMERA>
-
      <CAMERA Name="camera_wing_left" Type="gmsl">
         <PROPERTY Name="Model" Value="pinhole"/>
         <PROPERTY Name="Quaternion" Value="0 0 0 1"/>
