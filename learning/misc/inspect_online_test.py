@@ -20,11 +20,16 @@ import pandas as pd
 SYNCED_BAGS = True
 DROP_AFTER_INTERVENTION = False
 ADD_POLYGON = True
-CALIBRATE_VIEW = True
+CALIBRATE_VIEW = False
 ADD_ROAD = True
 ROAD_HALF_WIDTH = 3.5
 LEXUS_SIZE = (5, 2.0) #(5, 1.9)
 BLUE_PRIUS_SIZE = (4.5, 2.0) #(4.5, 1.8)
+
+max_mul = 1.05
+min_mul = 0.4
+marker_size = 4
+legend_size = 20
 
 
 class MplColorHelper:
@@ -166,8 +171,10 @@ gps_blue_prius[:,1:] = np.matmul(gps_blue_prius[:,1:], rot_mat.T)
 if ADD_ROAD:
     gps_ref = np.matmul(gps_ref, rot_mat.T)
 
-cm_lexus = MplColorHelper('Greens', gps_lexus[0,0], gps_lexus[-1,0])
-cm_blue_prius = MplColorHelper('Blues', gps_blue_prius[0,0], gps_blue_prius[-1,0])
+gps_lexus_time_range = gps_lexus[-1,0] - gps_lexus[0,0]
+gps_blue_prius_time_range = gps_blue_prius[-1,0] - gps_blue_prius[0,0]
+cm_lexus = MplColorHelper('Greens', gps_lexus[0,0]+gps_lexus_time_range*min_mul, gps_lexus[-1,0]+gps_lexus_time_range*max_mul)
+cm_blue_prius = MplColorHelper('Oranges', gps_blue_prius[0,0]+gps_blue_prius_time_range*min_mul, gps_blue_prius[-1,0]+gps_blue_prius_time_range*max_mul)
 color_lexus = [cm_lexus.get_rgb(v) for v in gps_lexus[:,0]]
 color_blue_prius = [cm_blue_prius.get_rgb(v) for v in gps_blue_prius[:,0]]
 
@@ -175,14 +182,14 @@ fig, ax = plt.subplots(1, 1)
 if CALIBRATE_VIEW:
     vmin = gps_lexus[:,1:].min() * 1.3
     vmax = gps_lexus[:,1:].max() * 1.4
-    v_half_range = (vmax - vmin) / 2.
+    v_half_range = (vmax - vmin) / 2. / 2.
     ax.set_xlim(-v_half_range, v_half_range)
     ax.set_ylim(vmin, vmax)
 else:
     vmin = gps_lexus[:,1:].min(axis=0)
     vmax = gps_lexus[:,1:].max(axis=0)
-    lim_min = vmin.min() * 1.3
-    lim_max = vmax.max() * 1.3
+    lim_min = vmin.min() * 1.1 #1.3
+    lim_max = vmax.max() * 1.1 #1.3
     ax.set_xlim(lim_min, lim_max)
     ax.set_ylim(lim_min, lim_max)
 if ADD_POLYGON:
@@ -201,14 +208,17 @@ if ADD_ROAD:
 # ax.set_title('Turn signal activated = {}'.format(check_turn_signal(data_lexus)))
 ax.set_xticks([])
 ax.set_yticks([])
-ax.scatter(gps_lexus[:,1], gps_lexus[:,2], c=color_lexus, s=1, label='lexus')
-ax.scatter(gps_blue_prius[:,1], gps_blue_prius[:,2], c=color_blue_prius, s=1, label='blue prius')
+ax.scatter(gps_lexus[:,1], gps_lexus[:,2], c=color_lexus, s=marker_size, label='lexus')
+ax.scatter(gps_blue_prius[:,1], gps_blue_prius[:,2], c=color_blue_prius, s=marker_size, label='blue prius')
 ax.scatter(intervention_x, intervention_y, c='r', label='intervention')
-plt.legend(handles=[mpatches.Patch(color=color_lexus[-1], label='Ego-car'),
-                    mpatches.Patch(color=color_blue_prius[-1], label='Front Car'),
-                    mpatches.Circle((0.5,0.5), radius=0.25, color='r', label='Intervention')],
-           handler_map={mpatches.Circle: HandlerEllipse()})
+if False:
+    plt.legend(handles=[mpatches.Patch(color=color_lexus[-1], label='Ego Car'),
+                        mpatches.Patch(color=color_blue_prius[-1], label='Front Car'),
+                        mpatches.Circle((0.5,0.5), radius=0.25, color='r', label='Intervention')][:2],
+            handler_map={mpatches.Circle: HandlerEllipse()}, 
+            fontsize=legend_size, loc='upper left')
 fig.tight_layout()
 fig.canvas.draw()
 fig.savefig('test.png')
+fig.savefig('qual_ex3.pdf')
 

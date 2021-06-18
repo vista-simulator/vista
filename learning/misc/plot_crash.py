@@ -8,6 +8,8 @@ from shapely.geometry import box as Box
 from shapely import affinity
 from descartes import PolygonPatch
 
+from simple_metrics import append_poly_info, overwrite_with_new_overlap_threshold
+
 
 def main():
     # parse argument
@@ -26,13 +28,44 @@ def main():
         type=int,
         default=100,
         help='Maximal number of episodes to be plotted.')
+    parser.add_argument(
+        '--exclude',
+        type=str,
+        nargs='+',
+        default=['trace_done'],
+        help='Exclude episodes with certain terminal condition.')
+    parser.add_argument(
+        '--threshold',
+        type=float,
+        default=None,
+        help='New overlap threshold for overwriting results.')
+    parser.add_argument(
+        '--dilate',
+        type=float,
+        nargs='+',
+        default=[0., 0.],
+        help='Dilation of the ego-car.')
     args = parser.parse_args()
+
+    if args.dilate != [0., 0.] and args.threshold is None:
+        raise ValueError('Should set threshold if using dilation, otherwise the results won\'t be updated')
 
     # load data and only keep episodes that end with crash
     print('')
     print('Load from {}'.format(args.rollout_path))
     with open(args.rollout_path, 'rb') as f:
         data = pickle.load(f)
+
+    append_poly_info(data, args.dilate)
+    overwrite_with_new_overlap_threshold(data, args.threshold)
+
+    new_data = []
+    for ep_data in data:
+        last_step = ep_data[-1]
+        info = last_step[-1]
+        if not np.any([info[args.agent_id][v] for v in args.exclude]):
+            new_data.append(ep_data)
+    data = new_data
 
     new_data = []
     for ep_data in data:
@@ -51,7 +84,7 @@ def main():
     print('epsiode_len: {}'.format(episode_len))
 
     # generate color library
-    colors = list(cm.get_cmap('Set1').colors)
+    colors = list(cm.get_cmap('Set2').colors)
     if True:
         colors = [list(c) for c in colors]
     else:
@@ -59,22 +92,25 @@ def main():
         colors = [np.array(list(c) + [0.3]) for c in colors]
         colors = list(map(rgba2rgb, colors))
 
-    ref_alpha = 0.15 # 0.03
+    ref_alpha = 0.04 # 0.03
     traj_alpha = 0.1
-    ego_color = colors[1] + [ref_alpha]
-    other_color = colors[0] + [max(ref_alpha / n_episodes, 0.02)]
+    ego_color = colors[0] + [ref_alpha]
+    other_color = colors[1] + [max(ref_alpha / n_episodes, 0.02)] # 0.002
 
     # plot
-    fig, ax = plt.subplots(1, 1)
-    ax.set_title('Traces Of Ego-Car In Crashes')
-    ax.set_xlim(-12., 12.)
+    fig, ax = plt.subplots(1, 1, figsize=(6,10))
+    ax.set_title('Relative Trajectories\nIn Crashes', fontsize=40)
+    fig.subplots_adjust(left=0.025, bottom=0.0, right=0.975, top=0.876, wspace=0.2, hspace=0.2)
+    ax.set_xlim(-6., 6.)
     ax.set_ylim(-16., 8.)
     ax.set_xticks([])
     ax.set_yticks([])
+    ax.axis('off')
     ego_car_dim = (5, 2) # length, width
     for ep_data in data:
         # plot last step
-        last_step = ep_data[-1]
+        last_step_idx = np.min([_i for _i, _v in enumerate(ep_data) if _v[-1][args.agent_id]['overlap_ratio'] > args.threshold])
+        last_step = ep_data[last_step_idx]
         agent_info = last_step[-1][args.agent_id]
         
         ego_poly = get_poly(agent_info['pose_wrt_others'], ego_car_dim)
@@ -87,12 +123,16 @@ def main():
         ax.add_patch(other_patch)
 
         # plot traj
-        all_pose = np.array([step[-1][args.agent_id]['pose_wrt_others'] for step in ep_data])
+        all_pose = np.array([step[-1][args.agent_id]['pose_wrt_others'] for step in ep_data[:last_step_idx]])
         ax.plot(all_pose[:,0], all_pose[:,1], c=ego_color[:3]+[traj_alpha])
-    plt.legend(handles=[mpatches.Patch(color=ego_color[:3]+[0.3], label='ego car'),
-                        mpatches.Patch(color=other_color[:3]+[0.3], label='front car')])
+    ax.legend(handles=[mpatches.Patch(color=ego_color[:3]+[0.3], label='Ego Car'),
+                        mpatches.Patch(color=other_color[:3]+[0.3], label='Front Car')],
+              fontsize=34, loc='lower left')
+    fig.tight_layout()
     # plt.show()
     fig.savefig('test.png') # DEBUG
+    # fig.savefig('crash_traj.pdf')
+    import pdb; pdb.set_trace()
 
 
 def get_poly(pose, car_dim):

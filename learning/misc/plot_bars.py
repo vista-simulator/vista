@@ -5,6 +5,8 @@ import pickle5 as pickle
 import matplotlib.pyplot as plt
 from shapely.geometry import box as Box
 from shapely import affinity
+import seaborn as sns
+sns.set(style='white')
 
 from simple_metrics import collect_last_step_info, collect_all_info, append_poly_info, overwrite_with_new_overlap_threshold
 
@@ -84,27 +86,40 @@ def main():
     per_bin_max_dev_at_init = per_bin_max_dev_at_init[::-1]
 
     # plot
-    fig, ax = plt.subplots(1, 1)
+    fig, axes = plt.subplots(1, 2, figsize=(20,6))
+    fig.subplots_adjust(left=0.06, bottom=0.092, right=0.991, top=0.97, wspace=0.24, hspace=0.2)
     bw = 0.25
+    label_size = 22
+    ticklabel_size = 20
+    number_ticklabel_size = 16
+    legend_size = 18
     x = np.arange(n_bins) + 1
 
-    # ax.bar(x-bw, per_bin_crash_rate_at_curv, width=bw, color='b', align='center', label='Road Curvature')
-    # ax.bar(x, per_bin_crash_rate_at_velo, width=bw, color='g', align='center', label='Front Car Speed')
-    # ax.bar(x+bw, per_bin_crash_rate_at_init, width=bw, color='r', align='center', label='Initial Condition')
-    # ax.set_xticks(x)
-    # ax.set_xticklabels(xticklabels)
-    # ax.set_ylabel('Crash Rate')
-    # plt.legend()
-
-    ax.bar(x-bw, per_bin_max_dev_at_curv, width=bw, color='b', align='center', label='Road Curvature')
-    ax.bar(x, per_bin_max_dev_at_velo, width=bw, color='g', align='center', label='Front Car Speed')
-    ax.bar(x+bw, per_bin_max_dev_at_init, width=bw, color='r', align='center', label='Initial Condition')
+    ax = axes[0]
+    ax.bar(x-bw, per_bin_crash_rate_at_curv, width=bw, align='center', label='Road Curvature')
+    ax.bar(x, per_bin_crash_rate_at_velo, width=bw, align='center', label='Front Car Speed')
+    ax.bar(x+bw, per_bin_crash_rate_at_init, width=bw, align='center', label='Initial Condition')
     ax.set_xticks(x)
-    ax.set_xticklabels(xticklabels)
-    ax.set_ylabel('Maximal Deviation')
+    ax.set_xticklabels(xticklabels, fontsize=ticklabel_size)
+    ax.set_ylabel('Intervention', fontsize=label_size)
+    ax.yaxis.set_tick_params(labelsize=number_ticklabel_size)
+    ax.grid(color='grey', alpha=0.5, linestyle='dashed', linewidth=0.5)
+    ax.legend(fontsize=legend_size)
 
-    fig.tight_layout()
+    ax = axes[1]
+    ax.bar(x-bw, per_bin_max_dev_at_curv, width=bw, align='center', label='Road Curvature')
+    ax.bar(x, per_bin_max_dev_at_velo, width=bw, align='center', label='Car Speed')
+    ax.bar(x+bw, per_bin_max_dev_at_init, width=bw, align='center', label='Initial Condition')
+    ax.set_xticks(x)
+    ax.set_xticklabels(xticklabels, fontsize=ticklabel_size)
+    ax.set_ylabel('Maximal Deviation', fontsize=label_size)
+    ax.yaxis.set_tick_params(labelsize=number_ticklabel_size)
+    ax.grid(color='grey', alpha=0.5, linestyle='dashed', linewidth=0.5)
+
+    # fig.tight_layout()
+    fig.savefig('intervention_max_dev_at.pdf')
     fig.savefig('test.png')
+    # plt.show()
     import pdb; pdb.set_trace()
 
 
