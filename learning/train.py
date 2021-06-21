@@ -96,12 +96,16 @@ def main():
 
     # Start ray (earlier to accomodate in-the-env agent)
     args.temp_dir = os.path.abspath(os.path.expanduser(args.temp_dir))
-    ray.init(
-        local_mode=args.local_mode,
-        _temp_dir=args.temp_dir,
-        include_dashboard=False,
-        num_cpus=exp['ray_resources']['num_cpus'],
-        num_gpus=exp['ray_resources']['num_gpus'])
+    ray_init_kwargs = {
+        'local_mode': args.local_mode,
+        '_temp_dir': args.temp_dir,
+        'include_dashboard': False
+    }
+    if 'num_cpus' in exp['ray_resources'].keys():
+        ray_init_kwargs['num_cpus'] = exp['ray_resources']['num_cpus']
+    if 'num_gpus' in exp['ray_resources'].keys():
+        ray_init_kwargs['num_gpus'] = exp['ray_resources']['num_gpus']
+    ray.init(**ray_init_kwargs)
 
     # Set callbacks (should be prior to setting mult-agent attribute)
     policy_manager = PolicyManager(env_creator, exp['config'])

@@ -22,7 +22,7 @@ class BaseEnv(gym.Env, MultiAgentEnv):
         'video.frames_per_second': 10
     }
     drop_obs_space_def = False
-    camera_offset = [0., 1.7653, 0.2] # x, z (camera height = 1.7653), y 
+    camera_offset = [0., 1.7653, 0.42] # x, z (camera height = 1.7653), y 
     camera_rotation = [0., np.deg2rad(5), 0.04] # raw pitch yaw
     standard_car_area = 5 * 2 # car length x car width
 
