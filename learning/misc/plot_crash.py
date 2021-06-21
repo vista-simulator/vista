@@ -99,7 +99,7 @@ def main():
 
     # plot
     fig, ax = plt.subplots(1, 1, figsize=(6,10))
-    ax.set_title('Relative Trajectories\nIn Crashes', fontsize=40)
+    ax.set_title('Relative Trajectories\nWith Intervention', fontsize=40)
     fig.subplots_adjust(left=0.025, bottom=0.0, right=0.975, top=0.876, wspace=0.2, hspace=0.2)
     ax.set_xlim(-6., 6.)
     ax.set_ylim(-16., 8.)

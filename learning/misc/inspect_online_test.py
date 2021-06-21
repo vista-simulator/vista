@@ -23,8 +23,8 @@ ADD_POLYGON = True
 CALIBRATE_VIEW = False
 ADD_ROAD = True
 ROAD_HALF_WIDTH = 3.5
-LEXUS_SIZE = (5, 2.0) #(5, 1.9)
-BLUE_PRIUS_SIZE = (4.5, 2.0) #(4.5, 1.8)
+LEXUS_SIZE = (5, 1.8) #(5, 1.9)
+BLUE_PRIUS_SIZE = (4.5, 1.8) #(4.5, 1.8)
 
 max_mul = 1.05
 min_mul = 0.4
@@ -132,7 +132,12 @@ yaw_blue_prius_f = interp1d(yaw_blue_prius[:,0], yaw_blue_prius[:,1], fill_value
 gps_lexus_fx = interp1d(gps_lexus[:,0], gps_lexus[:,1], fill_value='extrapolate')
 gps_lexus_fy = interp1d(gps_lexus[:,0], gps_lexus[:,2], fill_value='extrapolate')
 intervention = fetch_intervention(data_lexus)
-if DROP_AFTER_INTERVENTION and intervention != []:
+if True:
+    time = 1623804381.8785214 + 1.8
+    gps_lexus = gps_lexus[gps_lexus[:,0]<time]
+    gps_blue_prius = gps_blue_prius[gps_blue_prius[:,0]<time]
+    intervention = []
+elif DROP_AFTER_INTERVENTION and intervention != []:
     gps_lexus = gps_lexus[gps_lexus[:,0]<intervention[0]]
     gps_blue_prius = gps_blue_prius[gps_blue_prius[:,0]<intervention[0]]
     intervention = intervention[0:1]
@@ -210,15 +215,15 @@ ax.set_xticks([])
 ax.set_yticks([])
 ax.scatter(gps_lexus[:,1], gps_lexus[:,2], c=color_lexus, s=marker_size, label='lexus')
 ax.scatter(gps_blue_prius[:,1], gps_blue_prius[:,2], c=color_blue_prius, s=marker_size, label='blue prius')
-ax.scatter(intervention_x, intervention_y, c='r', label='intervention')
-if False:
+ax.scatter(intervention_x, intervention_y, c='firebrick', label='intervention')
+if True:
     plt.legend(handles=[mpatches.Patch(color=color_lexus[-1], label='Ego Car'),
                         mpatches.Patch(color=color_blue_prius[-1], label='Front Car'),
-                        mpatches.Circle((0.5,0.5), radius=0.25, color='r', label='Intervention')][:2],
+                        mpatches.Circle((0.5,0.5), radius=0.25, color='firebrick', label='Intervention')][:2],
             handler_map={mpatches.Circle: HandlerEllipse()}, 
             fontsize=legend_size, loc='upper left')
 fig.tight_layout()
 fig.canvas.draw()
 fig.savefig('test.png')
-fig.savefig('qual_ex3.pdf')
+# fig.savefig('qual_ex3.pdf')
 

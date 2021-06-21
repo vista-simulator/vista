@@ -91,8 +91,10 @@ def main():
                 ts = trace.syncedLabeledTimestamps[segment_idx][frame_idx]
                 trajs[-1].append([f_position_x(ts), f_position_y(ts)])
 
+    args.exclude = []
+
     # ### HACKY
-    if True:
+    if False:
         pre_ts = trace.syncedLabeledTimestamps[0][0]
         pre_trajs = []
         for _ in range(120):
@@ -129,7 +131,7 @@ def main():
     append_poly_info(data, args.dilate)
     overwrite_with_new_overlap_threshold(data, args.threshold)
 
-    if False:
+    if False: # crash rate
         # compute success rate for every frame index
         success_cnt = [[0. for _ in v] for v in trajs]
         failure_cnt = [[0. for _ in v] for v in trajs]
@@ -173,11 +175,10 @@ def main():
         fig.tight_layout()
         # fig.savefig('test.png') # DEBUG
         fig.savefig('intervention_loop.pdf') # DEBUG
-    else:
+    elif False: # deviation from lane center
         # compute max. deviation for every frame index
         max_dev_list = [[[] for _ in v] for v in trajs]
         for ep_data in data:
-            success = ep_data[-1][-1][args.agent_id]['has_collided']
             for step_data in ep_data:
                 info = step_data[-1]
                 segment_idx = info[args.agent_id]['segment_index']
@@ -197,7 +198,7 @@ def main():
         fig, ax = plt.subplots(1, 1)
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.set_title('Maximal Deviation (m)', fontsize=22)
+        ax.set_title('Deviation From Center (m)', fontsize=22)
         # fig.patch.set_visible(False)
         ax.axis('off')
         col = MplColorHelper(args.cmap, 0., 0.7) #np.max([vv for v in max_dev_mean for vv in v]))
@@ -212,6 +213,44 @@ def main():
         fig.tight_layout()
         # fig.savefig('test.png') # DEBUG
         fig.savefig('max_dev_loop.pdf')
+    else: # cara following
+        # compute max. deviation for every frame index
+        max_dev_list = [[[] for _ in v] for v in trajs]
+        for ep_data in data:
+            for step_data in ep_data:
+                info = step_data[-1]
+                segment_idx = info[args.agent_id]['segment_index']
+                frame_idx = info[args.agent_id]['frame_index']
+                max_dev_list[segment_idx][frame_idx].append(np.abs(info[args.agent_id]['following_lat_shift']))
+
+        max_dev_mean = [[0. for _ in v] for v in trajs]
+        for i in range(len(max_dev_mean)):
+            for j in range(len(max_dev_mean[i])):
+                v = max_dev_list[i][j]
+                if len(v) > 0:
+                    max_dev_mean[i][j] = np.mean(v)
+                else:
+                    max_dev_mean[i][j] = 0.
+
+        # plot
+        fig, ax = plt.subplots(1, 1)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title('Tracking Error (m)', fontsize=22)
+        # fig.patch.set_visible(False)
+        ax.axis('off')
+        col = MplColorHelper(args.cmap, 0., np.max([vv for v in max_dev_mean for vv in v]))
+        bg_color = (0.5, 0.5, 0.5)
+        for traj, max_dev in zip(trajs, max_dev_mean):
+            traj = np.array(traj)
+            color = [col.get_rgb(s) if s >= 0 else bg_color for s in max_dev]
+            ax.scatter(traj[:,0], traj[:,1], c=color)
+        cbar = plt.colorbar(col.scalarMap, ax=ax)
+        cbar.ax.tick_params(labelsize=16) 
+        fig.canvas.draw()
+        fig.tight_layout()
+        # fig.savefig('test.png') # DEBUG
+        fig.savefig('dev_track_loop.pdf')
 
 
 class MplColorHelper:

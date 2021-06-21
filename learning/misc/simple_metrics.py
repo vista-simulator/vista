@@ -74,6 +74,11 @@ def compute_poly_dist(data, agent_id='agent_0', exclude=['trace_done']):
     return np.mean([np.min(v) for v, e in zip(poly_dist, exclude) if not e])
 
 
+def compute_jitter(data, agent_id='agent_0', exclude=['trace_done']):
+    results = collect_all_info(data, 'jitter', agent_id, exclude)
+    return np.mean([np.mean(v) for v in results])
+
+
 def append_poly_info(data, dilate=[0.,0.], agent_id='agent_0'):
     pose_wrt_others = collect_all_info(data, 'pose_wrt_others', agent_id, [])
     other_dim = collect_all_info(data, 'other_dim', agent_id, [])
@@ -113,7 +118,7 @@ def overwrite_with_new_overlap_threshold(data, threshold=None, agent_id='agent_0
 
 
 def plot_mean_metric_at_key(data, metric, key, bins, xlabel, agent_id='agent_0', 
-                            exclude=['trace_done'], mode=3):
+                            exclude=['trace_done'], mode=2):
     results = collect_last_step_info(data, metric, agent_id, exclude)
     values = collect_all_info(data, key, agent_id, exclude)
     mean_values = np.array([np.mean(np.abs(v)) for v in values])
@@ -147,6 +152,7 @@ ALL_METRICS = {
     'avg_maxlatshift': compute_avg_maxlatshift,
     'passed_cars': compute_passed_cars_rate,
     'poly_dist': compute_poly_dist,
+    'jitter': compute_jitter,
 }
 
 
@@ -166,7 +172,7 @@ def main():
         '--task',
         type=str,
         required=True,
-        choices=['LaneFollowing', 'Overtaking'],
+        choices=['CarFollowing', 'Overtaking'],
         help='Task.')
     parser.add_argument(
         '--agent-id',
@@ -210,12 +216,15 @@ def main():
 
     # compute and print metrics
     if args.task == 'Overtaking':
-        metrics = ['success_rate', 'collision_rate', 'offlane_rate', 'maxrot_rate', 'maxyaw', 'avg_maxlatshift', 'passed_cars', 'poly_dist']
+        metrics = ['success_rate', 'collision_rate', 'offlane_rate', 'maxrot_rate', 'maxyaw', 'avg_maxlatshift', 'passed_cars', 'poly_dist', 'jitter']
         plots = [
             ('mean_metric_at_key', {'metric': 'has_collided', 'key': 'human_curvature', 'bins': 7, 'xlabel': 'Absolute Road Curvature'}),
             ('mean_metric_at_key', {'metric': 'has_collided', 'key': 'other_velocity', 'bins': 7, 'xlabel': 'Other Vehicle Speed'}),
             ('mean_metric_at_key', {'metric': 'has_collided', 'key': 'other_translation', 'bins': 5, 'xlabel': 'Other Vehicle Lateral Shift'}),
         ]
+    elif args.task == 'CarFollowing':
+        metrics = ['collision_rate', 'offlane_rate', 'maxrot_rate', 'maxyaw', 'avg_maxlatshift', 'poly_dist', 'jitter']
+        plots = []
     else:
         raise NotImplementedError('Unrecognized task {}'.format(args.task))
 
