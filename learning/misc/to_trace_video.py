@@ -67,9 +67,9 @@ def fetch_gps(data, topic):
     gps= []
     for t, msg in data[topic]:
         x, y, _, _ = utm.from_latlon(msg.latitude, msg.longitude)
+        t = msg.header.stamp.to_sec()
         gps.append([t, x, y])
     gps = np.array(gps)
-    origin = gps[0,1:]
     return gps
 
 
@@ -130,6 +130,41 @@ def my_interp1d(ts, xs):
     return func
 
 
+def filter_gps_by_speed(data, speed=100):
+    dt = data[1:,0] - data[:-1,0]
+    dist = np.linalg.norm(data[1:,1:] - data[:-1,1:], axis=1)
+    v = dist / dt
+    # drop_seed = v > speed
+    win = 100
+    mask = np.ones((data.shape[0],), dtype=np.bool)
+    # for seed in np.where(dt < 1e-2)[0]:
+    for seed in np.where(v > 5000)[0]:
+        mask[seed-2*win:seed+win] = False
+    # data[np.logical_not(mask),1] = data[:,1].mean()
+    # import pdb; pdb.set_trace()
+    # return data
+    fig, ax = plt.subplots(1, 1)
+    ax.plot(np.arange(dt.shape[0]), dt)
+    fig.savefig('test.png')
+    import pdb; pdb.set_trace()
+    return data[mask]
+    # mask = np.logical_and(v <= speed, v>0.01)
+    # mask = np.concatenate([[True], mask])
+    # v = np.concatenate([[0.], v])
+    # dt = np.concatenate([[0.], dt])
+    # return v, dt
+
+
+def subsample_by_time(data, dt=0.5):
+    new_data = []
+    for i in range(data.shape[0]):
+        if len(new_data) != 0 and (data[i,0] - new_data[-1][0] < dt):
+            continue
+        new_data.append(data[i])
+    new_data = np.array(new_data)
+    return new_data
+
+
 # read rosbag
 bag_path_lexus = os.path.expanduser(sys.argv[1])
 data_lexus = read_rosbag(bag_path_lexus)
@@ -137,18 +172,40 @@ data_blue_prius = data_lexus
 
 # get gps for both vehicle
 gps_blue_prius = fetch_gps(data_blue_prius, '/blue_prius/oxts/gps/fix')
+gps_blue_prius = subsample_by_time(gps_blue_prius)
 gps_blue_prius_fx = interp1d(gps_blue_prius[:,0], gps_blue_prius[:,1])
 gps_blue_prius_fy = interp1d(gps_blue_prius[:,0], gps_blue_prius[:,2])
-# gps_blue_prius_fx = my_interp1d(gps_blue_prius[:,0], gps_blue_prius[:,1]) # DEBUG
-# gps_blue_prius_fy = my_interp1d(gps_blue_prius[:,0], gps_blue_prius[:,2]) # DEBUG
+###DEBUG
+from scipy.interpolate import UnivariateSpline
+gps_blue_prius_fx = UnivariateSpline(gps_blue_prius[:,0], gps_blue_prius[:,1], k=3)
+gps_blue_prius_fy = UnivariateSpline(gps_blue_prius[:,0], gps_blue_prius[:,2], k=3)
+# gps_blue_prius_fx.set_smoothing_factor(3)
+# gps_blue_prius_fy.set_smoothing_factor(3)
+###DEBUG
 
 gps_lexus = fetch_gps(data_lexus, '/lexus/oxts/gps/fix')
 gps_lexus_fx = interp1d(gps_lexus[:,0], gps_lexus[:,1])
 gps_lexus_fy = interp1d(gps_lexus[:,0], gps_lexus[:,2])
 
+###DEBUG
+fig, ax = plt.subplots(2,1)
+ax[0].scatter([ts for ts in gps_lexus[:,0] if ts > gps_blue_prius[0,0] and ts < gps_blue_prius[-1,0]], [gps_blue_prius_fx(ts) for ts in gps_lexus[:,0] if ts > gps_blue_prius[0,0] and ts < gps_blue_prius[-1,0]], c='r')
+ax[0].scatter(gps_blue_prius[:,0], gps_blue_prius[:,1])
+ax[1].scatter([ts for ts in gps_lexus[:,0] if ts > gps_blue_prius[0,0] and ts < gps_blue_prius[-1,0]], [gps_blue_prius_fy(ts) for ts in gps_lexus[:,0] if ts > gps_blue_prius[0,0] and ts < gps_blue_prius[-1,0]], c='r')
+ax[1].scatter(gps_blue_prius[:,0], gps_blue_prius[:,2])
+ax[0].scatter(gps_blue_prius[1,0], gps_blue_prius[1,1], c='y')
+ax[1].scatter(gps_blue_prius[1,0], gps_blue_prius[1,2], c='y')
+# ax[0].scatter(gps_blue_prius[:,0], gps_blue_prius[:,1])
+# ax[1].scatter(gps_blue_prius[:,0], v)
+# ax[2].scatter(gps_blue_prius[:,0], dt)
+fig.savefig('test1.png')
+import pdb; pdb.set_trace()
+###DEBUG
+
 yaw_lexus = fetch_yaw(data_lexus, '/lexus/oxts/imu/data')
 yaw_blue_prius = fetch_yaw(data_blue_prius, '/blue_prius/oxts/imu/data')
-yaw_lexus_f = interp1d(yaw_lexus[:,0], yaw_lexus[:,1])
+yaw_blue_prius = subsample_by_time(yaw_blue_prius)
+yaw_lexus_f = interp1d(yaw_lexus[:,0], yaw_lexus[:,1], fill_value='extrapolate')
 yaw_blue_prius_f = interp1d(yaw_blue_prius[:,0], yaw_blue_prius[:,1])
 
 yaw_lexus_sync = np.array([yaw_lexus_f(ts) for ts in gps_lexus[:,0]])
@@ -156,43 +213,31 @@ pose_lexus = np.concatenate([gps_lexus[:,1:], yaw_lexus_sync[:,None]], axis=1)
 if USE_SAFE_INTERP:
     yaw_blue_prius_sync = []
     xy_blue_prius_sync = []
-    tmp = [] # DEBUG
     for i, ts in enumerate(gps_lexus[:,0]):
-        try:
-            yaw = yaw_blue_prius_f(ts)
-            xy = np.array([gps_blue_prius_fx(ts), gps_blue_prius_fy(ts)])
-            # xy = gps_blue_prius_fxy(ts)
-        except:
-            tmp.append(i) # DEBUG
+        if ts < yaw_blue_prius[0,0] or ts > yaw_blue_prius[-1,0]:
             closest_ts_idx = np.argmin(np.abs(yaw_blue_prius[:,0] - ts))
             yaw = yaw_blue_prius[closest_ts_idx,1]
-
+        else:
+            yaw = yaw_blue_prius_f(ts)
+        if ts < gps_blue_prius[0,0] or ts > gps_blue_prius[-1,0]:
             closest_ts_idx = np.argmin(np.abs(gps_blue_prius[:,0] - ts))
             xy = [gps_blue_prius[closest_ts_idx,1], gps_blue_prius[closest_ts_idx,2]]
+        else:
+            xy = np.array([gps_blue_prius_fx(ts), gps_blue_prius_fy(ts)])
+
+        # try:
+        #     yaw = yaw_blue_prius_f(ts)
+        #     xy = np.array([gps_blue_prius_fx(ts), gps_blue_prius_fy(ts)])
+        # except:
+        #     closest_ts_idx = np.argmin(np.abs(yaw_blue_prius[:,0] - ts))
+        #     yaw = yaw_blue_prius[closest_ts_idx,1]
+
+        #     closest_ts_idx = np.argmin(np.abs(gps_blue_prius[:,0] - ts))
+        #     xy = [gps_blue_prius[closest_ts_idx,1], gps_blue_prius[closest_ts_idx,2]]
         yaw_blue_prius_sync.append(yaw)
         xy_blue_prius_sync.append(xy)
     yaw_blue_prius_sync = np.array(yaw_blue_prius_sync)
     xy_blue_prius_sync = np.array(xy_blue_prius_sync)
-
-    fig, ax = plt.subplots(1, 1)
-    roi = xy_blue_prius_sync[3100:3300]
-    roi = roi - roi[0]
-    ax.scatter(roi[:,0], roi[:,1])
-    fig.savefig('test.png')
-
-    f1 = interp1d(gps_blue_prius[248:250,0], gps_blue_prius[248:250,1])
-    tmp = gps_blue_prius - gps_blue_prius[0]
-    f2 = interp1d(tmp[248:250,0], tmp[248:250,1])
-
-    gps_blue_prius_fx(gps_blue_prius[0,0]+2.14022) - gps_blue_prius[0,1]
-    f1(gps_blue_prius[0,0]+2.14022) - gps_blue_prius[0,1]
-    f2(2.14022)
-
-    fig, ax = plt.subplots(1, 1)
-    ax.scatter(gps_blue_prius[240:260,0], gps_blue_prius[240:260,1])
-    fig.savefig('test.png')
-
-    import pdb; pdb.set_trace()
 else:
     yaw_blue_prius_sync = np.array([yaw_blue_prius_f(ts) for ts in gps_lexus[:,0]])
     xy_blue_prius_sync = np.array([[gps_blue_prius_fx(ts), gps_blue_prius_fy(ts)] for ts in gps_lexus[:,0]])
@@ -224,7 +269,7 @@ color_blue_prius = [cm_blue_prius.get_rgb(v) for v in gps_blue_prius[:,0]]
 
 # plot
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-writer = cv2.VideoWriter('/home/tsunw/tmp/test.mp4', fourcc, 30, (300, 300))
+writer = cv2.VideoWriter('/home/tsunw/tmp/test.mp4', fourcc, 100, (300, 300))
 
 fig, ax = plt.subplots(1, 1, figsize=(3,3))
 xlim = [-20, 20]
@@ -236,10 +281,10 @@ ax.set_yticks([])
 fig.tight_layout()
 artists = dict()
 for i in range(pose_lexus.shape[0]):
-    if (i % 10) != 0: # DEBUG
+    if (i % 1) != 0: # DEBUG
         continue
 
-    if True: # DEBUG
+    if False: # DEBUG
         ref_pose = np.array([pose_lexus[i,0], pose_lexus[i,1], 0])
         road_in_ref = pose_road - ref_pose
         blue_prius_in_ref = pose_blue_prius[i] - ref_pose
@@ -252,7 +297,6 @@ for i in range(pose_lexus.shape[0]):
 
     #print(i, pose_blue_prius[i], pose_lexus[i])  #DEBUG
     print(i, pose_blue_prius[i], blue_prius_in_ref, ref_pose)
-    ax.set_title(i)
 
     if 'patch_road' in artists.keys():
         artists['patch_road'].remove()
