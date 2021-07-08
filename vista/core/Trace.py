@@ -1,159 +1,218 @@
-import numpy as np
 import os
-from numpy.testing._private.nosetester import _numpy_tester
+from typing import Optional, List, Any, Dict, Callable
+import numpy as np
 from scipy.interpolate import interp1d
 
-from ..util import MultiFrame, LabelSearch, TopicNames, \
-    get_synced_labeled_timestamps
+from .core_utils import MultiSensor, LabelSearch, TopicNames
 
 
 class Trace:
-    def __init__(self, trace_path, reset_mode='default'):
+    DEFAULT_LABELS = ['day|night', 'dry|rain|snow', 'local|residential|highway|unpaved|indoor',
+                      'stable', '.*', '.*']
+    RESET_CONFIG = {
+        'default': {
+            'n_bins': 100,
+            'smoothing_factor': 0.001,
+        },
+        'segment_start': {
+            'first_n_percent': 0.4,
+        },
+    }
 
-        print("Spawning {}".format(trace_path))
+    def __init__(self, trace_path: str, reset_mode: Optional[str] = 'default',
+                 master_sensor: Optional[str] = TopicNames.master_topic,
+                 labels: Optional[List[Any]] = DEFAULT_LABELS,
+                 max_timestamp_diff_across_frames: Optional[float] = 0.2) -> None:
+        self._trace_path: str = trace_path
+        self._reset_mode: str = reset_mode
+        self._max_timestamp_diff_across_frames = max_timestamp_diff_across_frames
 
-        self.trace_path = trace_path
-        self.reset_mode = reset_mode
-        self.road_width = 4  # meters
-        self.which_camera = "front_center"  # HARDCODING for now...
+        # Divide trace to good segments based on video labels and timestamps
+        self._multi_sensor: MultiSensor = MultiSensor(self._trace_path, master_sensor)
+        self._labels: LabelSearch = LabelSearch(*labels)
 
-        self.masterClock = MultiFrame(trace_path)
-        self.syncedLabeledFrames = self.getSyncedLabeledFrames(trace_path)
+        good_frames, good_timestamps = self._divide_to_good_segments()
+        self._good_frames: Dict[str, List[int]] = good_frames
+        self._good_timestamps: Dict[str, List[float]] = good_timestamps
 
-        # Create synced and labeled timestamps for each segment
-        self.syncedLabeledTimestamps = []
-        self.num_of_frames = 0
-        for segment in self.syncedLabeledFrames:
-            segment_timestamps = []
-            for frame_num in segment[self.which_camera]:
-                segment_timestamps.append(
-                    self.masterClock.get_time_from_frame_num(
-                        self.which_camera, frame_num))
-            self.syncedLabeledTimestamps.append(segment_timestamps)
-            self.num_of_frames += len(segment_timestamps)
+        self._num_of_frames: int = np.sum([len(_v) for _v in \
+            self._good_frames[self._multi_sensor.master_sensor]])
 
-        # Setup some state information functions and reset probabilities
-        (self.f_position, self.f_speed, self.f_curvature, self.f_distance) = \
-            self.get_interp_functions(trace_path)
+        # Get function representation of state information
+        self._f_speed, self._f_curvature = self._get_states_func()
 
-    def getSyncedLabeledFrames(self, trace_path):
+    def find_segment_reset(self) -> int:
+        """ Sample a segment index based on number of frames in each segment. Segments with more
+            frames will be sampled with a higher probability.
 
-        labels = [
-            LabelSearch('day|night', 'dry|rain|snow',
-                        'local|residential|highway|unpaved|indoor', 'stable',
-                        '.*', '.*', 1),
-        ]
+        Args:
+            None
 
-        # Initialize MultiFrame object
-        masterTimestamp = self.masterClock.get_master_timestamp()
-        masterTimestamp = masterTimestamp.reshape((-1, 1))
+        Returns:
+            int: index to a segment
+        """
+        segment_reset_probs = np.zeros(len(self._good_frames[self._multi_sensor.master_sensor]))
+        for i in range(segment_reset_probs.shape[0]):
+            segment = self._good_frames[self._multi_sensor.master_sensor][i]
+            segment_reset_probs[i] = len(segment)
+        segment_reset_probs /= np.sum(segment_reset_probs)
+        new_segment_index = np.random.choice(segment_reset_probs.shape[0], p=segment_reset_probs)
 
-        # Get good frames to loop through
-        goodLabeledFrames = np.ones((masterTimestamp.shape[0]), dtype=bool)
-        for search_query in labels:
-            goodLabeledFrames *= search_query.find_good_labeled_frames(
-                trace_path)  # Logical AND via multiplication
-        syncedLabeledTimestamps = get_synced_labeled_timestamps(
-            trace_path, goodLabeledFrames)
+        return new_segment_index
 
-        # Need to divide the stream into good chunks; each chunk becomes a Trace
-        syncedLabeledFrames_ = []  # FIX time
-        start = 0
-        for i in range(len(syncedLabeledTimestamps)):
-            # CHECK:
-            # Handle case where trace goes to end inclusive
-            if syncedLabeledTimestamps[i] == syncedLabeledTimestamps[-1] or \
-                    syncedLabeledTimestamps[i + 1] - syncedLabeledTimestamps[i] >= .2:
-                syncedLabeledFrames = self.masterClock.get_frames_from_times(
-                    syncedLabeledTimestamps[start:i])
-                frames = {}
-                frames['front_center'] = syncedLabeledFrames['front_center']
-                syncedLabeledFrames_.append(frames)
-                start = i + 1
+    def find_frame_reset(self, segment_index: int) -> int:
+        """ Sample a frame index in a segment.
 
-        # TODO: Ensure other components expect list of dictionaries
-        return syncedLabeledFrames_
+        Args:
+            segment_index (int): index of the segment to be sampled from
 
-    def get_interp_functions(self, trace_path):
-        # Human inverse_r from filtered odometry
-        speed = np.genfromtxt(os.path.join(trace_path,
+        Returns:
+            int: frame index
+
+        Raises:
+            NotImplementedError: for invalid reset mode
+        """
+        # Compute sample probability
+        timestamps = self.good_timestamps[self._multi_sensor.master_sensor][segment_index]
+        if self._reset_mode == 'default': # bias toward large road curvature
+            n_bins = Trace.RESET_CONFIG['default']['n_bins']
+            smoothing_factor = Trace.RESET_CONFIG['default']['smoothing_factor']
+
+            curvatures = np.abs(self.f_curvature(timestamps))
+            curvatures = np.clip(curvatures, 0, 1 / 3.)
+            hist, bin_edges = np.histogram(curvatures, n_bins, density=False)
+            bins = np.digitize(curvatures, bin_edges, right=True)
+            hist_density = hist / float(np.sum(hist))
+            probs = 1.0 / (hist_density[bins - 1] + smoothing_factor)
+            probs /= np.sum(probs)
+        elif self._reset_mode == 'uniform': # uniform sampling
+            n_timestamps = len(timestamps)
+            probs = np.ones((n_timestamps,)) / n_timestamps
+        elif self._reset_mode == 'segment_start': # bias toward the start of a segment
+            first_n_percent = Trace.RESET_CONFIG['segment_start']['first_n_percent']
+
+            n_timestamps = len(timestamps)
+            probs = np.zeros((n_timestamps,))
+            probs[:int(first_n_percent * n_timestamps)] = 1.
+            probs /= np.sum(probs)
+        else:
+            raise NotImplementedError('Unrecognized trace reset mode {}'.format(self._reset_mode))
+
+        # Sample frame index
+        frame_index = np.random.choice(probs.shape[0], p=probs)
+        
+        return frame_index
+
+    def get_master_timestamp(self, segment_index: int, frame_index: int) -> float:
+        master_name = self.multi_sensor.master_sensor
+        return self.good_timestamps[master_name][segment_index][frame_index]
+
+    def get_master_frame_number(self, segment_index: int, frame_index: int) -> float:
+        master_name = self.multi_sensor.master_sensor
+        return self.good_frames[master_name][segment_index][frame_index]
+
+    def _divide_to_good_segments(self) -> Dict[str, List[int]]:
+        """ Divide a trace into good segments based on video labels and time difference between
+            consecutive frames. Note that only master sensor is used for the time difference check
+            since every sensors may have triggering frequencies.
+
+        Args:
+            None
+        
+        Returns:
+            dict: good frames for all sensors. Key is sensor name and value is a list with each 
+                  element as frame indices of a good segment, 
+                  i.e., a good frame number = dict[sensor_name][which_good_segment][i]
+            dict: timestamps of good frames
+        """
+        # Filter by video labels (TODO: make optional)
+        _, good_labeled_timestamps = self._labels.find_good_labeled_frames(self._trace_path)
+
+        # Filter by end-of-trace and time difference across consecutive frames
+        good_frames = {_k: [] for _k in self._multi_sensor.sensor_names}
+        good_timestamps = {_k: [] for _k in self._multi_sensor.sensor_names}
+        segment_start = 0
+        for i in range(good_labeled_timestamps.shape[0]):
+            trace_end = i == good_labeled_timestamps.shape[0] - 1
+            if not trace_end:
+                time_diff_too_large = good_labeled_timestamps[i+1] - good_labeled_timestamps[i] \
+                    >= self._max_timestamp_diff_across_frames
+            else:
+                time_diff_too_large = False
+
+            if trace_end or time_diff_too_large:
+                good_segment_frames = self._multi_sensor.get_frames_from_times( \
+                    good_labeled_timestamps[segment_start:i])
+
+                for k, v in good_segment_frames.items():
+                    good_frames[k].append(v)
+                    
+                    segment_timestamps = []
+                    for frame_num in v:
+                        segment_timestamps.append(
+                            self._multi_sensor.get_time_from_frame_num(k, frame_num))
+                    good_timestamps[k].append(segment_timestamps)
+
+                segment_start += i
+
+        return good_frames, good_timestamps
+
+    def _get_states_func(self):
+        # Read from dataset
+        speed = np.genfromtxt(os.path.join(self._trace_path,
                                            TopicNames.speed + '.csv'),
                               delimiter=',')
-        distance = np.genfromtxt(os.path.join(trace_path,
-                                              TopicNames.distance + '.csv'),
-                                 delimiter=',')
-        odometry = np.genfromtxt(os.path.join(trace_path,
+        odometry = np.genfromtxt(os.path.join(self._trace_path,
                                               TopicNames.odometry + '.csv'),
                                  delimiter=',')
 
+        # Obtain function representation of speed
         f_speed = interp1d(speed[:, 0], speed[:, 1], fill_value='extrapolate')
-        f_position = interp1d(odometry[:, 0],
-                              odometry[:, 1:3],
-                              axis=0,
-                              fill_value='extrapolate')
 
-        sample_times = odometry[:, 0]
-        curvature = odometry[:, 4] / np.maximum(f_speed(sample_times), 1e-10)
+        # Obtain function representation of curvature
+        timestamps = odometry[:, 0]
+        yaw_rate = odometry[:, 4]
+        curvature = yaw_rate / np.maximum(f_speed(timestamps), 1e-10)
         good_curvature_inds = np.abs(curvature) < 1 / 3.
-        f_curvature = interp1d(sample_times[good_curvature_inds],
+        f_curvature = interp1d(timestamps[good_curvature_inds],
                                curvature[good_curvature_inds],
                                fill_value='extrapolate')
 
-        f_distance = interp1d(distance[:, 0],
-                              distance[:, 1],
-                              fill_value='extrapolate')
+        return f_speed, f_curvature
 
-        return f_position, f_speed, f_curvature, f_distance
+    @property
+    def trace_path(self) -> str:
+        return self._trace_path
 
-    def get_curv_reset_probs(self, segment_index):
-        if self.reset_mode == 'default':
-            # Computing probablities for resetting to places with higher curvature for current trace
-            current_timestamps = self.syncedLabeledTimestamps[segment_index]
-            # curvatures = np.abs(f_curvature(self.syncedLabeledTimestamps))
-            curvatures = np.abs(self.f_curvature(current_timestamps))  # MODIFIED
-            curvatures = np.clip(curvatures, 0, 1 / 3.)
-            hist, bin_edges = np.histogram(curvatures, 100, density=False)
-            bins = np.digitize(curvatures, bin_edges, right=True)
-            hist_density = hist / float(np.sum(hist))
-            smoothing_factor = 0.001
-            curv_reset_probs = 1.0 / (hist_density[bins - 1] + smoothing_factor)
-            curv_reset_probs /= np.sum(curv_reset_probs)
-        elif self.reset_mode == 'uniform':
-            n_timestamps = len(self.syncedLabeledTimestamps[segment_index])
-            curv_reset_probs = np.ones((n_timestamps,)) / n_timestamps
-        elif self.reset_mode == 'segment_start':
-            n_timestamps = len(self.syncedLabeledTimestamps[segment_index])
-            if True: # sample first N%
-                first_n_percent = int(0.4 * n_timestamps)
-                curv_reset_probs = np.zeros((n_timestamps,))
-                curv_reset_probs[:first_n_percent] = 1. / first_n_percent
-            else: # only sample start
-                curv_reset_probs = np.exp(np.cumsum(0.05 * np.ones((n_timestamps,)))[::-1])
-                curv_reset_probs = curv_reset_probs / curv_reset_probs.sum()
-        else:
-            raise NotImplementedError('Unrecognized curve reset mode {}'.format(self.reset_mode))
+    @property
+    def multi_sensor(self) -> MultiSensor:
+        return self._multi_sensor
 
-        # ''' HARDCODING RESET TO END OF TRACE FOR TESTING PURPOSES'''
-        # end_reset_probs = np.zeros(np.size(curv_reset_probs))
-        # end_reset_probs[-10] = 1.0
-        # return end_reset_probs
-        # ''' END OF HARDCODING RESET TO END OF TRACE FOR TESTING PURPOSES'''
+    @property
+    def good_frames(self) -> Dict[str, List[int]]:
+        return self._good_frames
 
-        return curv_reset_probs
+    @property
+    def good_timestamps(self) -> Dict[str, List[int]]:
+        return self._good_timestamps
+    
+    @property
+    def num_of_frames(self) -> int:
+        return self._num_of_frames
 
-    def find_curvature_reset(self, curv_reset_probs):
-        new_sample = np.random.choice(curv_reset_probs.shape[0],
-                                      1,
-                                      p=curv_reset_probs)
-        return new_sample[0]
+    @property
+    def f_curvature(self) -> Callable:
+        return self._f_curvature
 
-    def find_segment_reset(self):
-        segment_reset_probs = np.zeros(len(self.syncedLabeledFrames))
-        for i in range(len(self.syncedLabeledFrames)):
-            segment = self.syncedLabeledFrames[i]
-            segment_reset_probs[i] = len(segment[self.which_camera])
-        segment_reset_probs /= np.sum(segment_reset_probs)
-        new_segment = np.random.choice(segment_reset_probs.shape[0],
-                                       size=1,
-                                       p=segment_reset_probs)
-        return new_segment[0]
+    @property
+    def f_speed(self) -> Callable:
+        return self._f_speed
+
+    @property
+    def reset_mode(self) -> str:
+        return self._reset_mode
+
+    @reset_mode.setter
+    def reset_mode(self, reset_mode):
+        assert isinstance(reset_mode, str)
+        self._reset_mode = reset_mode

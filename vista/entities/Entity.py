@@ -10,7 +10,7 @@ class Entity:
 
     @property
     def id(self):
-        """ Get the identifier of this entity """
+        """ Get the identifier of this entity. """
         return self._id
 
     @property
@@ -20,7 +20,7 @@ class Entity:
 
     @parent.setter
     def parent(self, parent):
-        """ Set the parent of this entity to another entity """
+        """ Set the parent of this entity to another entity. """
 
         # Make sure the parent is also an entity
         assert isinstance(parent, self.object.kind)

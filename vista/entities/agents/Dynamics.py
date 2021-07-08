@@ -1,70 +1,148 @@
+from typing import Optional, List
 import numpy as np
+import scipy.integrate as ode_solve
 
 
 class State:
-    def __init__(self, translation_x=0.0, translation_y=0.0, theta=0.0):
-        self.update(translation_x, translation_y, theta)
+    def __init__(self, 
+                 x: Optional[float] = 0.,
+                 y: Optional[float] = 0.,
+                 yaw: Optional[float] = 0.) -> None:
+        self.update(x, y, yaw)
 
-    def update(self, translation_x, translation_y, theta):
-        self.translation_x = translation_x
-        self.translation_y = translation_y
-        self.theta = theta
+    def update(self, x: float, y: float, yaw: float) -> None:
+        self._x = x
+        self._y = y
+        self._yaw = yaw
 
-    def reset(self):
-        self.translation_x = 0.0
-        self.translation_y = 0.0
-        self.theta = 0.0
+    def reset(self) -> None:
+        self.update(0., 0., 0.)
+    
+    def numpy(self) -> np.ndarray:
+        return np.array([self._x, self._y, self._yaw])
+
+    @property
+    def x(self) -> float:
+        return self._x
+
+    @property
+    def y(self) -> float:
+        return self._y
+
+    @property
+    def yaw(self) -> float:
+        return self._yaw
+
+    def __repr__(self) -> str:
+        return '<{}: [{}, {}, {}]>'.format(self.__class__.__name__, self._x, self._y, self._yaw)
 
 
-class StateDynamics(object):
+class StateDynamics(State):
     def __init__(self,
-                 translational_state=0.0,
-                 longitudinal_state=0.0,
-                 theta_state=0.0):
+                 x: Optional[float] = 0.,
+                 y: Optional[float] = 0.,
+                 yaw: Optional[float] = 0.,
+                 steering: Optional[float] = 0.,
+                 speed: Optional[float] = 0.,
+                 steering_bound: Optional[List[float]] = [-0.75, 0.75],
+                 speed_bound: Optional[List[float]] = [0., 10.],
+                 wheel_base: Optional[float] = 2.8) -> None:
+        """ Simple continuous kinematic model of a rear-wheel driven vehicle.
+            Ref: Eq.3 in https://www.autonomousrobots.nl/docs/17-schwartig-autonomy-icra.pdf
 
-        self.x_state = translational_state
-        self.y_state = longitudinal_state
-        self.theta_state = theta_state
+        Args:
+            x (float): position of the car in x-axis
+            y (float): position of the car in y-axis
+            yaw (float): heading/yaw of the car
+            steering (float): steering angle of tires instead of steering wheel
+            speed (float): forward speed
+            steering_bound (list): upper and lower bound of steering angle
+            speed_bound (list): upper and lower bound of speed
+            wheel_base(float): wheel base
+        """
+        super(StateDynamics, self).__init__(x, y, yaw)
 
-    def reset(self):
-        self.theta_state = 0  # used to build R matrix
-        self.x_state = 0
-        self.y_state = 0
+        self._steering = steering
+        self._speed = speed
+        self._steering_bound = steering_bound
+        self._speed_bound = speed_bound
+        self._wheel_base = wheel_base
 
-    def step(self, curvature, velocity, delta_t):
-        arc_length = velocity * delta_t
-        theta = arc_length * curvature  # angle of traversed circle
+    def step(self, steering_velocity: float, acceleration: float, 
+             dt: float, max_steps: Optional[int] = 100) -> np.ndarray:
+        # Define dynamics
+        def _ode_func(t, z):
+            _x, _y, _phi, _delta, _v = z
+            u_delta = steering_velocity
+            u_a = acceleration
+            new_z = np.array([-_v * np.sin(_phi), # swap x-y axis with sign change
+                              _v * np.cos(_phi),
+                              _v / self._wheel_base * np.tan(_delta),
+                              u_delta,
+                              u_a])
+            return new_z
 
-        # Compute R
-        self.theta_state += theta
-        c = np.cos(self.theta_state)
-        s = np.sin(self.theta_state)
-        R = np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]])
+        # Solve ODE
+        z_0 = np.array([self._x, self._y, self._yaw, self._steering, self._speed])
+        solver = ode_solve.RK45(_ode_func, 0., z_0, dt)
+        steps = 0
+        while solver.status is 'running' and steps <= max_steps:
+            solver.step()
+            steps += 1
+        if (dt - solver.t) < 0:
+            # TODO: add logging
+            print('Reach max steps {} without reaching t_bound ({} < {})'.format( \
+                max_steps, solver.t, solver.t_bound))
+        self._x, self._y, self._yaw, self._steering, self._speed = solver.y
 
-        # Compute local x, y positions
-        x = (1 - np.cos(theta)) / curvature
-        y = np.sin(theta) / curvature
+        # Clip by value bounds
+        self._steering = np.clip(self._steering, *self._steering_bound)
+        self._speed = np.clip(self._speed, *self._speed_bound)
 
-        # Transform positions from local to global
-        R_2 = np.array([[c, -s], [s, c]])
-        xy_local = np.array([[x], [y]])
-        [[x_global], [y_global]] = np.matmul(R_2, xy_local)
+        return self.numpy()
 
-        self.x_state += x_global
-        self.y_state += y_global
-
-        return self.x_state, self.y_state, self.theta_state
-
-    def numpy(self):
-        return np.array([self.x_state, self.y_state, self.theta_state])
+    def numpy(self) -> np.ndarray:
+        return np.array([self._x, self._y, self._yaw, self._steering, self._speed])
 
     def copy(self):
-        return StateDynamics(
-            translational_state=self.x_state,
-            longitudinal_state=self.y_state,
-            theta_state=self.theta_state)
+        return StateDynamics(x=self._x, y=self._y, yaw=self._yaw, 
+                             steering_angle=self._steering, speed=self._speed)
 
-    def __repr__(self):
-        return "<{}: [{}, {}, {}]>".format(self.__class__.__name__,
-                                           self.x_state, self.y_state,
-                                           self.theta_state)
+    @property
+    def steering(self) -> float:
+        return self._steering
+
+    @property
+    def speed(self) -> float:
+        return self._speed
+
+    @steering.setter
+    def steering(self, steering) -> None:
+        assert isinstance(steering, float)
+        self._steering = steering
+
+    @speed.setter
+    def speed(self, speed) -> None:
+        assert isinstance(speed, float)
+        self._speed = speed
+
+    def __repr__(self) -> str:
+        return '<{}: [{}, {}, {}, {}, {}]>'.format(self.__class__.__name__, 
+                                                   self._x, self._y, self._yaw,
+                                                   self._steering, self._speed)
+
+
+def curvature2steering(curvature: float, wheel_base: float, steering_ratio: float) -> float:
+    """ Convert curvature to steering angle. """
+    tire_angle = np.arctan(wheel_base * curvature)
+    steering = tire_angle * steering_ratio * 180. / np.pi
+
+    return steering
+
+
+def steering2curvature(steering: float, wheel_base: float, steering_ratio: float) -> float:
+    """ Convert steering angle to curvature. """
+    tire_angle = steering * (np.pi / 180.) / steering_ratio
+    curvature = np.tan(tire_angle) / wheel_base
+
+    return curvature

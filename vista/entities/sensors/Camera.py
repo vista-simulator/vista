@@ -1,83 +1,105 @@
-from ffio import FFReader
-import numpy as np
 import os
+from typing import Dict, List
+import numpy as np
+from ffio import FFReader
 
-from .BaseSensor import *
-from ...util import ViewSynthesis
-from ...util import Camera as CameraParams
+from .camera_utils import CameraParams, ViewSynthesis
+from .BaseSensor import BaseSensor
+from ..Entity import Entity
 
 
 class Camera(BaseSensor):
-    def __init__(self, attach_to=None, rendering_config=None):
-        super(Camera, self).__init__()
+    def __init__(self, attach_to: Entity, config: Dict) -> None:
+        """ Instantiate a Camera object.
 
-        self._parent = attach_to
+        Args:
+            attach_to (Entity): a parent object to be attached to
+            config (Dict): configuration of the sensor
+        """
+        super(Camera, self).__init__(attach_to, config)
 
-        # Camera sensors synthesize new images from a view synthesizer
-        self.which_camera = self.parent.trace.which_camera
-        self.camera = CameraParams(self.which_camera)
-        self.camera.resize(200, 320) #DEBUG #Hardcode FIXME
-        self.view_synthesizer = ViewSynthesis(self.camera, rendering_config).synthesize
-        self.stream = None
+        self._config['rig_path'] = os.path.expanduser(self._config['rig_path'])
+        self._camera_param: CameraParams = CameraParams(self.name, 
+                                                        self._config['rig_path'])
+        self._camera_param.resize(*self._config['size'])
+        self._streams: Dict[str, FFReader] = dict()
+        self._view_synthesis: ViewSynthesis = ViewSynthesis(self._camera_param, self._config)
 
-        # Reset the sensor based on the position of the parent
-        self.reset()
+    def reset(self) -> None:
+        # Close stream already open
+        for stream in self.streams.values():
+            stream.close()
 
-    def capture(self, timestamp, other_agents=[]):
-        frame = self.get_frame_from_time(timestamp)
-        translated_frame = self.synthesize_frame(frame,
-                                                 self.parent.relative_state,
-                                                 other_agents=other_agents)
-        return translated_frame
+        # Fetch video stream from the associated trace. All video streams are handled by the master
+        # sensor and shared across all cameras. This requires master sensor to be a camera.
+        multi_sensor = self.parent.trace.multi_sensor
+        if self.name == multi_sensor.master_sensor:
+            for camera_name in multi_sensor.camera_names:
+                # get video stream
+                video_path = os.path.join(self.parent.trace.trace_path, camera_name + '.avi')
+                cam_h, cam_w = self.camera_param.get_height(), self.camera_param.get_width()
+                stream = FFReader(video_path, custom_size=(cam_h, cam_w), verbose=False)
+                self._streams[camera_name] = stream
 
-    def synthesize_frame(self, frame, relative_state, other_agents=[]):
-        translated_frame = self.view_synthesizer(
-            theta=relative_state.theta,
-            translation_x=relative_state.translation_x,
-            translation_y=relative_state.translation_y,
-            image=frame,
-            other_agents=other_agents)[0]
-        translated_frame = np.uint8(translated_frame)
+                # seek based on timestamp
+                frame_num = self.parent.trace.good_frames[camera_name] \
+                    [self.parent.segment_index][self.parent.frame_index]
+                seek_sec = self._streams[camera_name].frame_to_secs(frame_num)
+                self._streams[camera_name].seek(seek_sec)
+        else: # use shared streams from the master camera
+            master_name = multi_sensor.master_sensor
+            master = [_s for _s in self.parent.sensors if _s.name == master_name]
+            assert len(master) == 1, 'Cannot find master sensor {}'.format(master_name)
+            master = master[0]
+            assert isinstance(master, Camera), 'Master sensor is not Camera object'
+            self._streams = master.streams
 
-        return translated_frame
+    def capture(self, timestamp: float) -> np.ndarray:
+        # Get frame at the closest timestamp from dataset
+        multi_sensor = self.parent.trace.multi_sensor
+        if self.name == multi_sensor.master_sensor:
+            all_frame_nums = multi_sensor.get_frames_from_times([timestamp])
+            for camera_name in multi_sensor.camera_names:
+                stream = self.streams[camera_name]
+                frame_num = all_frame_nums[camera_name][0]
 
-    def get_frame_from_time(self, worldtime):
-        # do this _once_ in the init for speed
-        frame_to_worldtime = self.trace.masterClock.cam_to_frame_time[
-            self.which_camera]
-        worldtime_to_frame = dict([[v, k]
-                                   for k, v in frame_to_worldtime.items()])
+                if frame_num < stream.frame_num:
+                    seek_sec = stream.frame_to_secs(frame_num)
+                    stream.seek(seek_sec)
 
-        desired_frame_num = worldtime_to_frame[worldtime]
+                while stream.frame_num != frame_num:
+                    stream.read()
+        
+        frames = dict()
+        for camera_name in multi_sensor.camera_names:
+            frames[camera_name] = self.streams[camera_name].image.copy()
 
-        if desired_frame_num < self.stream.frame_num:
-            print("SEEKING SINCE {} < {}".format(desired_frame_num,
-                                                 self.stream.frame_num))
-            desired_seek_sec = self.stream.frame_to_secs(desired_frame_num)
-            self.stream.seek(desired_seek_sec)
+        # TODO: Interpolate frame at the exact timestamp
 
-        while self.stream.frame_num != desired_frame_num:
-            self.stream.read()
+        # Synthesis by rendering
+        lat, long, yaw = self.parent.relative_state.numpy()
+        trans = np.array([lat, 0., -long])
+        rot = np.array([0., yaw, 0.])
+        # TODO: DEBUG
+        rendered_frame = self.view_synthesis.synthesize(trans, rot, frames['camera_front'])
 
-        desired_frame = self.stream.image.copy()
-        return desired_frame
+        return rendered_frame
 
-    def reset(self):
-        car = self.parent
-        self.trace = car.world.traces[car.current_trace_index]
+    @property
+    def config(self) -> Dict:
+        return self._config
 
-        # Close already opened stream
-        if self.stream is not None:
-            self.stream.close()
+    @property
+    def camera_param(self) -> CameraParams:
+        return self._camera_param
 
-        # Initialize new stream and seek
-        video = os.path.join(self.trace.trace_path, self.which_camera + '.avi')
-        self.stream = FFReader(video, custom_size=(self.camera.get_height(), self.camera.get_width()), verbose=False)
+    @property
+    def streams(self) -> Dict[str, FFReader]:
+        return self._streams
 
-        seek_sec = self.stream.frame_to_secs(
-            self.trace.syncedLabeledFrames[car.current_segment_index][
-                self.trace.which_camera][car.current_frame_index])  # MODIFIED
-        self.stream.seek(seek_sec)
+    @property
+    def view_synthesis(self) -> ViewSynthesis:
+        return self._view_synthesis
 
     def __repr__(self):
-        return f"Camera(id={self.id})"
+        raise NotImplementedError

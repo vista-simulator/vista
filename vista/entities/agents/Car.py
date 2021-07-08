@@ -1,208 +1,171 @@
-import time
+from typing import List, Dict, Any
 
-# vista classes
-from .Dynamics import *
-from ..Entity import *
+from .Dynamics import State, StateDynamics
+from ..Entity import Entity
 
-# vista sub-modules
-from .. import sensors
-from ... import core
+from ..sensors import BaseSensor, Camera
+from ...core import World, Trace
+from ...utils import transform
 
 
 class Car(Entity):
-    def __init__(self, world):
+    def __init__(self, world: World, car_config: Dict) -> None:
+        """ Instantiate a Car object.
+        
+        Args:
+            world (World): the world that this agent lives in
+            car_config (Dict): configuration of the car
+        """
         super(Car, self).__init__()
 
         # Pointer to the parent vista.World object where the agent lives
-        self.world = world
+        self._parent: World = world
+
+        # The trace to be associated with, updated every reset
+        self._trace: Trace = None
 
         # A list of sensors attached to this agent (List[vista.Sensor]).
-        self.sensors = []
+        self._sensors: List[BaseSensor] = []
 
         # State dynamics for tracking the virtual and human agent
-        self.relative_state = State(translation_x=0.0,
-                                    translation_y=0.0,
-                                    theta=0.0)
-        self.human_dynamics = StateDynamics()
-        self.ego_dynamics = StateDynamics()
+        self._relative_state: State = State()
+        self._ego_dynamics: StateDynamics = StateDynamics()
+        self._human_dynamics: StateDynamics = StateDynamics()
 
-        # Additional attributes of the vehicle
-        self.car_width = 2  # meters
-        self.car_length = 5
-        self.wheel_base = 2.78
-        self.steering_ratio = 14.7
-        self.direction = 'forward'
+        # Properties of a car
+        self._length: float = car_config['length']
+        self._width: float = car_config['width']
+        self._wheel_base: float = car_config['wheel_base']
+        self._steering_ratio: float = car_config['steering_ratio']
+        self._speed: float = 0.
+        self._curvature: float = 0.
+        self._steering: float = 0.
+        self._human_speed: float = 0.
+        self._human_curvature: float = 0.
+        self._human_steering: float = 0.
+        self._timestamp: float = 0.
+        self._frame_number: int = 0
+        self._trace_index: int = 0
+        self._segment_index: int = 0
+        self._frame_index: int = 0
 
-        # Reset the car in the world, this will reset several properties:
-        # 1. The trace in the world where the car is located
-        # 2. The video stream of this trace
-        self.reset()
+    def spawn_camera(self, cam_config: Dict) -> Camera:
+        """ Spawn and attach a camera to this car.
 
-    def spawn_camera(self, rendering_config=None):
-        camera = sensors.Camera(attach_to=self, rendering_config=rendering_config)
-        self.sensors.append(camera)
-        return camera
-
-    def step(self, action, delta_t=1 / 30.):
-        self.step_dynamics(action, delta_t)
-        self.step_sensors()
-
-        return self.observations, self.isCrashed
-
-    def step_dynamics(self, action, delta_t=1 / 30.):
-        # Force action to be column vector
-        action = np.array(action).reshape(-1)
-        curvature = action[0]
-        velocity = action[1] if action.shape[0] > 1 else None
-
-        current_timestamp = self.get_current_timestamp()
-        self.model_curvature = curvature + 1e-11  # Avoid dividing by 0
-        self.model_velocity = self.trace.f_speed(current_timestamp) \
-            if velocity is None else velocity
-
-        # Step the ego-dynamics forward for some time
-        self.ego_dynamics.step(self.model_curvature, self.model_velocity,
-                               delta_t)
-
-        # Find the closest point in the human trajectory and compute relative
-        # transformation from the ego agent
-        self.timestamp, self.human_dynamics = self.get_next_valid_timestamp(
-            human=self.human_dynamics, desired_ego=self.ego_dynamics)
-
-        translation_x, translation_y, theta = self.compute_relative_transform()
-        self.relative_state.update(translation_x, translation_y, theta)
-        self.distance = self.trace.f_distance(self.timestamp) - \
-                        self.trace.f_distance(self.first_time)
-
-    def step_sensors(self, other_agents=[]):
-        self.observations = {}
-        for sensor in self.sensors:
-            self.observations[sensor.id] = sensor.capture(self.timestamp, other_agents=other_agents)
-
-        # NOTE: this implementation will cause issue if agent has memory. Also it accumulates reward
-        # accross episode. Need a way to connect trace ending and starting point.
-        if self.trace_done:
-            pass # otherwise will cause incorrect computation of scene state | translated_frame = self.reset()
-
-    def get_timestamp(self, index):
-
-        if index >= len(self.trace.syncedLabeledTimestamps[
-                self.current_segment_index]) - 1:
-            # print("END OF TRACE")
-            self.trace_done = True  # Done var will be set to True in deepknight env step
-
-            # Return last timestamp
-            return self.trace.syncedLabeledTimestamps[
-                self.current_segment_index][-1]
-
-        return self.trace.syncedLabeledTimestamps[
-            self.current_segment_index][index]
-
-    def get_current_timestamp(self):
-        return self.get_timestamp(self.current_frame_index)
-
-    def get_next_valid_timestamp(self, human, desired_ego):
-        first_time = self.first_time
-        current_time = self.get_current_timestamp()
-        index = self.current_frame_index
-        time = self.get_timestamp(index)
-        human = human.copy()  # dont edit the original
-        closest_dist = float('inf')
-        if self.direction == 'forward':
-            index_step = 1
-        elif self.direction == 'backward':
-            index_step = -1
-        else:
-            raise NotImplementedError('Unrecognized agent direction {}'.format(self.direction))
-        while True:
-            next_time = self.get_timestamp(index)
-
-            last_human = human.copy()
-            human.step(curvature=self.trace.f_curvature(time),
-                       velocity=self.trace.f_speed(time),
-                       delta_t=next_time-time)
-
-            dist = np.linalg.norm(human.numpy()[:2] - desired_ego.numpy()[:2])
-            time = next_time
-            if dist < closest_dist:
-                closest_dist = dist
-                index += index_step
-            else:
-                break
-
-        self.current_frame_index = index - index_step
-        closest_time = self.get_current_timestamp()
-        return closest_time, last_human
-
-    def compute_relative_transform(self):
-        """ TODO
+        Args:
+            cam_config (Dict): configuration for camera and rendering
+        
+        Returns:
+            Camera: a vista camera sensor object spawned
         """
+        cam = Camera(attach_to=self, config=cam_config)
+        self._sensors.append(cam)
 
-        ego_x_state, ego_y_state, ego_theta_state = \
-            self.ego_dynamics.numpy()
-        human_x_state, human_y_state, human_theta_state = \
-            self.human_dynamics.numpy()
+        return cam
 
-        c = np.cos(human_theta_state)
-        s = np.sin(human_theta_state)
-        R_2 = np.array([[c, -s], [s, c]])
-        xy_global_centered = np.array([[ego_x_state - human_x_state],
-                                       [human_y_state - ego_y_state]])
-        [[translation_x], [translation_y]] = np.matmul(R_2, xy_global_centered)
-        translation_y *= -1  # negate the longitudinal translation (due to VS setup)
+    def reset(self, trace_index: int, segment_index: int, frame_index: int) -> Dict[str, Any]:
+        # Reset states and dynamics
+        self._relative_state.reset()
+        self._ego_dynamics.reset()
+        self._human_dynamics.reset()
 
-        # Adjust based on what the human did
-        theta = ego_theta_state - human_theta_state
+        # Update pointers to dataset
+        self._trace = self.parent.traces[self.trace_index]
+        self._timestamp = self.trace.get_master_timestamp(segment_index, frame_index)
+        self._frame_number = self.trace.get_master_frame_number(segment_index, frame_index)
+        self._trace_index = trace_index
+        self._segment_index = segment_index
+        self._frame_index = frame_index
 
-        # Check if crashed
-        free_width = self.trace.road_width - self.car_width
-        max_translation = abs(translation_x) > free_width / 2.
-        max_rotation = abs(theta) > np.pi / 10.
-        if max_translation or max_rotation:
-            self.isCrashed = True
-
-        return translation_x, translation_y, theta
-
-    def curvature_to_steering(self, curvature):
-        tire_angle = np.arctan(self.wheel_base * curvature)
-        angle = tire_angle * self.steering_ratio * 180. / np.pi
-        return angle
-
-    def reset(self):
-        self.relative_state.reset()
-        self.ego_dynamics.reset()
-        self.human_dynamics.reset()
-
-        (self.current_trace_index, self.current_segment_index, \
-            self.current_frame_index) = self.world.sample_new_location()
-
-        # First timestamp of trace
-        self.trace = self.world.traces[self.current_trace_index]
-        self.first_time = self.trace.masterClock.get_time_from_frame_num(
-            self.trace.which_camera,
-            self.trace.syncedLabeledFrames[self.current_segment_index][
-                self.trace.which_camera][self.current_frame_index])  # MODIFIED
-
-        self.trace_done = False
-        self.isCrashed = False
-
+        # Reset sensors
         for sensor in self.sensors:
             sensor.reset()
 
-        observations = {}
+        # Update observation
+        observations = dict()
         for sensor in self.sensors:
-            observations[sensor.id] = sensor.capture(self.first_time)
+            observations[sensor.name] = sensor.capture(self.timestamp)
+
         return observations
 
-    def __repr__(self, indent=2):
-        tab = " " * indent
+    def step_dynamics(self):
+        raise NotImplementedError
 
-        repr = ["{}(id={}, ".format(self.__class__.__name__, self._id)]
-        repr.append(f"{tab}parent={self._parent}, ")
+    @property
+    def trace(self) -> Trace:
+        return self._trace
 
-        repr.append(f"{tab}sensors=[")
-        for sensor in self.sensors:
-            repr.append(f"{2*tab}{sensor}, ")
-        repr.append(f"{tab}], ")
+    @property
+    def sensors(self) -> List[BaseSensor]:
+        return self._sensors
 
-        return "\n".join(repr) + "\n)"
+    @property
+    def relative_state(self) -> State:
+        return self._relative_state
+
+    @property
+    def ego_dynamics(self) -> StateDynamics:
+        return self._ego_dynamics
+
+    @property
+    def human_dynamics(self) -> StateDynamics:
+        return self._human_dynamics
+
+    @property
+    def length(self) -> float:
+        return self._length
+
+    @property
+    def width(self) -> float:
+        return self._width
+
+    @property
+    def wheel_base(self) -> float:
+        return self._wheel_base
+
+    @property
+    def steering_ratio(self) -> float:
+        return self._steering_ratio
+
+    @property
+    def speed(self) -> float:
+        return self._speed
+
+    @property
+    def curvature(self) -> float:
+        return self._curvature
+
+    @property
+    def steering(self) -> float:
+        return self._steering
+
+    @property
+    def human_speed(self) -> float:
+        return self._human_speed
+
+    @property
+    def human_steering(self) -> float:
+        return self._human_steering
+
+    @property
+    def timestamp(self) -> float:
+        return self._timestamp
+
+    @property
+    def frame_number(self) -> int:
+        return self._frame_number
+
+    @property
+    def trace_index(self) -> int:
+        return self._trace_index
+
+    @property
+    def segment_index(self) -> int:
+        return self._segment_index
+
+    @property
+    def frame_index(self) -> int:
+        return self._frame_index
+
+    def __repr__(self):
+        raise NotImplementedError

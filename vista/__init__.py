@@ -1,4 +1,4 @@
-"""Top-level package for VISTA."""
+""" Top-level package for VISTA. """
 
 from .core import *
 from .entities import *
