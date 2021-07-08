@@ -54,6 +54,16 @@ class Camera(BaseSensor):
             assert isinstance(master, Camera), 'Master sensor is not Camera object'
             self._streams = master.streams
 
+        # Add background mesh for all video stream in view synthesis
+        parent_sensor_dict = {_s.name: _s for _s in self.parent.sensors}
+        for camera_name in self.streams.keys():
+            if camera_name not in self.view_synthesis.bg_mesh_names:
+                if camera_name in parent_sensor_dict.keys():
+                    camera_param = parent_sensor_dict[camera_name].camera_param
+                else:
+                    camera_param = CameraParams(camera_name, self._config['rig_path'])
+                self.view_synthesis.add_bg_mesh(camera_param)
+
     def capture(self, timestamp: float) -> np.ndarray:
         # Get frame at the closest timestamp from dataset
         multi_sensor = self.parent.trace.multi_sensor
@@ -80,8 +90,7 @@ class Camera(BaseSensor):
         lat, long, yaw = self.parent.relative_state.numpy()
         trans = np.array([lat, 0., -long])
         rot = np.array([0., yaw, 0.])
-        # TODO: DEBUG
-        rendered_frame = self.view_synthesis.synthesize(trans, rot, frames['camera_front'])
+        rendered_frame = self.view_synthesis.synthesize(trans, rot, frames)
 
         return rendered_frame
 

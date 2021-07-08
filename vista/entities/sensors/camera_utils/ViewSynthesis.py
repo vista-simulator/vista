@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 from enum import Enum
 import numpy as np
 import pyrender
@@ -29,72 +29,48 @@ class ViewSynthesis:
         self._config['ambient_light_factor'] = self._config.get('ambient_light_factor', 0.2)
         self._config['recoloring_factor'] = self._config.get('recoloring_factor', 0.5)
 
-        # Projection and re-projection parameters
-        self._K = self._camera_param.get_K()
-        ### DEBUG
-        self._K[0, 2] = self._camera_param.get_width() / 2.
-        self._K[1, 2] = self._camera_param.get_height() / 2.
-        ### DEBUG
-        self._K_inv = np.linalg.inv(self._K)
-
-        # Mesh coordinates, faces, and rays
-        self._homo_coords, self._mesh_faces = self._get_homogeneous_image_coords(get_mesh=True)
-        self._world_rays = np.matmul(self._K_inv, self._homo_coords)
-
-        normal = np.reshape(self._camera_param.get_ground_plane()[:3], [1,3])
-        d = self._camera_param.get_ground_plane()[3]
-        k = np.divide(d, np.matmul(normal, self._world_rays))
-        k[k < 0] = self._config['zfar']
-        self._depth = k
-
-        # Objects for rendering the scene
+        # Renderer and scene
         self._renderer = pyrender.OffscreenRenderer(self._camera_param.get_width(),
                                                     self._camera_param.get_height())
         self._scene = pyrender.Scene(ambient_light=[1.,1.,1.],
                                      bg_color=[0,0,0])
 
+        # Camera for rendering
         camera = pyrender.IntrinsicsCamera(fx=self._camera_param._fx,
                                            fy=self._camera_param._fy,
-                                           cx=self._K[0,2],
-                                           cy=self._K[1,2],
+                                           cx=self._camera_param._cx,
+                                           cy=self._camera_param._cy,
                                            znear=self._config['znear'],
                                            zfar=self._config['zfar'])
         self._camera_node = pyrender.Node(name='camera', 
-                                          camera=camera)#, # DEBUG
-                                        #   translation=self._camera_param.get_position()[:,0],
-                                        #   rotation=self._camera_param.get_quaternion()[:,0])
+                                          camera=camera) #,
+                                        #   translation=self._camera_param.get_position()[:,0], # DEBUG
+                                        #   rotation=self._camera_param.get_quaternion()[:,0]) # DEBUG
         self._scene.add_node(self._camera_node)
 
-        mesh = pyrender.Mesh([
-            pyrender.Primitive(
-                positions=self._world_rays.T,
-                indices=self._mesh_faces.T,
-                color_0=np.ones((self._world_rays.shape[1], 4)),
-                mode=pyrender.constants.GLTF.TRIANGLES,
-            )
-        ])
-        self._bg_node = pyrender.Node(name='bg', # project camera view to 3D
-                                      mesh=mesh)#, # DEBUG
-                                    #   translation=self._camera_param.get_position()[:,0],
-                                    #   rotation=self._camera_param.get_quaternion()[:,0])
-        self._scene.add_node(self._bg_node)
-
-    def synthesize(self, trans: np.ndarray, rot: np.ndarray, img: np.ndarray, 
-                   depth: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
-        # Update mesh vertex positions
+        # Mesh of background. Can add more by calling add_bg_mesh for different camera_param
+        self._world_rays: Dict[str, np.ndarray] = dict()
         if self._config['depth_mode'] == DepthModes.FIXED_PLANE:
-            assert depth is None
-            depth = self._depth
-            
-            depth = depth.reshape((1, -1))
-            world_coords = np.multiply(-depth, self._world_rays)
-            self._bg_node.mesh.primitives[0].positions = world_coords.T
-        else:
-            raise NotImplementedError
+            self._depth: Dict[str, np.ndarray] = dict()
+        self._bg_node: Dict[str, pyrender.Node] = dict()
+        self.add_bg_mesh(self._camera_param)
 
-        # Update mesh face colors
-        colors = img[:,::-1] / 255.
-        self._bg_node.mesh.primitives[0].color_0[:,:3] = colors.reshape((-1, 3))
+    def synthesize(self, trans: np.ndarray, rot: np.ndarray, imgs: Dict[str, np.ndarray], 
+                   depth: Optional[Dict[str, np.ndarray]] = None) -> Tuple[np.ndarray, np.ndarray]:
+        for name, img in imgs.items():
+            # Update mesh vertex positions
+            if self._config['depth_mode'] == DepthModes.FIXED_PLANE:
+                depth = self._depth[name]
+            else:
+                raise NotImplementedError
+
+            depth = depth.reshape((1, -1))
+            world_coords = np.multiply(-depth, self._world_rays[name])
+            self._bg_node[name].mesh.primitives[0].positions = world_coords.T
+
+            # Update mesh face colors
+            colors = img[:,::-1] / 255.
+            self._bg_node[name].mesh.primitives[0].color_0[:,:3] = colors.reshape((-1, 3))
 
         # Update camera pose based on the requested viewpoint
         self._camera_node.matrix = transform.vec2mat(trans, rot)
@@ -103,13 +79,49 @@ class ViewSynthesis:
         color_bg, depth_bg = self._renderer.render(self._scene, \
             flags=pyrender.constants.RenderFlags.FLAT)
 
-        # TODO: DEBUG
+        ### DEBUG
         color, depth = color_bg, depth_bg
         import cv2
         cv2.imwrite('test.png', color)
         import pdb; pdb.set_trace()
+        ### DEBUG
 
-        return color, depth        
+        return color, depth
+    
+    def add_bg_mesh(self, camera_param: CameraParams) -> None:
+        # Projection and re-projection parameters
+        K = self._camera_param.get_K().copy()
+        K[0,2] = camera_param.get_width() / 2. # TODO: not sure if we need this
+        K[1,2] = camera_param.get_height() / 2. # TODO: not sure if we need this
+        K_inv = np.linalg.inv(K)
+
+        # Mesh coordinates, faces, and rays
+        name = camera_param.name
+        homo_coords, mesh_faces = self._get_homogeneous_image_coords(get_mesh=True)
+        self._world_rays[name] = np.matmul(K_inv, homo_coords)
+
+        # Get depth for ground plane assumption
+        if self._config['depth_mode'] == DepthModes.FIXED_PLANE:
+            normal = np.reshape(camera_param.get_ground_plane()[:3], [1,3])
+            d = camera_param.get_ground_plane()[3]
+            k = np.divide(d, np.matmul(normal, self._world_rays[name]))
+            k[k < 0] = self._config['zfar'] / 10. # should be smaller than actual zfar
+            self._depth[camera_param.name] = k
+
+        # Add mesh to scene
+        mesh = pyrender.Mesh([
+            pyrender.Primitive(
+                positions=self._world_rays[name].T,
+                indices=mesh_faces.T,
+                color_0=np.ones((self._world_rays[name].shape[1], 4)),
+                mode=pyrender.constants.GLTF.TRIANGLES,
+            )
+        ])
+        self._bg_node[name] = pyrender.Node(name='bg_{}'.format(name), # project camera view to 3D
+                                            mesh=mesh)#,
+                                            # translation=-self._camera_param.get_position()[:,0], # DEBUG
+                                            # rotation=self._camera_param.get_quaternion()[:,0]) # DEBUG
+        self._scene.add_node(self._bg_node[name])
     
     def _get_homogeneous_image_coords(self, get_mesh=False):
         cam_w = self._camera_param.get_width()
@@ -136,3 +148,7 @@ class ViewSynthesis:
             mesh_tri = np.stack(mesh_tri, axis=1)
 
             return coords, mesh_tri
+
+    @property
+    def bg_mesh_names(self) -> List[str]:
+        return self._bg_node.keys()

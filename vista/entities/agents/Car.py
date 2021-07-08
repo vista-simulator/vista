@@ -1,4 +1,5 @@
 from typing import List, Dict, Any
+import numpy as np
 
 from .Dynamics import State, StateDynamics
 from ..Entity import Entity
@@ -48,6 +49,7 @@ class Car(Entity):
         self._trace_index: int = 0
         self._segment_index: int = 0
         self._frame_index: int = 0
+        self._observations: Dict[str, Any] = dict()
 
     def spawn_camera(self, cam_config: Dict) -> Camera:
         """ Spawn and attach a camera to this car.
@@ -63,7 +65,7 @@ class Car(Entity):
 
         return cam
 
-    def reset(self, trace_index: int, segment_index: int, frame_index: int) -> Dict[str, Any]:
+    def reset(self, trace_index: int, segment_index: int, frame_index: int):
         # Reset states and dynamics
         self._relative_state.reset()
         self._ego_dynamics.reset()
@@ -82,13 +84,11 @@ class Car(Entity):
             sensor.reset()
 
         # Update observation
-        observations = dict()
+        self._observations = dict()
         for sensor in self.sensors:
-            observations[sensor.name] = sensor.capture(self.timestamp)
+            self._observations[sensor.name] = sensor.capture(self.timestamp)
 
-        return observations
-
-    def step_dynamics(self):
+    def step_dynamics(self, action: np.ndarray, dt: float):
         raise NotImplementedError
 
     @property
@@ -166,6 +166,10 @@ class Car(Entity):
     @property
     def frame_index(self) -> int:
         return self._frame_index
+
+    @property
+    def observations(self) -> Dict[str, Any]:
+        return self._observations
 
     def __repr__(self):
         raise NotImplementedError
