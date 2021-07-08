@@ -103,13 +103,25 @@ class Trace:
         
         return frame_index
 
-    def get_master_timestamp(self, segment_index: int, frame_index: int) -> float:
+    def get_master_timestamp(self, segment_index: int, frame_index: int,
+                             check_end: Optional[bool] = False) -> float:
         master_name = self.multi_sensor.master_sensor
-        return self.good_timestamps[master_name][segment_index][frame_index]
+        if check_end:
+            exceed_end = frame_index >= len(self.good_timestamps[master_name][segment_index])
+            frame_index = -1 if exceed_end else frame_index
+            return exceed_end, self.good_timestamps[master_name][segment_index][frame_index]
+        else:
+            return self.good_timestamps[master_name][segment_index][frame_index]
 
-    def get_master_frame_number(self, segment_index: int, frame_index: int) -> float:
+    def get_master_frame_number(self, segment_index: int, frame_index: int,
+                                check_end: Optional[bool] = False) -> float:
         master_name = self.multi_sensor.master_sensor
-        return self.good_frames[master_name][segment_index][frame_index]
+        if check_end:
+            exceed_end = frame_index >= len(self.good_timestamps[master_name][segment_index])
+            frame_index = -1 if exceed_end else frame_index
+            return exceed_end, self.good_frames[master_name][segment_index][frame_index]
+        else:
+            return self.good_frames[master_name][segment_index][frame_index]
 
     def _divide_to_good_segments(self) -> Dict[str, List[int]]:
         """ Divide a trace into good segments based on video labels and time difference between

@@ -81,9 +81,9 @@ class ViewSynthesis:
 
         ### DEBUG
         color, depth = color_bg, depth_bg
-        import cv2
-        cv2.imwrite('test.png', color)
-        import pdb; pdb.set_trace()
+        # import cv2
+        # cv2.imwrite('test.png', color)
+        # import pdb; pdb.set_trace()
         ### DEBUG
 
         return color, depth

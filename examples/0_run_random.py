@@ -30,6 +30,11 @@ def main(args):
     while True:
         world.reset()
 
+        while True:
+            action = np.array([agent.trace.f_curvature(agent.timestamp), 
+                               agent.trace.f_speed(agent.timestamp)])
+            agent.step_dynamics(action)
+
 
 if __name__ == '__main__':
     # Parse Arguments

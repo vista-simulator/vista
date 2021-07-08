@@ -65,7 +65,7 @@ class Camera(BaseSensor):
                 self.view_synthesis.add_bg_mesh(camera_param)
 
     def capture(self, timestamp: float) -> np.ndarray:
-        # Get frame at the closest timestamp from dataset
+        # Get frame at the closest smaller timestamp from dataset
         multi_sensor = self.parent.trace.multi_sensor
         if self.name == multi_sensor.master_sensor:
             all_frame_nums = multi_sensor.get_frames_from_times([timestamp])

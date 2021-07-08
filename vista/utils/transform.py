@@ -31,11 +31,33 @@ def quat2euler(quat: Vec, seq: Optional[str] = 'xyz',
     return R.as_euler(seq, degrees)
 
 
-def compute_relative_xyyaw(xyyaw1, xyyaw2):
-    """ Compute relative x, y, yaw. """
-    raise NotImplementedError
+def latlongyaw2vec(latlongyaw: Vec) -> Tuple[Vec, Vec]:
+    """ Convert lateral, longitudinal, yaw compoenents to translational and rotational vectors. """
+    lat, long, yaw = latlongyaw
+    trans = np.array([lat, 0., -long])
+    rot = np.array([0., yaw, 0.])
+    return trans, rot
 
 
-def mat2vec(tr):
+def vec2latlongyaw(trans: Vec, rot: Vec) -> Vec:
+    """ Convert translational and rotational vectors to lateral, longitudinal, yaw compoenents. """
+    return np.array([trans[0], -trans[2], rot[1]])
+
+
+def compute_relative_latlongyaw(latlongyaw: Vec, latlongyaw_ref: Vec) -> Vec:
+    """ Compute relative lateral, longitudinal, yaw compoenents. """
+    mat = vec2mat(*latlongyaw2vec(latlongyaw))
+    mat_ref = vec2mat(*latlongyaw2vec(latlongyaw_ref))
+    rel_mat = np.matmul(mat, np.linalg.inv(mat_ref))
+    rel_trans, rel_rot = mat2vec(rel_mat)
+    rel_xyyaw = vec2latlongyaw(rel_trans, rel_rot)
+    return rel_xyyaw
+
+
+def mat2vec(mat, seq: Optional[str] = 'xyz', 
+            degrees: Optional[bool] = False) -> Tuple[Vec, Vec]:
     """ Convert transformation matrix to translational and rotational vectors. """
-    raise NotImplementedError
+    trans = mat[:3,3]
+    R = Rotation.from_matrix(mat[:3,:3])
+    rot = R.as_euler(seq, degrees)
+    return trans, rot

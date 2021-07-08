@@ -37,7 +37,7 @@ class State:
         return '<{}: [{}, {}, {}]>'.format(self.__class__.__name__, self._x, self._y, self._yaw)
 
 
-class StateDynamics(State):
+class StateDynamics:
     def __init__(self,
                  x: Optional[float] = 0.,
                  y: Optional[float] = 0.,
@@ -60,10 +60,7 @@ class StateDynamics(State):
             speed_bound (list): upper and lower bound of speed
             wheel_base(float): wheel base
         """
-        super(StateDynamics, self).__init__(x, y, yaw)
-
-        self._steering = steering
-        self._speed = speed
+        self.update(x, y, yaw, steering, speed)
         self._steering_bound = steering_bound
         self._speed_bound = speed_bound
         self._wheel_base = wheel_base
@@ -106,7 +103,29 @@ class StateDynamics(State):
 
     def copy(self):
         return StateDynamics(x=self._x, y=self._y, yaw=self._yaw, 
-                             steering_angle=self._steering, speed=self._speed)
+                             steering=self._steering, speed=self._speed)
+    
+    def update(self, x: float, y: float, yaw: float, steering: float, speed: float) -> None:
+        self._x = x
+        self._y = y
+        self._yaw = yaw
+        self._steering = steering
+        self._speed = speed
+
+    def reset(self) -> None:
+        self.update(0., 0., 0., 0., 0.)
+
+    @property
+    def x(self) -> float:
+        return self._x
+
+    @property
+    def y(self) -> float:
+        return self._y
+
+    @property
+    def yaw(self) -> float:
+        return self._yaw
 
     @property
     def steering(self) -> float:
@@ -116,25 +135,25 @@ class StateDynamics(State):
     def speed(self) -> float:
         return self._speed
 
-    @steering.setter
-    def steering(self, steering) -> None:
-        assert isinstance(steering, float)
-        self._steering = steering
-
-    @speed.setter
-    def speed(self, speed) -> None:
-        assert isinstance(speed, float)
-        self._speed = speed
-
     def __repr__(self) -> str:
         return '<{}: [{}, {}, {}, {}, {}]>'.format(self.__class__.__name__, 
                                                    self._x, self._y, self._yaw,
                                                    self._steering, self._speed)
 
 
+def curvature2tireangle(curvature: float, wheel_base: float) -> float:
+    """ Convert curvature to tire angle. """
+    return np.arctan(wheel_base * curvature)
+
+
+def tireangle2curvature(tire_angle: float, wheel_base: float) -> float:
+    """ Convert tire angel to curvature. """
+    return np.tan(tire_angle) / wheel_base
+
+
 def curvature2steering(curvature: float, wheel_base: float, steering_ratio: float) -> float:
     """ Convert curvature to steering angle. """
-    tire_angle = np.arctan(wheel_base * curvature)
+    tire_angle = curvature2tireangle(curvature, wheel_base)
     steering = tire_angle * steering_ratio * 180. / np.pi
 
     return steering
@@ -143,6 +162,6 @@ def curvature2steering(curvature: float, wheel_base: float, steering_ratio: floa
 def steering2curvature(steering: float, wheel_base: float, steering_ratio: float) -> float:
     """ Convert steering angle to curvature. """
     tire_angle = steering * (np.pi / 180.) / steering_ratio
-    curvature = np.tan(tire_angle) / wheel_base
+    curvature = tireangle2curvature(tire_angle, wheel_base)
 
     return curvature
