@@ -30,10 +30,15 @@ def main(args):
     while True:
         world.reset()
 
-        while True:
+        while not agent.done:
             action = np.array([agent.trace.f_curvature(agent.timestamp), 
                                agent.trace.f_speed(agent.timestamp)])
             agent.step_dynamics(action)
+            agent.step_sensors()
+
+            # print(agent.timestamp, agent.frame_index, agent.frame_number)
+            # import cv2; cv2.imwrite('test.png', agent.observations['camera_front'])
+            # import pdb; pdb.set_trace()
 
 
 if __name__ == '__main__':

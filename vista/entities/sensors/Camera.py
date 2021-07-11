@@ -90,7 +90,7 @@ class Camera(BaseSensor):
         lat, long, yaw = self.parent.relative_state.numpy()
         trans = np.array([lat, 0., -long])
         rot = np.array([0., yaw, 0.])
-        rendered_frame = self.view_synthesis.synthesize(trans, rot, frames)
+        rendered_frame, _ = self.view_synthesis.synthesize(trans, rot, frames)
 
         return rendered_frame
 
@@ -110,5 +110,9 @@ class Camera(BaseSensor):
     def view_synthesis(self) -> ViewSynthesis:
         return self._view_synthesis
 
-    def __repr__(self):
-        raise NotImplementedError
+    def __repr__(self) -> str:
+        return '<{} (id={})> '.format(self.__class__.__name__, self.id) + \
+               'name: {} '.format(self.name) + \
+               'size: {}x{} '.format(self.camera_param.get_height(), 
+                                     self.camera_param.get_width()) + \
+               '#streams: {} '.format(len(self.streams))

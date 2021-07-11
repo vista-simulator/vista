@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 import numpy as np
+from collections import deque
 
 from .Dynamics import State, StateDynamics, curvature2steering, curvature2tireangle, tireangle2curvature
 from ..Entity import Entity
@@ -52,6 +53,7 @@ class Car(Entity):
         self._segment_index: int = 0
         self._frame_index: int = 0
         self._observations: Dict[str, Any] = dict()
+        self._done: bool = False
 
     def spawn_camera(self, cam_config: Dict) -> Camera:
         """ Spawn and attach a camera to this car.
@@ -75,6 +77,8 @@ class Car(Entity):
         self._trace_index = trace_index
         self._segment_index = segment_index
         self._frame_index = frame_index
+
+        self._done = False
 
         # Reset states and dynamics
         self._human_speed = self.trace.f_speed(self.timestamp)
@@ -100,6 +104,8 @@ class Car(Entity):
         self.step_sensors()
 
     def step_dynamics(self, action: np.ndarray, dt: Optional[float] = 1 / 30.):
+        assert not self.done, 'Agent status is done. Please call reset first.'
+
         # Parse action
         action = np.array(action).reshape(-1)
         assert action.shape[0] == 2
@@ -107,9 +113,8 @@ class Car(Entity):
         desired_tire_angle = curvature2tireangle(desired_curvature, self.wheel_base)
 
         # Run low-level controller and step vehicle dynamics TODO: non-perfect low-level controller
-        tire_angle_velocity, accel = self._compute_perfect_control( \
-            [desired_tire_angle, desired_speed], [self.tire_angle, self.speed], dt)
-        self.ego_dynamics.step(tire_angle_velocity, accel, dt)
+        desired_state = [desired_tire_angle, desired_speed]
+        self._update_with_perfect_controller(desired_state, dt, self._ego_dynamics)
 
         # Update based on vehicle dynamics feedback
         self._tire_angle = self.ego_dynamics.steering
@@ -119,72 +124,72 @@ class Car(Entity):
 
         # Update human (reference) dynamics for assoication with the trace / dataset
         human = self.human_dynamics.copy()
-        closest_dist = np.inf
+        top2_closest = dict(dist=deque([np.inf, np.inf], maxlen=2), 
+                            dynamics=deque([None, None], maxlen=2),
+                            timestamp=deque([None, None], maxlen=2),
+                            index=deque([None, None], maxlen=2))
         index = self.frame_index
         ts = self.trace.get_master_timestamp(self.segment_index, index)
         while True:
+            dist = np.linalg.norm(human.numpy()[:2] - self.ego_dynamics.numpy()[:2])
+            if dist < top2_closest['dist'][1]:
+                if dist < top2_closest['dist'][0]:
+                    top2_closest['dist'].appendleft(dist)
+                    top2_closest['dynamics'].appendleft(human.copy())
+                    top2_closest['timestamp'].appendleft(ts)
+                    top2_closest['index'].appendleft(index)
+                else:
+                    top2_closest['dist'][1] = dist
+                    top2_closest['dynamics'][1] = human.copy()
+                    top2_closest['timestamp'][1] = ts
+                    top2_closest['index'][1] = index
+            else:
+                break
+
             next_index = index + 1
             exceed_end, next_ts = self.trace.get_master_timestamp( \
                 self.segment_index, next_index, check_end=True)
-            if exceed_end: # TODO: trigger trace done terminatal condition
-                break
+            if exceed_end: # trigger trace done terminatal condition
+                self._done = True
 
-            current_state = [curvature2tireangle(self.curvature, self.wheel_base), self.speed]
-            next_state = [curvature2tireangle(self.trace.f_curvature(next_ts), self.wheel_base),
-                          self.trace.f_speed(next_ts)]
-            tire_vel, acc = self._compute_perfect_control(next_state, current_state, next_ts - ts)
-            human.step(tire_vel, acc, next_ts - ts)
+            current_state = [curvature2tireangle(self.trace.f_curvature(ts), self.wheel_base),
+                             self.trace.f_speed(ts)]
+            self._update_with_perfect_controller(current_state, next_ts - ts, human)
 
-            dist = np.linalg.norm(human.numpy()[:2] - self.ego_dynamics.numpy()[:2])
-            print(dist, human.numpy()[:2], self.ego_dynamics.numpy()[:2]) # DEBUG
-            if dist < closest_dist:
-                closest_dist = dist
-                index = next_index
-                ts = next_ts
-                self._human_dynamics = human.copy()
-            else:
-                break
+            index = next_index
+            ts = next_ts
         
-        self._frame_index = index
-        self._frame_number = self.trace.get_master_frame_number(self.segment_index, index)
-        
+        self._human_dynamics = top2_closest['dynamics'][0].copy()
+        self._frame_index = top2_closest['index'][0]
+        self._frame_number = self.trace.get_master_frame_number(self.segment_index, 
+                                                                self.frame_index)
+
         # Update timestamp based on where the car position is with respect to course distance of 
         # trace (may not be exactly the same as any of timestamps in the dataset)
-        latlongyaw = transform.compute_relative_latlongyaw( \
-            self.ego_dynamics.numpy()[:3], self.human_dynamics.numpy()[:3])
-        latlongyaw_next = transform.compute_relative_latlongyaw( \
-            self.ego_dynamics.numpy()[:3], human.numpy()[:3])
-        # TODO: cannot handle case where second closest timestamp is in latlongyaw_previous
-        import pdb; pdb.set_trace()
-        
-        if True:
-            def debug(ego_state, human_state):
-                ego_x_state, ego_y_state, ego_theta_state = ego_state
-                human_x_state, human_y_state, human_theta_state = human_state
+        latlongyaw_closest = transform.compute_relative_latlongyaw( \
+            self.ego_dynamics.numpy()[:3], top2_closest['dynamics'][0].numpy()[:3])
+        latlongyaw_second_closest = transform.compute_relative_latlongyaw( \
+            self.ego_dynamics.numpy()[:3], top2_closest['dynamics'][1].numpy()[:3])
+        ratio = abs(latlongyaw_second_closest[1]) / (abs(latlongyaw_closest[1]) \
+            + abs(latlongyaw_second_closest[1]))
+        self._timestamp = ratio * top2_closest['timestamp'][0] + (1. - ratio) \
+            * top2_closest['timestamp'][1]
 
-                c = np.cos(human_theta_state)
-                s = np.sin(human_theta_state)
-                R_2 = np.array([[c, -s], [s, c]])
-                xy_global_centered = np.array([[ego_x_state - human_x_state],
-                                            [human_y_state - ego_y_state]])
-                [[translation_x], [translation_y]] = np.matmul(R_2, xy_global_centered)
-                translation_y *= -1
-                theta = ego_theta_state - human_theta_state
-
-                return translation_x, translation_y, theta
-            latlongyaw_old = debug(self.ego_dynamics.numpy()[:3], self.human_dynamics.numpy()[:3])
-            print(np.abs(latlongyaw - latlongyaw_old))
+        # Update relative transformation between human and ego dynamics
+        self._relative_state.update(*latlongyaw_closest)
 
     def step_sensors(self) -> None:
         self._observations = dict()
         for sensor in self.sensors:
             self._observations[sensor.name] = sensor.capture(self.timestamp)
 
-    def _compute_perfect_control(self, desired_state: List[float], 
-                                 current_state: List[float], dt: float):
-        desired_state = np.array(desired_state)
-        current_state = np.array(current_state)
-        return (desired_state - current_state) / dt
+    def _update_with_perfect_controller(self, desired_state: List[float], 
+                                        dt: float, dynamics: StateDynamics):
+        # simulate condition when the desired state can be instantaneously achieved
+        new_dyn = dynamics.numpy()
+        new_dyn[-2:] = desired_state
+        dynamics.update(*new_dyn)
+        dynamics.step(0., 0., dt)
 
     @property
     def trace(self) -> Trace:
@@ -278,5 +283,15 @@ class Car(Entity):
     def observations(self) -> Dict[str, Any]:
         return self._observations
 
-    def __repr__(self):
-        raise NotImplementedError
+    @property
+    def done(self) -> bool:
+        return self._done
+
+    def __repr__(self) -> str:
+        return '<{} (id={})> '.format(self.__class__.__name__, self.id) + \
+               'width: {} '.format(self.width) + \
+               'length: {} '.format(self.length) + \
+               'wheel_base: {} '.format(self.wheel_base) + \
+               'steering_ratio: {} '.format(self.steering_ratio) + \
+               'speed: {} '.format(self.speed) + \
+               'curvature: {} '.format(self.curvature)

@@ -228,3 +228,6 @@ class Trace:
     def reset_mode(self, reset_mode):
         assert isinstance(reset_mode, str)
         self._reset_mode = reset_mode
+
+    def __repr__(self) -> str:
+        return '<{}: {}>'.format(self.__class__.__name__, self.trace_path)

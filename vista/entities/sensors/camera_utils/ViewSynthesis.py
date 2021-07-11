@@ -75,15 +75,28 @@ class ViewSynthesis:
         # Update camera pose based on the requested viewpoint
         self._camera_node.matrix = transform.vec2mat(trans, rot)
 
+
+        ### DEBUG
+        import copy
+        self._scene.clear()
+        self._scene.add_node(self._camera_node)
+        # self._scene.add(self._bg_node['camera_front'].mesh) # NOTE: doesn't work
+        self._scene.add(copy.deepcopy(self._bg_node['camera_front'].mesh)) # NOTE: work
+        ### DEBUG
+
         # Render background
         color_bg, depth_bg = self._renderer.render(self._scene, \
             flags=pyrender.constants.RenderFlags.FLAT)
 
         ### DEBUG
+        gg = list(self._scene.mesh_nodes)
+        print(gg[0].mesh.primitives[0].color_0.mean())
         color, depth = color_bg, depth_bg
-        # import cv2
-        # cv2.imwrite('test.png', color)
-        # import pdb; pdb.set_trace()
+        print(color.mean())
+        import cv2
+        cv2.imwrite('test.png', imgs['camera_front'])
+        cv2.imwrite('test2.png', color)
+        import pdb; pdb.set_trace()
         ### DEBUG
 
         return color, depth

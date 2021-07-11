@@ -92,3 +92,8 @@ class World:
     @property
     def agents(self) -> List[Car]:
         return self._agents
+
+    def __repr__(self) -> str:
+        return '<{}> '.format(self.__class__.__name__) + \
+               '#traces: {} '.format(len(self.traces)) + \
+               '#agents: {} '.format(len(self.agents))
