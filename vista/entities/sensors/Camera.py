@@ -62,6 +62,7 @@ class Camera(BaseSensor):
                     camera_param = parent_sensor_dict[camera_name].camera_param
                 else:
                     camera_param = CameraParams(camera_name, self._config['rig_path'])
+                    camera_param.resize(*self._config['size'])
                 self.view_synthesis.add_bg_mesh(camera_param)
 
     def capture(self, timestamp: float) -> np.ndarray:
