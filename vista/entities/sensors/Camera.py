@@ -6,6 +6,7 @@ from ffio import FFReader
 from .camera_utils import CameraParams, ViewSynthesis
 from .BaseSensor import BaseSensor
 from ..Entity import Entity
+from ...utils import logging
 
 
 class Camera(BaseSensor):
@@ -26,6 +27,8 @@ class Camera(BaseSensor):
         self._view_synthesis: ViewSynthesis = ViewSynthesis(self._camera_param, self._config)
 
     def reset(self) -> None:
+        logging.info('Camera ({}) reset'.format(self.id))
+
         # Close stream already open
         for stream in self.streams.values():
             stream.close()
@@ -66,6 +69,8 @@ class Camera(BaseSensor):
                 self.view_synthesis.add_bg_mesh(camera_param)
 
     def capture(self, timestamp: float) -> np.ndarray:
+        logging.info('Camera ({}) capture'.format(self.id))
+
         # Get frame at the closest smaller timestamp from dataset
         multi_sensor = self.parent.trace.multi_sensor
         if self.name == multi_sensor.master_sensor:
@@ -86,6 +91,7 @@ class Camera(BaseSensor):
             frames[camera_name] = self.streams[camera_name].image.copy()
 
         # TODO: Interpolate frame at the exact timestamp
+        logging.warning('Frame interpolation at exact timestamp not implemented')
 
         # Synthesis by rendering
         lat, long, yaw = self.parent.relative_state.numpy()

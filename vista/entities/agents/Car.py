@@ -8,6 +8,7 @@ from ..Entity import Entity
 from ..sensors import BaseSensor, Camera
 from ...core import World, Trace
 from ...utils import transform
+from ...utils import logging
 
 
 class Car(Entity):
@@ -64,12 +65,15 @@ class Car(Entity):
         Returns:
             Camera: a vista camera sensor object spawned
         """
+        logging.info('Spawn a new camera {} in car ({})'.format(cam_config['name'], self.id))
         cam = Camera(attach_to=self, config=cam_config)
         self._sensors.append(cam)
 
         return cam
 
     def reset(self, trace_index: int, segment_index: int, frame_index: int):
+        logging.info('Car ({}) reset'.format(self.id))
+
         # Update pointers to dataset
         self._trace = self.parent.traces[self.trace_index]
         self._timestamp = self.trace.get_master_timestamp(segment_index, frame_index)
@@ -105,6 +109,7 @@ class Car(Entity):
 
     def step_dynamics(self, action: np.ndarray, dt: Optional[float] = 1 / 30.):
         assert not self.done, 'Agent status is done. Please call reset first.'
+        logging.info('Car ({}) step dynamics'.format(self.id))
 
         # Parse action
         action = np.array(action).reshape(-1)
@@ -113,6 +118,7 @@ class Car(Entity):
         desired_tire_angle = curvature2tireangle(desired_curvature, self.wheel_base)
 
         # Run low-level controller and step vehicle dynamics TODO: non-perfect low-level controller
+        logging.warning('Using perfect low-level controller now')
         desired_state = [desired_tire_angle, desired_speed]
         self._update_with_perfect_controller(desired_state, dt, self._ego_dynamics)
 
@@ -151,6 +157,7 @@ class Car(Entity):
                 self.segment_index, next_index, check_end=True)
             if exceed_end: # trigger trace done terminatal condition
                 self._done = True
+                logging.info('Car ({}) exceed the end of trace'.format(self.id))
 
             current_state = [curvature2tireangle(self.trace.f_curvature(ts), self.wheel_base),
                              self.trace.f_speed(ts)]
@@ -179,6 +186,7 @@ class Car(Entity):
         self._relative_state.update(*latlongyaw_closest)
 
     def step_sensors(self) -> None:
+        logging.info('Car ({}) step sensors'.format(self.id))
         self._observations = dict()
         for sensor in self.sensors:
             self._observations[sensor.name] = sensor.capture(self.timestamp)

@@ -2,6 +2,8 @@ from typing import Optional, List
 import numpy as np
 import scipy.integrate as ode_solve
 
+from ...utils import logging
+
 
 class State:
     def __init__(self, 
@@ -87,8 +89,7 @@ class StateDynamics:
             solver.step()
             steps += 1
         if (dt - solver.t) < 0:
-            # TODO: add logging
-            print('Reach max steps {} without reaching t_bound ({} < {})'.format( \
+            logging.error('Reach max steps {} without reaching t_bound ({} < {})'.format( \
                 max_steps, solver.t, solver.t_bound))
         self._x, self._y, self._yaw, self._steering, self._speed = solver.y
 

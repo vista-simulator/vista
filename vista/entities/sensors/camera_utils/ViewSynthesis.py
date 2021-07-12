@@ -4,7 +4,7 @@ import numpy as np
 import pyrender
 
 from . import CameraParams
-from ....utils import transform
+from ....utils import transform, logging
 
 
 ZNEAR = 0.01
@@ -92,6 +92,7 @@ class ViewSynthesis:
             flags=pyrender.constants.RenderFlags.FLAT)
 
         ### DEBUG
+        logging.warning('Only using background image for rendering')
         color, depth = color_bg, depth_bg
         # import cv2
         # cv2.imwrite('test.png', imgs['camera_front'])
@@ -118,6 +119,7 @@ class ViewSynthesis:
             k = np.divide(d, np.matmul(normal, self._world_rays[name]))
             if camera_param == self._camera_param: 
                 # NOTE: hacky way to make image from the main camera have fronter order
+                logging.debug('Hacky way to make main camera image have fronter order')
                 k[k < 0] = self._config['zfar'] / 10.1
             else:
                 k[k < 0] = self._config['zfar'] / 10. # should be smaller than actual zfar
@@ -153,6 +155,7 @@ class ViewSynthesis:
             mesh_tri = []
 
             # FIXME TODO: vectorize this double for-loop
+            logging.debug('Homogeneous coordinate computation not vectorized')
             for i in range(0, cam_h - 1):
                 for j in range(0, cam_w - 1):
                     c = np.array([i, j])

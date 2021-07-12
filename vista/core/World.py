@@ -3,6 +3,7 @@ import numpy as np
 
 from .Trace import Trace
 from ..entities.agents import Car
+from ..utils import logging
 
 
 class World:
@@ -29,15 +30,19 @@ class World:
             Car: the agent being spawned
         """
         agent = Car(world=self, car_config=config)
+        logging.info('Spawn an agent ({})'.format(agent.id))
         self._agents.append(agent)
 
         return agent
 
     def reset(self) -> None:
+        logging.info('World reset')
+
         # Sample a new trace and a new location at the sampled trace
         new_trace_index, new_segment_index, new_frame_index = self.sample_new_location()
 
         ### DEBUG
+        logging.warning('Fix trace/segment/frame index for debugging')
         new_trace_index = 0
         new_segment_index = 0
         new_frame_index = 100

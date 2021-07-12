@@ -4,6 +4,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 from .core_utils import MultiSensor, LabelSearch, TopicNames
+from ..utils import logging
 
 
 class Trace:
@@ -138,6 +139,7 @@ class Trace:
             dict: timestamps of good frames
         """
         # Filter by video labels (TODO: make optional)
+        logging.debug('Not yet make optional the use of LabelSearch')
         _, good_labeled_timestamps = self._labels.find_good_labeled_frames(self._trace_path)
 
         # Filter by end-of-trace and time difference across consecutive frames
