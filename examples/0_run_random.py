@@ -3,6 +3,9 @@ import numpy as np
 
 import vista
 from vista.entities.sensors.camera_utils.ViewSynthesis import DepthModes
+from vista.utils import logging
+
+logging.setLevel(logging.DEBUG)
 
 
 def main(args):
@@ -25,10 +28,12 @@ def main(args):
     world = vista.World(args.trace_path)
     agent = world.spawn_agent(car_config)
     camera = agent.spawn_camera(camera_config)
+    display = vista.Display(world)
 
     # Main running loop
     while True:
         world.reset()
+        display.reset()
 
         while not agent.done:
             action = np.array([agent.trace.f_curvature(agent.timestamp), 

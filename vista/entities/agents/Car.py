@@ -2,7 +2,8 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 from collections import deque
 
-from .Dynamics import State, StateDynamics, curvature2steering, curvature2tireangle, tireangle2curvature
+from .Dynamics import State, StateDynamics, curvature2steering, curvature2tireangle, \
+                      tireangle2curvature, update_with_perfect_controller
 from ..Entity import Entity
 
 from ..sensors import BaseSensor, Camera
@@ -120,7 +121,7 @@ class Car(Entity):
         # Run low-level controller and step vehicle dynamics TODO: non-perfect low-level controller
         logging.warning('Using perfect low-level controller now')
         desired_state = [desired_tire_angle, desired_speed]
-        self._update_with_perfect_controller(desired_state, dt, self._ego_dynamics)
+        update_with_perfect_controller(desired_state, dt, self._ego_dynamics)
 
         # Update based on vehicle dynamics feedback
         self._tire_angle = self.ego_dynamics.steering
@@ -161,7 +162,7 @@ class Car(Entity):
 
             current_state = [curvature2tireangle(self.trace.f_curvature(ts), self.wheel_base),
                              self.trace.f_speed(ts)]
-            self._update_with_perfect_controller(current_state, next_ts - ts, human)
+            update_with_perfect_controller(current_state, next_ts - ts, human)
 
             index = next_index
             ts = next_ts
@@ -190,14 +191,6 @@ class Car(Entity):
         self._observations = dict()
         for sensor in self.sensors:
             self._observations[sensor.name] = sensor.capture(self.timestamp)
-
-    def _update_with_perfect_controller(self, desired_state: List[float], 
-                                        dt: float, dynamics: StateDynamics):
-        # simulate condition when the desired state can be instantaneously achieved
-        new_dyn = dynamics.numpy()
-        new_dyn[-2:] = desired_state
-        dynamics.update(*new_dyn)
-        dynamics.step(0., 0., dt)
 
     @property
     def trace(self) -> Trace:

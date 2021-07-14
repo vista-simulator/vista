@@ -1,1 +1,0 @@
-""" Drawing functions for visualization. """

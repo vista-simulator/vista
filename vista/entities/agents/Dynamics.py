@@ -166,3 +166,12 @@ def steering2curvature(steering: float, wheel_base: float, steering_ratio: float
     curvature = tireangle2curvature(tire_angle, wheel_base)
 
     return curvature
+
+
+def update_with_perfect_controller(desired_state: List[float], 
+                                   dt: float, dynamics: StateDynamics):
+    # simulate condition when the desired state can be instantaneously achieved
+    new_dyn = dynamics.numpy()
+    new_dyn[-2:] = desired_state
+    dynamics.update(*new_dyn)
+    dynamics.step(0., 0., dt)
