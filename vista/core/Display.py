@@ -28,8 +28,7 @@ class Display:
         # Get arguments
         self._world: World = world
         self._fps: float = fps
-        display_config.update(self.DEFAULT_DISPLAY_CONFIG)
-        self._config: Dict = display_config
+        self._config: Dict = misc.merge_dict(display_config, self.DEFAULT_DISPLAY_CONFIG)
 
         # Initialize data for plotting
         self._road: deque[np.ndarray] = deque(maxlen=self._config['road_buffer_size'])
@@ -61,8 +60,6 @@ class Display:
         self._axes: Dict[plt.Axes] = dict()
         figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
         self._fig: plt.Figure = plt.figure(figsize=figsize)
-        self._fig.subplots_adjust(left=0.01, right=0.98, bottom=0.02, 
-                                  top=0.94, wspace=0.03, hspace=0.5)
         self._fig.patch.set_facecolor('black') # use black background
         self._gs = self._fig.add_gridspec(self._config['gs_h'], 
                                           self._config['gs_agent_w'] * n_agents_with_sensors \
@@ -101,6 +98,7 @@ class Display:
                 placeholder = fit_img_to_ax(self._fig, self._axes[ax_name], 
                                             np.zeros(img_shape, dtype=np.uint8))
                 self._artists['im:{}'.format(ax_name)] = self._axes[ax_name].imshow(placeholder)
+        self._fig.tight_layout()
 
     def reset(self) -> None:
         # Reset road deque
@@ -115,7 +113,7 @@ class Display:
         exceed_end = False
         while self._road_frame_idcs[-1] < (self.ref_agent.frame_index + \
             self._config['road_buffer_size'] / 2.) and not exceed_end:
-            ts, _ = self._get_timestamp(self._road_frame_idcs[-1])
+            exceed_end, ts = self._get_timestamp(self._road_frame_idcs[-1])
             self._road_frame_idcs.append(self._road_frame_idcs[-1] + 1)
             exceed_end, next_ts = self._get_timestamp(self._road_frame_idcs[-1])
 

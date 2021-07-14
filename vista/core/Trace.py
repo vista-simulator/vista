@@ -4,7 +4,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 from .core_utils import MultiSensor, LabelSearch, TopicNames
-from ..utils import logging
+from ..utils import logging, misc
 
 
 class Trace:
@@ -27,14 +27,9 @@ class Trace:
         'road_width': 4,
     }
 
-    def __init__(self, trace_path: str, trace_config: Optional[Dict] = dict(),
-                 reset_mode: Optional[str] = 'default',
-                 master_sensor: Optional[str] = TopicNames.master_topic,
-                 labels: Optional[List[Any]] = DEFAULT_LABELS,
-                 max_timestamp_diff_across_frames: Optional[float] = 0.2) -> None:
+    def __init__(self, trace_path: str, trace_config: Optional[Dict] = dict()) -> None:
         self._trace_path: str = trace_path
-        trace_config.update(self.DEFAULT_CONFIG)
-        self._config: Dict = trace_config
+        self._config: Dict = misc.merge_dict(trace_config, self.DEFAULT_CONFIG)
 
         # Divide trace to good segments based on video labels and timestamps
         self._multi_sensor: MultiSensor = MultiSensor(self._trace_path, 

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 import numpy as np
 from shapely.geometry import box as Box
 from shapely import affinity
@@ -19,3 +19,8 @@ def agent2poly(agent: Car, ref_dynamics: Optional[StateDynamics] = None) -> Box:
                rel_pose[1] + agent.length / 2.)
     poly = affinity.rotate(poly, np.degrees(rel_pose[2]))
     return poly
+
+
+def merge_dict(dict1: Dict, dict2: Dict) -> Dict:
+    """ Merge two dict, where dict1 has higher priority. """
+    return dict(list(dict2.items()) + list(dict1.items()))

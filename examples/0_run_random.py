@@ -13,6 +13,7 @@ def main(args):
     trace_config = dict(
         road_width=4,
         reset_mode='default',
+        master_sensor='camera_front',
     )
     car_config = dict(
         length=5.,
@@ -37,6 +38,9 @@ def main(args):
         # rendering params
         depth_mode=DepthModes.FIXED_PLANE,
         use_lighting=False,
+    )
+    display_config = dict(
+        road_buffer_size=300,
     )
     world = vista.World(args.trace_path, trace_config)
     agent = world.spawn_agent(car_config)

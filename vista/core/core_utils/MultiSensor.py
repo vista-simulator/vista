@@ -14,8 +14,10 @@ class MultiSensor:
 
         # Get frame-to-timestamp mapping for every sensors
         self._sensor_frame_to_time: Dict = dict()
-        sensor_topic_names = [TopicNames.lidar_3d] + [getattr(TopicNames, _x) \
-            for _x in TopicNames.cameras]
+        sensor_topic_names = [TopicNames.lidar_3d] + [_x for _x in TopicNames.cameras]
+        assert master_sensor in sensor_topic_names, \
+            'Master sensor {} not in topic names {}.'.format(master_sensor, sensor_topic_names) + \
+            'Please check camera config or TopicNames.py'
         for fname in os.listdir(self._trace_dir):
             sensor_name, ext = os.path.splitext(fname)
             if sensor_name in sensor_topic_names and ext == '.csv':
