@@ -10,13 +10,17 @@ logging.setLevel(logging.DEBUG)
 
 def main(args):
     # Initialize the simulator
+    trace_config = dict(
+        road_width=4,
+        reset_mode='default',
+    )
     car_config = dict(
         length=5.,
         width=2.,
         wheel_base=2.8,
         steering_ratio=17.6,
     )
-    camera_config = dict(
+    camera_config1 = dict(
         # camera params
         name='camera_front',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
@@ -25,9 +29,19 @@ def main(args):
         depth_mode=DepthModes.FIXED_PLANE,
         use_lighting=False,
     )
-    world = vista.World(args.trace_path)
+    camera_config2 = dict(
+        # camera params
+        name='camera_left',
+        rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
+        size=(250, 400),
+        # rendering params
+        depth_mode=DepthModes.FIXED_PLANE,
+        use_lighting=False,
+    )
+    world = vista.World(args.trace_path, trace_config)
     agent = world.spawn_agent(car_config)
-    camera = agent.spawn_camera(camera_config)
+    camera1 = agent.spawn_camera(camera_config1)
+    camera2 = agent.spawn_camera(camera_config2)
     display = vista.Display(world)
 
     # Main running loop
@@ -41,9 +55,12 @@ def main(args):
             agent.step_dynamics(action)
             agent.step_sensors()
 
-            # print(agent.timestamp, agent.frame_index, agent.frame_number)
-            # import cv2; cv2.imwrite('test.png', agent.observations['camera_front'])
-            # import pdb; pdb.set_trace()
+            img = display.render()
+            ### DEBUG
+            logging.warning('Dump image for debugging and set pdb')
+            import cv2; cv2.imwrite('test.png', img[:,:,::-1])
+            import pdb; pdb.set_trace()
+            ### DEBUG
 
 
 if __name__ == '__main__':

@@ -11,13 +11,16 @@ from ..entities.agents.Dynamics import StateDynamics, update_with_perfect_contro
                                        curvature2tireangle
 from ..entities.agents import Car
 from ..entities.sensors import Camera
-from ..utils import logging
+from ..utils import logging, transform, misc
 
 
 class Display:
     DEFAULT_DISPLAY_CONFIG = {
         'road_buffer_size': 200,
         'birdseye_map_size': (30, 20),
+        'gs_bev_w': 2,
+        'gs_agent_w': 4,
+        'gs_h': 6,
     }
 
     def __init__(self, world: World, fps: Optional[float] = 30, 
@@ -35,13 +38,15 @@ class Display:
 
         # Get agents with sensors (to be visualized)
         self._agents_with_sensors: List[Car] = []
-        for agent in self.world.agents:
+        for agent in self._world.agents:
             if len(agent.sensors) > 0:
                 is_camera = [isinstance(_v, Camera) for _v in agent.sensors]
                 if len(is_camera) > 0:
                     self._agents_with_sensors.append(agent)
                 if len(is_camera) < len(agent.sensors):
                     logging.warning('Cannot visualize sensor other than Camera')
+        n_agents_with_sensors = len(self._agents_with_sensors)
+        max_n_sensors = max([len(_v.sensors) for _v in self._agents_with_sensors])
 
         # Specify colors for agents and road
         colors = list(cm.get_cmap('Set1').colors)
@@ -51,18 +56,56 @@ class Display:
         self._agent_colors: List[Tuple] = colors
         self._road_color: Tuple = list(cm.get_cmap('Dark2').colors)[-1]
 
-        # TODO: Initialize figure
+        # Initialize figure
         self._artists: Dict[Any] = dict()
         self._axes: Dict[plt.Axes] = dict()
+        figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
+        self._fig: plt.Figure = plt.figure(figsize=figsize)
+        self._fig.subplots_adjust(left=0.01, right=0.98, bottom=0.02, 
+                                  top=0.94, wspace=0.03, hspace=0.5)
+        self._fig.patch.set_facecolor('black') # use black background
+        self._gs = self._fig.add_gridspec(self._config['gs_h'], 
+                                          self._config['gs_agent_w'] * n_agents_with_sensors \
+                                            + self._config['gs_bev_w'])
+        assert self._config['gs_h'] % max_n_sensors == 0, \
+            'Height of grid ({}) can not be exactly divided by max number of sensors ({})'.format( \
+                self._config['gs_h'], max_n_sensors)
+        gs_agent_h = self._config['gs_h'] // max_n_sensors
 
-        # TODO: Initialize birds eye view
+        # Initialize birds eye view
+        self._axes['bev'] = self._fig.add_subplot(self._gs[:,-self._config['gs_bev_w']:])
+        self._axes['bev'].set_facecolor('black')
+        self._axes['bev'].set_xticks([])
+        self._axes['bev'].set_yticks([])
+        self._axes['bev'].set_title('Top-down View', color='white', size=20, weight='bold')
+        self._axes['bev'].set_xlim(-self._config['birdseye_map_size'][1] / 2., 
+                                   self._config['birdseye_map_size'][1] / 2.)
+        self._axes['bev'].set_ylim(-self._config['birdseye_map_size'][0] / 2., 
+                                   self._config['birdseye_map_size'][0] / 2.)
 
-        # TODO: Initialize plot for sensory measurement
+        # Initialize plot for sensory measurement
+        logging.debug('Does not handle preprocessed (cropped/resized) observation')
+        for i, agent in enumerate(self._agents_with_sensors):
+            for j, sensor in enumerate(agent.sensors):
+                if not isinstance(sensor, Camera):
+                    continue
+                gs_ij = self._gs[gs_agent_h*j:gs_agent_h*(j+1), \
+                                 self._config['gs_agent_w']*i:self._config['gs_agent_w']*(i+1)]
+                ax_name = 'a{}s{}'.format(i, j)
+                self._axes[ax_name] = self._fig.add_subplot(gs_ij)
+                self._axes[ax_name].set_xticks([])
+                self._axes[ax_name].set_yticks([])
+                self._axes[ax_name].set_title('Init', color='white', size=20, weight='bold')
+
+                img_shape = (sensor.camera_param.get_height(), sensor.camera_param.get_width(), 3)
+                placeholder = fit_img_to_ax(self._fig, self._axes[ax_name], 
+                                            np.zeros(img_shape, dtype=np.uint8))
+                self._artists['im:{}'.format(ax_name)] = self._axes[ax_name].imshow(placeholder)
 
     def reset(self) -> None:
         # Reset road deque
         self._road.clear()
-        self._road.append(self.ref_agent.human_dynamics.numpy()[:2])
+        self._road.append(self.ref_agent.human_dynamics.numpy()[:3])
         self._road_dynamics = self.ref_agent.human_dynamics.copy()
         self._road_frame_idcs.clear()
         self._road_frame_idcs.append(self.ref_agent.frame_index)
@@ -71,21 +114,46 @@ class Display:
         # Update road (in global coordinate)
         exceed_end = False
         while self._road_frame_idcs[-1] < (self.ref_agent.frame_index + \
-            self.road_buffer_size / 2.) and not exceed_end:
+            self._config['road_buffer_size'] / 2.) and not exceed_end:
             ts, _ = self._get_timestamp(self._road_frame_idcs[-1])
             self._road_frame_idcs.append(self._road_frame_idcs[-1] + 1)
-            next_ts, exceed_end = self._get_timestamp(self._road_frame_idcs[-1])
+            exceed_end, next_ts = self._get_timestamp(self._road_frame_idcs[-1])
 
             state = [curvature2tireangle(self.ref_agent.trace.f_curvature(ts), 
                                          self.ref_agent.wheel_base),
                      self.ref_agent.trace.f_speed(ts)]
             update_with_perfect_controller(state, next_ts - ts, self._road_dynamics)
+            self._road.append(self._road_dynamics.numpy()[:3])
 
-        # TODO: Update road in birds eye map (in reference agent's coordinate)
+        # Update road in birds eye view (in reference agent's coordinate)
+        ref_pose = self.ref_agent.human_dynamics.numpy()[:3]
+        logging.warning('Computation of road in reference frame not vectorized')
+        road_in_ref = np.array([transform.compute_relative_latlongyaw(_v, ref_pose) \
+                                for _v in self._road])
+        road_half_width = self.ref_agent.trace.road_width / 2.
+        patch = LineString(road_in_ref).buffer(road_half_width)
+        patch = PolygonPatch(patch, fc=self._road_color, ec=self._road_color, zorder=1)
+        self._update_patch(self._axes['bev'], 'patch:road', patch)
 
-        # TODO: Update agent in birds eye map
+        # Update agent in birds eye view
+        for i, agent in enumerate(self._world.agents):
+            poly = misc.agent2poly(agent, self.ref_agent.human_dynamics)
+            color = self._agent_colors[i]
+            patch = PolygonPatch(poly, fc=color, ec=color, zorder=2)
+            self._update_patch(self._axes['bev'], 'patch:agent_{}'.format(i), patch)
 
-        # TODO: Update sensory measurements
+        # Update sensory measurements
+        for i, agent in enumerate(self._agents_with_sensors):
+            camera_names = [_v.name for _v in agent.sensors if isinstance(_v, Camera)]
+            for j, (obs_name, obs) in enumerate(agent.observations.items()):
+                if obs_name not in camera_names:
+                    continue
+                ax_name = 'a{}s{}'.format(i, j)
+                self._axes[ax_name].set_title('{}: {}'.format(agent.id, obs_name),
+                                              color='white', size=20, weight='bold')
+                obs_render = fit_img_to_ax(self._fig, self._axes[ax_name], obs[:,:,::-1])
+                # TODO: draw noodle for curvature visualization
+                self._artists['im:{}'.format(ax_name)].set_data(obs_render)
 
         # Convert to image
         img = fig2img(self._fig)

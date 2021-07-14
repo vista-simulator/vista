@@ -19,18 +19,27 @@ class Trace:
             'first_n_percent': 0.4,
         },
     }
+    DEFAULT_CONFIG = {
+        'reset_mode': 'default',
+        'master_sensor': TopicNames.master_topic,
+        'labels': DEFAULT_LABELS,
+        'max_timestamp_diff_across_frames': 0.2,
+        'road_width': 4,
+    }
 
-    def __init__(self, trace_path: str, reset_mode: Optional[str] = 'default',
+    def __init__(self, trace_path: str, trace_config: Optional[Dict] = dict(),
+                 reset_mode: Optional[str] = 'default',
                  master_sensor: Optional[str] = TopicNames.master_topic,
                  labels: Optional[List[Any]] = DEFAULT_LABELS,
                  max_timestamp_diff_across_frames: Optional[float] = 0.2) -> None:
         self._trace_path: str = trace_path
-        self._reset_mode: str = reset_mode
-        self._max_timestamp_diff_across_frames = max_timestamp_diff_across_frames
+        trace_config.update(self.DEFAULT_CONFIG)
+        self._config: Dict = trace_config
 
         # Divide trace to good segments based on video labels and timestamps
-        self._multi_sensor: MultiSensor = MultiSensor(self._trace_path, master_sensor)
-        self._labels: LabelSearch = LabelSearch(*labels)
+        self._multi_sensor: MultiSensor = MultiSensor(self._trace_path, 
+                                                      self._config['master_sensor'])
+        self._labels: LabelSearch = LabelSearch(*self._config['labels'])
 
         good_frames, good_timestamps = self._divide_to_good_segments()
         self._good_frames: Dict[str, List[int]] = good_frames
@@ -75,7 +84,7 @@ class Trace:
         """
         # Compute sample probability
         timestamps = self.good_timestamps[self._multi_sensor.master_sensor][segment_index]
-        if self._reset_mode == 'default': # bias toward large road curvature
+        if self._config['reset_mode'] == 'default': # bias toward large road curvature
             n_bins = Trace.RESET_CONFIG['default']['n_bins']
             smoothing_factor = Trace.RESET_CONFIG['default']['smoothing_factor']
 
@@ -86,10 +95,10 @@ class Trace:
             hist_density = hist / float(np.sum(hist))
             probs = 1.0 / (hist_density[bins - 1] + smoothing_factor)
             probs /= np.sum(probs)
-        elif self._reset_mode == 'uniform': # uniform sampling
+        elif self._config['reset_mode'] == 'uniform': # uniform sampling
             n_timestamps = len(timestamps)
             probs = np.ones((n_timestamps,)) / n_timestamps
-        elif self._reset_mode == 'segment_start': # bias toward the start of a segment
+        elif self._config['reset_mode'] == 'segment_start': # bias toward the start of a segment
             first_n_percent = Trace.RESET_CONFIG['segment_start']['first_n_percent']
 
             n_timestamps = len(timestamps)
@@ -150,7 +159,7 @@ class Trace:
             trace_end = i == good_labeled_timestamps.shape[0] - 1
             if not trace_end:
                 time_diff_too_large = good_labeled_timestamps[i+1] - good_labeled_timestamps[i] \
-                    >= self._max_timestamp_diff_across_frames
+                    >= self._config['max_timestamp_diff_across_frames']
             else:
                 time_diff_too_large = False
 
@@ -230,6 +239,10 @@ class Trace:
     def reset_mode(self, reset_mode):
         assert isinstance(reset_mode, str)
         self._reset_mode = reset_mode
+
+    @property
+    def road_width(self) -> float:
+        return self._config['road_width']
 
     def __repr__(self) -> str:
         return '<{}: {}>'.format(self.__class__.__name__, self.trace_path)

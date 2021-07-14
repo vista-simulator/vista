@@ -53,8 +53,12 @@ def setLevel(level):
 
 def base(msg: str, func: str):
     filename = os.path.splitext(inspect.stack()[1].filename)[0].split('/')
-    idx = [i for i, v in enumerate(filename) if v == 'vista'][-1]
-    filename = '.'.join(filename[idx:])
+    idx = [i for i, v in enumerate(filename) if v == 'vista']
+    if len(idx) > 0:
+        idx = idx[-1]
+        filename = '.'.join(filename[idx:])
+    else:
+        filename = filename[0]
     func_name = inspect.stack()[1].function
     caller_name = '.'.join([filename, func_name])
     func = getattr(logger, func)

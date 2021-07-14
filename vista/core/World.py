@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import numpy as np
 
 from .Trace import Trace
@@ -7,14 +7,15 @@ from ..utils import logging
 
 
 class World:
-    def __init__(self, trace_paths: List[str]) -> None:
+    def __init__(self, trace_paths: List[str], trace_config: Optional[Dict] = dict()) -> None:
         """ Instantiate a World object. 
 
         Args:
             trace_paths (List(str)): a list of paths to traces
+            trace_config (Dict): configuration of traces
         """
         # A list of traces that define the world
-        self._traces: List[Trace] = [Trace(trace_path) for trace_path in trace_paths]
+        self._traces: List[Trace] = [Trace(trace_path, trace_config) for trace_path in trace_paths]
 
         # A list of agents within this world. Agents start in a single trace but can be teleported 
         # between traces, since they are all in the same world.
