@@ -117,12 +117,11 @@ class ViewSynthesis:
             normal = np.reshape(camera_param.get_ground_plane()[:3], [1,3])
             d = camera_param.get_ground_plane()[3]
             k = np.divide(d, np.matmul(normal, self._world_rays[name]))
+            k[k < 0] = self._config['zfar'] / 10. # should be smaller than actual zfar
             if camera_param == self._camera_param: 
                 # NOTE: hacky way to make image from the main camera have fronter order
                 logging.debug('Hacky way to make main camera image have fronter order')
-                k[k < 0] = self._config['zfar'] / 10.1
-            else:
-                k[k < 0] = self._config['zfar'] / 10. # should be smaller than actual zfar
+                k = k / 1.1
             self._depth[camera_param.name] = k
 
         # Add mesh to scene (fix node level translation and rotation)
