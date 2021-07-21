@@ -142,9 +142,11 @@ class Trace:
                   i.e., a good frame number = dict[sensor_name][which_good_segment][i]
             dict: timestamps of good frames
         """
-        # Filter by video labels (TODO: make optional)
-        logging.debug('Not yet make optional the use of LabelSearch')
+        # Filter by video labels
         _, good_labeled_timestamps = self._labels.find_good_labeled_frames(self._trace_path)
+        if good_labeled_timestamps is None:
+            logging.warning('No video_label.csv')
+            good_labeled_timestamps = np.array(self._multi_sensor.get_master_timestamps())
 
         # Filter by end-of-trace and time difference across consecutive frames
         good_frames = {_k: [] for _k in self._multi_sensor.sensor_names}

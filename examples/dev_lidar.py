@@ -13,7 +13,7 @@ def main(args):
     trace_config = dict(
         road_width=4,
         reset_mode='default',
-        master_sensor='camera_front',
+        master_sensor='lidar_3d',
     )
     car_config = dict(
         length=5.,
@@ -21,31 +21,15 @@ def main(args):
         wheel_base=2.8,
         steering_ratio=17.6,
     )
-    camera_config1 = dict(
-        # camera params
-        name='camera_front',
-        rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
-        size=(250, 400),
-        # rendering params
-        depth_mode=DepthModes.FIXED_PLANE,
-        use_lighting=False,
-    )
-    camera_config2 = dict(
-        # camera params
-        name='camera_left',
-        rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
-        size=(250, 400),
-        # rendering params
-        depth_mode=DepthModes.FIXED_PLANE,
-        use_lighting=False,
+    lidar_config = dict(
+        name='lidar_3d',
     )
     display_config = dict(
         road_buffer_size=1000,
     )
     world = vista.World(args.trace_path, trace_config)
     agent = world.spawn_agent(car_config)
-    camera1 = agent.spawn_camera(camera_config1)
-    camera2 = agent.spawn_camera(camera_config2)
+    lidar = agent.spawn_lidar(lidar_config)
     display = vista.Display(world, display_config=display_config)
 
     # Main running loop

@@ -6,7 +6,7 @@ from .Dynamics import State, StateDynamics, curvature2steering, curvature2tirean
                       tireangle2curvature, update_with_perfect_controller
 from ..Entity import Entity
 
-from ..sensors import BaseSensor, Camera
+from ..sensors import BaseSensor, Camera, Lidar
 from ...core import World, Trace
 from ...utils import transform
 from ...utils import logging
@@ -72,6 +72,13 @@ class Car(Entity):
 
         return cam
 
+    def spawn_lidar(self, lidar_config: Dict) -> Lidar:
+        logging.info('Spawn a new lidar {} in car ({})'.format(lidar_config['name'], self.id))
+        lidar = Lidar(attach_to=self, config=lidar_config)
+        self._sensors.append(lidar)
+
+        return lidar
+
     def reset(self, trace_index: int, segment_index: int, frame_index: int):
         logging.info('Car ({}) reset'.format(self.id))
 
@@ -103,6 +110,11 @@ class Car(Entity):
 
         # Reset sensors
         for sensor in self.sensors:
+            if isinstance(sensor, Camera) and self._trace.multi_sensor.main_camera is None:
+                self._trace.multi_sensor.set_main_sensor('camera', sensor.name)
+            elif isinstance(sensor, Lidar) and self._trace.multi_sensor.main_lidar is None:
+                self._trace.multi_sensor.set_main_sensor('lidar', sensor.name)
+
             sensor.reset()
 
         # Update observation

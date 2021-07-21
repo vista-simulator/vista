@@ -29,6 +29,8 @@ class MultiSensor:
                 self._sensor_frame_to_time[sensor_name] = frame_to_time
 
         self._sensor_names: List[str] = list(self._sensor_frame_to_time.keys())
+        assert master_sensor in self.sensor_names, \
+            'No timestamp data for the master sensor {}'.format(master_sensor)
 
     def get_time_from_frame_num(self, sensor: str, frame_num: int) -> float:
         """ Compute the timestamp associated to a frame in a video return None if we dont have 
@@ -76,6 +78,10 @@ class MultiSensor:
         timestamps = list(self._sensor_frame_to_time[self._master_sensor].values())
         return timestamps
 
+    def set_main_sensor(self, sensor_type: str, sensor_name: str) -> None:
+        assert sensor_type in ['camera', 'lidar']
+        setattr(self, '_main_{}'.format(sensor_type), sensor_name)
+
     @property
     def sensor_names(self) -> List[str]:
         return self._sensor_names
@@ -83,6 +89,18 @@ class MultiSensor:
     @property
     def camera_names(self) -> List[str]:
         return [_x for _x in self._sensor_names if 'camera' in _x]
+
+    @property
+    def main_camera(self) -> str:
+        return self._main_camera if hasattr(self, '_main_camera') else None
+
+    @property
+    def lidar_names(self) -> List[str]:
+        return [_x for _x in self._sensor_names if 'lidar' in _x]
+
+    @property
+    def main_lidar(self) -> str:
+        return self._main_lidar if hasattr(self, '_main_lidar') else None
 
     @property
     def master_sensor(self) -> str:

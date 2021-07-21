@@ -28,26 +28,32 @@ class LabelSearch(object):
             np.ndarray: a boolean mask of good frames
             np.ndarray: timestamps of all good frames
         """
-        is_good_frames = []
-        good_timestamps = []
-        with open(os.path.join(trace_path, 'video_labels.csv'), 'r') as f:
-            reader = csv.DictReader(f, fieldnames=LabelSearch.FIELDS, delimiter=',')
-            for line in reader: # for each line
-                # assume consistency between master sensor and video labels
-                good_timestamps.append(float(line.pop('timestamp')))
+        fpath = os.path.join(trace_path, 'video_labels.csv')
+        has_video_label = os.path.exists(fpath)
+        if has_video_label:
+            is_good_frames = []
+            good_timestamps = []
+            with open(fpath, 'r') as f:
+                reader = csv.DictReader(f, fieldnames=LabelSearch.FIELDS, delimiter=',')
+                for line in reader: # for each line
+                    # assume consistency between master sensor and video labels
+                    good_timestamps.append(float(line.pop('timestamp')))
 
-                match = True
-                for field in line.keys():
-                    regex = getattr(self, '_' + field) # get the search regex
-                    res = re.search(regex, line[field])
-                    if not res:
-                        match = False
-                        break
-                if match:
-                    is_good_frames.append(True)
-                else:
-                    is_good_frames.append(False)
-        is_good_frames = np.array(is_good_frames)
-        good_timestamps = np.array(good_timestamps)[is_good_frames]
+                    match = True
+                    for field in line.keys():
+                        regex = getattr(self, '_' + field) # get the search regex
+                        res = re.search(regex, line[field])
+                        if not res:
+                            match = False
+                            break
+                    if match:
+                        is_good_frames.append(True)
+                    else:
+                        is_good_frames.append(False)
+            is_good_frames = np.array(is_good_frames)
+            good_timestamps = np.array(good_timestamps)[is_good_frames]
+        else:
+            is_good_frames = None
+            good_timestamps = None
 
         return is_good_frames, good_timestamps

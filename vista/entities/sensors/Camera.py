@@ -33,10 +33,10 @@ class Camera(BaseSensor):
         for stream in self.streams.values():
             stream.close()
 
-        # Fetch video stream from the associated trace. All video streams are handled by the master
-        # sensor and shared across all cameras. This requires master sensor to be a camera.
+        # Fetch video stream from the associated trace. All video streams are handled by the main
+        # camera and shared across all cameras in an agent.
         multi_sensor = self.parent.trace.multi_sensor
-        if self.name == multi_sensor.master_sensor:
+        if self.name == multi_sensor.main_camera:
             for camera_name in multi_sensor.camera_names:
                 # get video stream
                 video_path = os.path.join(self.parent.trace.trace_path, camera_name + '.avi')
@@ -49,13 +49,13 @@ class Camera(BaseSensor):
                     [self.parent.segment_index][self.parent.frame_index]
                 seek_sec = self._streams[camera_name].frame_to_secs(frame_num)
                 self._streams[camera_name].seek(seek_sec)
-        else: # use shared streams from the master camera
-            master_name = multi_sensor.master_sensor
-            master = [_s for _s in self.parent.sensors if _s.name == master_name]
-            assert len(master) == 1, 'Cannot find master sensor {}'.format(master_name)
-            master = master[0]
-            assert isinstance(master, Camera), 'Master sensor is not Camera object'
-            self._streams = master.streams
+        else: # use shared streams from the main camera
+            main_name = multi_sensor.main_camera
+            main_sensor = [_s for _s in self.parent.sensors if _s.name == main_name]
+            assert len(main_sensor) == 1, 'Cannot find main sensor {}'.format(main_name)
+            main_sensor = main_sensor[0]
+            assert isinstance(main_sensor, Camera), 'Main sensor is not Camera object'
+            self._streams = main_sensor.streams
 
         # Add background mesh for all video stream in view synthesis
         parent_sensor_dict = {_s.name: _s for _s in self.parent.sensors}
@@ -73,7 +73,7 @@ class Camera(BaseSensor):
 
         # Get frame at the closest smaller timestamp from dataset
         multi_sensor = self.parent.trace.multi_sensor
-        if self.name == multi_sensor.master_sensor:
+        if self.name == multi_sensor.main_camera:
             all_frame_nums = multi_sensor.get_frames_from_times([timestamp])
             for camera_name in multi_sensor.camera_names:
                 stream = self.streams[camera_name]
