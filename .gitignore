@@ -1,6 +1,10 @@
 log/
 save/
 local/
+ckpt/
+data/
+sandbox/
+test*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
