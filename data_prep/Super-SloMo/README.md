@@ -29,5 +29,5 @@ python async_slomo.py <path-to-input-video.mp4> <path-to-output-video.mp4> --che
 
 Extract optical flow only.
 ```
-python async_slomo.py <path-to-input-video.mp4> <path-to-output-flow.h5> --checkpoint <path-to-ckpt> --extract-flow
+python async_slomo.py <path-to-input-video.mp4> <path-to-output-flow.mp4> --checkpoint <path-to-ckpt> --extract-flow
 ```

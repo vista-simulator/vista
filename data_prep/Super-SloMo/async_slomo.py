@@ -142,9 +142,29 @@ def main_video(
 
     if out_name:
         if extract_flow:
-            if os.path.exists(out_name):
-                os.remove(out_name)
-            flow_writer = h5py.File(out_name, 'a')
+            flow_as_video = True
+            if flow_as_video:
+                out_name_no_ext = os.path.splitext(out_name)[0]
+                out1_name = out_name_no_ext + '_forward.mp4'
+                out2_name = out_name_no_ext + '_backward.mp4'
+
+                flow1_writer = FFmpegWriter(out1_name, outputdict={
+                    '-vcodec': 'libx264',  # use the h.264 codec
+                    #'-preset': 'veryslow'  # the slower the better compression, in princple, try
+                })
+                flow2_writer = FFmpegWriter(out2_name, outputdict={
+                    '-vcodec': 'libx264',  # use the h.264 codec
+                    #'-preset': 'veryslow'  # the slower the better compression, in princple, try
+                })
+
+                out_meta_name = out_name_no_ext + '_meta.h5'
+                if os.path.exists(out_meta_name):
+                    os.remove(out_meta_name)
+                flow_meta_writer = h5py.File(out_meta_name, 'a')
+            else:
+                if os.path.exists(out_name):
+                    os.remove(out_name)
+                flow_writer = h5py.File(out_name, 'a')
         else:
             video_writer = FFmpegWriter(out_name, outputdict={
                 '-vcodec': 'libx264',  # use the h.264 codec
@@ -177,17 +197,41 @@ def main_video(
                 with torch.no_grad():
                     out = slomo.forward(last_frame, frame)
                 flow = out.cpu().numpy()
-                if 'forward' not in flow_writer.keys():
-                    flow_writer.create_dataset('forward', data=flow[:,:2], chunks=True, 
-                                               maxshape=[None]+list(flow[:,:2].shape[1:]))
-                    flow_writer.create_dataset('backward', data=flow[:,2:], chunks=True, 
-                                               maxshape=[None]+list(flow[:,2:].shape[1:]))
-                else:
-                    flow_writer['forward'].resize((flow_writer['forward'].shape[0] + 1), axis=0)
-                    flow_writer['forward'][-1:] = flow[:,:2]
+                if flow_as_video:
+                    flow = flow[0].transpose(1, 2, 0)
+                    flow1_img, flow1_minmax = flow2img(flow[..., :2])
+                    flow2_img, flow2_minmax = flow2img(flow[..., 2:])
 
-                    flow_writer['backward'].resize((flow_writer['backward'].shape[0] + 1), axis=0)
-                    flow_writer['backward'][-1:] = flow[:,2:]
+                    flow1_writer.writeFrame(flow1_img)
+                    flow2_writer.writeFrame(flow2_img)
+
+                    flow1_minmax = np.array(flow1_minmax)[None,:]
+                    flow2_minmax = np.array(flow2_minmax)[None,:]
+                    if 'forward' not in flow_meta_writer.keys():
+                        flow_meta_writer.create_dataset('forward', data=flow1_minmax,
+                                                        chunks=True, maxshape=[None, 2])
+                        flow_meta_writer.create_dataset('backward', data=flow2_minmax,
+                                                        chunks=True, maxshape=[None, 2])
+                    else:
+                        flow_meta_writer['forward'].resize((flow_meta_writer['forward'].shape[0] + 1), 
+                                                           axis=0)
+                        flow_meta_writer['forward'][-1:] = flow1_minmax
+                        
+                        flow_meta_writer['backward'].resize((flow_meta_writer['backward'].shape[0] + 1), 
+                                                            axis=0)
+                        flow_meta_writer['backward'][-1:] = flow2_minmax
+                else:
+                    if 'forward' not in flow_writer.keys():
+                        flow_writer.create_dataset('forward', data=flow[:,:2], chunks=True, 
+                                                   maxshape=[None]+list(flow[:,:2].shape[1:]))
+                        flow_writer.create_dataset('backward', data=flow[:,2:], chunks=True, 
+                                                   maxshape=[None]+list(flow[:,2:].shape[1:]))
+                    else:
+                        flow_writer['forward'].resize((flow_writer['forward'].shape[0] + 1), axis=0)
+                        flow_writer['forward'][-1:] = flow[:,:2]
+
+                        flow_writer['backward'].resize((flow_writer['backward'].shape[0] + 1), axis=0)
+                        flow_writer['backward'][-1:] = flow[:,2:]
             else:
                 t_start = last_ts
                 t_end = ts
@@ -248,11 +292,34 @@ def main_video(
 
     if out_name:
         if extract_flow:
-            flow_writer.close()
+            if flow_as_video:
+                flow_meta_writer.close()
+                flow1_writer.close()
+                flow2_writer.close()
+            else:
+                flow_writer.close()
         else:
             video_writer.close()
             timestamps_out = np.concatenate(timestamps)
             np.save(os.path.splitext(out_name)[0] + "_ts.npy", timestamps_out)
+
+
+def flow2img(flow):
+    mag, ang = cv2.cartToPolar(flow[..., 0].astype(np.float32), flow[..., 1].astype(np.float32))
+    nans = np.isnan(mag)
+    if np.any(nans):
+        nans = np.where(nans)
+        mag[nans] = 0.
+
+    hsv = np.zeros((flow.shape[0], flow.shape[1], 3), dtype=np.uint8)
+    mag_min, mag_max = mag.min(), mag.max()
+    hsv[..., 0] = ang * 180 / np.pi / 2
+    hsv[..., 1] = (mag - mag_min) / (mag_max - mag_min) * 255
+    hsv[..., 2] = 255
+
+    img = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+    return img, (mag_min, mag_max)
 
 
 def main(
