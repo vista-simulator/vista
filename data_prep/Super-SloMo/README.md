@@ -27,7 +27,8 @@ python async_slomo.py <path-to-input-video.mp4> <path-to-output-video.mp4> --che
 # Check the video with "_dvs" suffix in the directory of the output video path --run-dvs 1
 ```
 
-Extract optical flow only.
+Extract optical flow only. This will generate 2 videos of optical flow (forward and backward) along with a .h5 file that
+contains meta information for flow like min/max of flow magnitude.
 ```
 python async_slomo.py <path-to-input-video.mp4> <path-to-output-flow.mp4> --checkpoint <path-to-ckpt> --extract-flow
 ```

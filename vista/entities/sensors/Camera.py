@@ -2,14 +2,13 @@ import os
 import glob
 from typing import Dict, List
 import numpy as np
-import cv2
 import h5py
 from ffio import FFReader
 
 from .camera_utils import CameraParams, ViewSynthesis
 from .BaseSensor import BaseSensor
 from ..Entity import Entity
-from ...utils import logging
+from ...utils import logging, misc
 
 
 class Camera(BaseSensor):
@@ -59,20 +58,22 @@ class Camera(BaseSensor):
                 self._streams[camera_name].seek(seek_sec)
 
                 # get flow
-                flow_paths = glob.glob(os.path.join(self.parent.trace.trace_path, 
-                                                    camera_name + '_flow*.mp4'))
-                self._flow_streams[camera_name] = []
-                for flow_path in flow_paths:
+                flow_meta_path = os.path.join(self.parent.trace.trace_path,
+                                              camera_name + '_flow_meta.h5')
+                if os.path.exists(flow_meta_path):
+                    self._flow_meta[camera_name] = h5py.File(flow_meta_path, 'r')
+                else:
+                    logging.error('No flow data')
+
+                self._flow_streams[camera_name] = dict()
+                for flow_name in self.flow_meta[camera_name].keys():
+                    flow_path = os.path.join(self.parent.trace.trace_path, 
+                                             camera_name + '_flow_{}.mp4'.format(flow_name))
                     flow_stream = FFReader(flow_path, verbose=False)
-                    flow_frame_num = max(0, frame_num - 1)
+                    flow_frame_num = frame_num # flow for (frame_num, frame_num + 1)
                     flow_seek_sec = flow_stream.frame_to_secs(flow_frame_num)
                     flow_stream.seek(flow_seek_sec)
-                    self._flow_streams[camera_name].append(flow_stream)
-                if len(flow_paths) > 0:
-                    flow_meta_path = os.path.join(self.parent.trace.trace_path,
-                                                  camera_name + '_flow_meta.h5')
-                    assert os.path.exists(flow_meta_path), 'Missing flow meta file'
-                    self._flow_meta[camera_name] = h5py.File(flow_meta_path, 'r')
+                    self._flow_streams[camera_name][flow_name] = flow_stream
         else: # use shared streams from the main camera
             main_name = multi_sensor.main_camera
             main_sensor = [_s for _s in self.parent.sensors if _s.name == main_name]
@@ -103,6 +104,7 @@ class Camera(BaseSensor):
         if self.name == multi_sensor.main_camera:
             all_frame_nums = multi_sensor.get_frames_from_times([timestamp])
             for camera_name in multi_sensor.camera_names:
+                # rgb camera stream
                 stream = self.streams[camera_name]
                 frame_num = all_frame_nums[camera_name][0]
 
@@ -113,19 +115,40 @@ class Camera(BaseSensor):
                 while stream.frame_num != frame_num:
                     stream.read()
 
-                    # TODO: update flow stream
+                # flow stream
+                flow_frame_num = frame_num # flow for (frame_num, frame_num + 1)
+                for flow_stream in self.flow_streams[camera_name].values():
+                    if flow_frame_num < flow_stream.frame_num:
+                        flow_seek_sec = flow_stream.frame_to_secs(flow_frame_num)
+                        flow_stream.seek(flow_seek_sec)
+
+                    while flow_stream.frame_num != flow_frame_num:
+                        flow_stream.read()
         
         frames = dict()
         for camera_name in multi_sensor.camera_names:
             frames[camera_name] = self.streams[camera_name].image.copy()
 
-        # TODO: Interpolate frame at the exact timestamp
-        logging.warning('Frame interpolation at exact timestamp not implemented')
-        for camera_name, frame in frames.items():
-            xx, yy = np.meshgrid(np.arange(frame.shape[1]), np.arange(frame.shape[0]))
-            flow_stream_forward = self.flow_streams[camera_name][0]
-            cv2.remap()
-            import pdb; pdb.set_trace()
+        # Interpolate frame at the exact timestamp
+        for camera_name in self.flow_streams.keys():
+            frame = frames[camera_name]
+
+            flow = dict()
+            for flow_name, flow_minmax in self.flow_meta[camera_name].items():
+                flow_stream = self.flow_streams[camera_name][flow_name]
+                flow[flow_name] = misc.img2flow(flow_stream.image.copy(), 
+                                                flow_minmax[int(flow_stream.frame_num)],
+                                                frame.shape[:2])
+            
+            frame_num = int(self.streams[camera_name].frame_num)
+            curr_ref_ts = multi_sensor.get_time_from_frame_num(camera_name, frame_num)
+            next_ref_ts = multi_sensor.get_time_from_frame_num(camera_name, frame_num + 1)
+            
+            logging.warning('Stream frame number exceed 1 non-intentionally')
+            self.streams[camera_name].read() # NOTE: stream frame number exceed 1 here
+            next_frame = self.streams[camera_name].image.copy()
+            frames[camera_name] = misc.biinterp(frame, next_frame, flow['forward'], flow['backward'],
+                                                timestamp, curr_ref_ts, next_ref_ts)
 
         # Synthesis by rendering
         lat, long, yaw = self.parent.relative_state.numpy()
