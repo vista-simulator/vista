@@ -1,9 +1,8 @@
-""" Helper functions for spatial transformation. Follow right handed 
+""" Helper functions for spatial transformation. Follow right handed
     (OpenGL) coordinate system. """
 from typing import Optional, Union, List, Tuple, Any
 import numpy as np
 from scipy.spatial.transform import Rotation
-
 
 Vec = Union[np.ndarray, List[Any], Tuple[Any]]
 
@@ -11,20 +10,22 @@ Vec = Union[np.ndarray, List[Any], Tuple[Any]]
 def vec2mat(trans: Vec, rot: Vec) -> np.ndarray:
     """ Convert translation and rotation vector to transformation matrix. """
     mat = np.eye(4)
-    mat[:3,3] = trans
+    mat[:3, 3] = trans
     R = Rotation.from_euler('xyz', rot)
-    mat[:3,:3] = R.as_matrix()
+    mat[:3, :3] = R.as_matrix()
     return mat
 
 
-def euler2quat(euler: Vec, seq: Optional[str] = 'xyz', 
+def euler2quat(euler: Vec,
+               seq: Optional[str] = 'xyz',
                degrees: Optional[bool] = False) -> Vec:
     """ Convert Euler rotation to quaternion. """
     R = Rotation.from_euler(seq, euler, degrees)
     return R.as_quat()
 
 
-def quat2euler(quat: Vec, seq: Optional[str] = 'xyz', 
+def quat2euler(quat: Vec,
+               seq: Optional[str] = 'xyz',
                degrees: Optional[bool] = False) -> Vec:
     """ Convert quaternion to Euler rotation. """
     R = Rotation.from_quat(quat)
@@ -54,10 +55,11 @@ def compute_relative_latlongyaw(latlongyaw: Vec, latlongyaw_ref: Vec) -> Vec:
     return rel_xyyaw
 
 
-def mat2vec(mat, seq: Optional[str] = 'xyz', 
+def mat2vec(mat,
+            seq: Optional[str] = 'xyz',
             degrees: Optional[bool] = False) -> Tuple[Vec, Vec]:
     """ Convert transformation matrix to translational and rotational vectors. """
-    trans = mat[:3,3]
-    R = Rotation.from_matrix(mat[:3,:3])
+    trans = mat[:3, 3]
+    R = Rotation.from_matrix(mat[:3, :3])
     rot = R.as_euler(seq, degrees)
     return trans, rot

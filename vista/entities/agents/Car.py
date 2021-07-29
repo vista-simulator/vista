@@ -15,7 +15,7 @@ from ...utils import logging
 class Car(Entity):
     def __init__(self, world: World, car_config: Dict) -> None:
         """ Instantiate a Car object.
-        
+
         Args:
             world (World): the world that this agent lives in
             car_config (Dict): configuration of the car
@@ -62,18 +62,20 @@ class Car(Entity):
 
         Args:
             cam_config (Dict): configuration for camera and rendering
-        
+
         Returns:
             Camera: a vista camera sensor object spawned
         """
-        logging.info('Spawn a new camera {} in car ({})'.format(cam_config['name'], self.id))
+        logging.info('Spawn a new camera {} in car ({})'.format(
+            cam_config['name'], self.id))
         cam = Camera(attach_to=self, config=cam_config)
         self._sensors.append(cam)
 
         return cam
 
     def spawn_lidar(self, lidar_config: Dict) -> Lidar:
-        logging.info('Spawn a new lidar {} in car ({})'.format(lidar_config['name'], self.id))
+        logging.info('Spawn a new lidar {} in car ({})'.format(
+            lidar_config['name'], self.id))
         lidar = Lidar(attach_to=self, config=lidar_config)
         self._sensors.append(lidar)
 
@@ -84,8 +86,10 @@ class Car(Entity):
 
         # Update pointers to dataset
         self._trace = self.parent.traces[self.trace_index]
-        self._timestamp = self.trace.get_master_timestamp(segment_index, frame_index)
-        self._frame_number = self.trace.get_master_frame_number(segment_index, frame_index)
+        self._timestamp = self.trace.get_master_timestamp(
+            segment_index, frame_index)
+        self._frame_number = self.trace.get_master_frame_number(
+            segment_index, frame_index)
         self._trace_index = trace_index
         self._segment_index = segment_index
         self._frame_index = frame_index
@@ -98,21 +102,27 @@ class Car(Entity):
         self._human_steering = curvature2steering(self.human_curvature,
                                                   self.wheel_base,
                                                   self.steering_ratio)
-        self._human_tire_angle = curvature2tireangle(self.human_curvature, self.wheel_base)
+        self._human_tire_angle = curvature2tireangle(self.human_curvature,
+                                                     self.wheel_base)
         self._speed = self.human_speed
         self._curvature = self.human_curvature
         self._steering = self.human_steering
         self._tire_angle = curvature2tireangle(self.curvature, self.wheel_base)
 
         self.relative_state.reset()
-        self.human_dynamics.update(0., 0., 0., self.human_tire_angle, self.human_speed)
+        self.human_dynamics.update(0., 0., 0., self.human_tire_angle,
+                                   self.human_speed)
         self.ego_dynamics.update(0., 0., 0., self.tire_angle, self.speed)
 
         # Reset sensors
         for sensor in self.sensors:
-            if isinstance(sensor, Camera) and self._trace.multi_sensor.main_camera is None:
+            if isinstance(
+                    sensor,
+                    Camera) and self._trace.multi_sensor.main_camera is None:
                 self._trace.multi_sensor.set_main_sensor('camera', sensor.name)
-            elif isinstance(sensor, Lidar) and self._trace.multi_sensor.main_lidar is None:
+            elif isinstance(
+                    sensor,
+                    Lidar) and self._trace.multi_sensor.main_lidar is None:
                 self._trace.multi_sensor.set_main_sensor('lidar', sensor.name)
 
             sensor.reset()
@@ -128,9 +138,11 @@ class Car(Entity):
         action = np.array(action).reshape(-1)
         assert action.shape[0] == 2
         desired_curvature, desired_speed = action
-        desired_tire_angle = curvature2tireangle(desired_curvature, self.wheel_base)
+        desired_tire_angle = curvature2tireangle(desired_curvature,
+                                                 self.wheel_base)
 
-        # Run low-level controller and step vehicle dynamics TODO: non-perfect low-level controller
+        # Run low-level controller and step vehicle dynamics
+        # TODO: non-perfect low-level controller
         logging.warning('Using perfect low-level controller now')
         desired_state = [desired_tire_angle, desired_speed]
         update_with_perfect_controller(desired_state, dt, self._ego_dynamics)
@@ -139,18 +151,20 @@ class Car(Entity):
         self._tire_angle = self.ego_dynamics.steering
         self._speed = self.ego_dynamics.speed
         self._curvature = tireangle2curvature(self.tire_angle, self.wheel_base)
-        self._steering = curvature2steering(self.curvature, self.wheel_base, self.steering_ratio)
+        self._steering = curvature2steering(self.curvature, self.wheel_base,
+                                            self.steering_ratio)
 
         # Update human (reference) dynamics for assoication with the trace / dataset
         human = self.human_dynamics.copy()
-        top2_closest = dict(dist=deque([np.inf, np.inf], maxlen=2), 
+        top2_closest = dict(dist=deque([np.inf, np.inf], maxlen=2),
                             dynamics=deque([None, None], maxlen=2),
                             timestamp=deque([None, None], maxlen=2),
                             index=deque([None, None], maxlen=2))
         index = self.frame_index
         ts = self.trace.get_master_timestamp(self.segment_index, index)
         while True:
-            dist = np.linalg.norm(human.numpy()[:2] - self.ego_dynamics.numpy()[:2])
+            dist = np.linalg.norm(human.numpy()[:2] -
+                                  self.ego_dynamics.numpy()[:2])
             if dist < top2_closest['dist'][1]:
                 if dist < top2_closest['dist'][0]:
                     top2_closest['dist'].appendleft(dist)
@@ -166,33 +180,40 @@ class Car(Entity):
                 break
 
             next_index = index + 1
-            exceed_end, next_ts = self.trace.get_master_timestamp( \
+            exceed_end, next_ts = self.trace.get_master_timestamp(
                 self.segment_index, next_index, check_end=True)
-            if exceed_end: # trigger trace done terminatal condition
+            if exceed_end:  # trigger trace done terminatal condition
                 self._done = True
-                logging.info('Car ({}) exceed the end of trace'.format(self.id))
+                logging.info('Car ({}) exceed the end of trace'.format(
+                    self.id))
 
-            current_state = [curvature2tireangle(self.trace.f_curvature(ts), self.wheel_base),
-                             self.trace.f_speed(ts)]
+            current_state = [
+                curvature2tireangle(self.trace.f_curvature(ts),
+                                    self.wheel_base),
+                self.trace.f_speed(ts)
+            ]
             update_with_perfect_controller(current_state, next_ts - ts, human)
 
             index = next_index
             ts = next_ts
-        
+
         self._human_dynamics = top2_closest['dynamics'][0].copy()
         self._frame_index = top2_closest['index'][0]
-        self._frame_number = self.trace.get_master_frame_number(self.segment_index, 
-                                                                self.frame_index)
+        self._frame_number = self.trace.get_master_frame_number(
+            self.segment_index, self.frame_index)
 
-        # Update timestamp based on where the car position is with respect to course distance of 
-        # trace (may not be exactly the same as any of timestamps in the dataset)
-        latlongyaw_closest = transform.compute_relative_latlongyaw( \
-            self.ego_dynamics.numpy()[:3], top2_closest['dynamics'][0].numpy()[:3])
-        latlongyaw_second_closest = transform.compute_relative_latlongyaw( \
-            self.ego_dynamics.numpy()[:3], top2_closest['dynamics'][1].numpy()[:3])
-        ratio = abs(latlongyaw_second_closest[1]) / (abs(latlongyaw_closest[1]) \
-            + abs(latlongyaw_second_closest[1]))
-        self._timestamp = ratio * top2_closest['timestamp'][0] + (1. - ratio) \
+        # Update timestamp based on where the car position is with respect to
+        # course distance of trace (may not be exactly the same as any of
+        # timestamps in the dataset)
+        latlongyaw_closest = transform.compute_relative_latlongyaw(
+            self.ego_dynamics.numpy()[:3],
+            top2_closest['dynamics'][0].numpy()[:3])
+        latlongyaw_second_closest = transform.compute_relative_latlongyaw(
+            self.ego_dynamics.numpy()[:3],
+            top2_closest['dynamics'][1].numpy()[:3])
+        ratio = abs(latlongyaw_second_closest[1]) / (
+            abs(latlongyaw_closest[1]) + abs(latlongyaw_second_closest[1]))
+        self._timestamp = ratio * top2_closest['timestamp'][0] + (1. - ratio)
             * top2_closest['timestamp'][1]
 
         # Update relative transformation between human and ego dynamics

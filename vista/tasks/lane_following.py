@@ -38,7 +38,8 @@ class LaneFollowing(Base):
         if reward_type == 'non-crash':
             reward = 0. if done else 1.
         else:
-            raise NotImplementedError('Unrecognized reward type {}'.format(reward_type))
+            raise NotImplementedError(
+                'Unrecognized reward type {}'.format(reward_type))
 
         # Get info
         info = misc.fetch_agent_info(agent)

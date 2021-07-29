@@ -22,13 +22,14 @@ class Camera(BaseSensor):
         super(Camera, self).__init__(attach_to, config)
 
         self._config['rig_path'] = os.path.expanduser(self._config['rig_path'])
-        self._camera_param: CameraParams = CameraParams(self.name, 
-                                                        self._config['rig_path'])
+        self._camera_param: CameraParams = CameraParams(
+            self.name, self._config['rig_path'])
         self._camera_param.resize(*self._config['size'])
         self._streams: Dict[str, FFReader] = dict()
         self._flow_streams: Dict[str, List[FFReader]] = dict()
         self._flow_meta: Dict[str, h5py.File] = dict()
-        self._view_synthesis: ViewSynthesis = ViewSynthesis(self._camera_param, self._config)
+        self._view_synthesis: ViewSynthesis = ViewSynthesis(
+            self._camera_param, self._config)
 
     def reset(self) -> None:
         logging.info('Camera ({}) reset'.format(self.id))
@@ -37,7 +38,9 @@ class Camera(BaseSensor):
         for stream in self.streams.values():
             stream.close()
 
-        for flow_stream in [_vv for _v in self.flow_streams.values() for _vv in _v]:
+        for flow_stream in [
+                _vv for _v in self.flow_streams.values() for _vv in _v
+        ]:
             flow_stream.close()
 
         # Fetch video stream from the associated trace. All video streams are handled by the main
@@ -46,14 +49,18 @@ class Camera(BaseSensor):
         if self.name == multi_sensor.main_camera:
             for camera_name in multi_sensor.camera_names:
                 # get video stream
-                video_path = os.path.join(self.parent.trace.trace_path, camera_name + '.avi')
-                cam_h, cam_w = self.camera_param.get_height(), self.camera_param.get_width()
-                stream = FFReader(video_path, custom_size=(cam_h, cam_w), verbose=False)
+                video_path = os.path.join(self.parent.trace.trace_path,
+                                          camera_name + '.avi')
+                cam_h, cam_w = self.camera_param.get_height(
+                ), self.camera_param.get_width()
+                stream = FFReader(video_path,
+                                  custom_size=(cam_h, cam_w),
+                                  verbose=False)
                 self._streams[camera_name] = stream
 
                 # seek based on timestamp
-                frame_num = self.parent.trace.good_frames[camera_name] \
-                    [self.parent.segment_index][self.parent.frame_index]
+                frame_num = self.parent.trace.good_frames[camera_name][
+                    self.parent.segment_index][self.parent.frame_index]
                 seek_sec = self._streams[camera_name].frame_to_secs(frame_num)
                 self._streams[camera_name].seek(seek_sec)
 
@@ -61,25 +68,31 @@ class Camera(BaseSensor):
                 flow_meta_path = os.path.join(self.parent.trace.trace_path,
                                               camera_name + '_flow_meta.h5')
                 if os.path.exists(flow_meta_path):
-                    self._flow_meta[camera_name] = h5py.File(flow_meta_path, 'r')
+                    self._flow_meta[camera_name] = h5py.File(
+                        flow_meta_path, 'r')
                 else:
                     logging.error('No flow data')
 
                 self._flow_streams[camera_name] = dict()
                 for flow_name in self.flow_meta[camera_name].keys():
-                    flow_path = os.path.join(self.parent.trace.trace_path, 
-                                             camera_name + '_flow_{}.mp4'.format(flow_name))
+                    flow_path = os.path.join(
+                        self.parent.trace.trace_path,
+                        camera_name + '_flow_{}.mp4'.format(flow_name))
                     flow_stream = FFReader(flow_path, verbose=False)
-                    flow_frame_num = frame_num # flow for (frame_num, frame_num + 1)
+                    flow_frame_num = frame_num  # flow for (frame_num, frame_num + 1)
                     flow_seek_sec = flow_stream.frame_to_secs(flow_frame_num)
                     flow_stream.seek(flow_seek_sec)
                     self._flow_streams[camera_name][flow_name] = flow_stream
-        else: # use shared streams from the main camera
+        else:  # use shared streams from the main camera
             main_name = multi_sensor.main_camera
-            main_sensor = [_s for _s in self.parent.sensors if _s.name == main_name]
-            assert len(main_sensor) == 1, 'Cannot find main sensor {}'.format(main_name)
+            main_sensor = [
+                _s for _s in self.parent.sensors if _s.name == main_name
+            ]
+            assert len(main_sensor) == 1, 'Cannot find main sensor {}'.format(
+                main_name)
             main_sensor = main_sensor[0]
-            assert isinstance(main_sensor, Camera), 'Main sensor is not Camera object'
+            assert isinstance(main_sensor,
+                              Camera), 'Main sensor is not Camera object'
             self._streams = main_sensor.streams
 
             self._flow_streams = main_sensor.flow_streams
@@ -92,7 +105,8 @@ class Camera(BaseSensor):
                 if camera_name in parent_sensor_dict.keys():
                     camera_param = parent_sensor_dict[camera_name].camera_param
                 else:
-                    camera_param = CameraParams(camera_name, self._config['rig_path'])
+                    camera_param = CameraParams(camera_name,
+                                                self._config['rig_path'])
                     camera_param.resize(*self._config['size'])
                 self.view_synthesis.add_bg_mesh(camera_param)
 
@@ -116,15 +130,16 @@ class Camera(BaseSensor):
                     stream.read()
 
                 # flow stream
-                flow_frame_num = frame_num # flow for (frame_num, frame_num + 1)
+                flow_frame_num = frame_num  # flow for (frame_num, frame_num + 1)
                 for flow_stream in self.flow_streams[camera_name].values():
                     if flow_frame_num < flow_stream.frame_num:
-                        flow_seek_sec = flow_stream.frame_to_secs(flow_frame_num)
+                        flow_seek_sec = flow_stream.frame_to_secs(
+                            flow_frame_num)
                         flow_stream.seek(flow_seek_sec)
 
                     while flow_stream.frame_num != flow_frame_num:
                         flow_stream.read()
-        
+
         frames = dict()
         for camera_name in multi_sensor.camera_names:
             frames[camera_name] = self.streams[camera_name].image.copy()
@@ -136,19 +151,24 @@ class Camera(BaseSensor):
             flow = dict()
             for flow_name, flow_minmax in self.flow_meta[camera_name].items():
                 flow_stream = self.flow_streams[camera_name][flow_name]
-                flow[flow_name] = misc.img2flow(flow_stream.image.copy(), 
-                                                flow_minmax[int(flow_stream.frame_num)],
-                                                frame.shape[:2])
-            
+                flow[flow_name] = misc.img2flow(
+                    flow_stream.image.copy(),
+                    flow_minmax[int(flow_stream.frame_num)], frame.shape[:2])
+
             frame_num = int(self.streams[camera_name].frame_num)
-            curr_ref_ts = multi_sensor.get_time_from_frame_num(camera_name, frame_num)
-            next_ref_ts = multi_sensor.get_time_from_frame_num(camera_name, frame_num + 1)
-            
+            curr_ref_ts = multi_sensor.get_time_from_frame_num(
+                camera_name, frame_num)
+            next_ref_ts = multi_sensor.get_time_from_frame_num(
+                camera_name, frame_num + 1)
+
             logging.warning('Stream frame number exceed 1 non-intentionally')
-            self.streams[camera_name].read() # NOTE: stream frame number exceed 1 here
+            self.streams[camera_name].read(
+            )  # NOTE: stream frame number exceed 1 here
             next_frame = self.streams[camera_name].image.copy()
-            frames[camera_name] = misc.biinterp(frame, next_frame, flow['forward'], flow['backward'],
-                                                timestamp, curr_ref_ts, next_ref_ts)
+            frames[camera_name] = misc.biinterp(frame, next_frame,
+                                                flow['forward'],
+                                                flow['backward'], timestamp,
+                                                curr_ref_ts, next_ref_ts)
 
         # Synthesis by rendering
         lat, long, yaw = self.parent.relative_state.numpy()
@@ -185,6 +205,6 @@ class Camera(BaseSensor):
     def __repr__(self) -> str:
         return '<{} (id={})> '.format(self.__class__.__name__, self.id) + \
                'name: {} '.format(self.name) + \
-               'size: {}x{} '.format(self.camera_param.get_height(), 
+               'size: {}x{} '.format(self.camera_param.get_height(),
                                      self.camera_param.get_width()) + \
                '#streams: {} '.format(len(self.streams))

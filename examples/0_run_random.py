@@ -54,7 +54,7 @@ def main(args):
         display.reset()
 
         while not agent.done:
-            action = np.array([agent.trace.f_curvature(agent.timestamp), 
+            action = np.array([agent.trace.f_curvature(agent.timestamp),
                                agent.trace.f_speed(agent.timestamp)])
             agent.step_dynamics(action)
             agent.step_sensors()

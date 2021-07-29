@@ -8,8 +8,10 @@ from ..utils import logging, misc
 
 
 class Trace:
-    DEFAULT_LABELS = ['day|night', 'dry|rain|snow', 'local|residential|highway|unpaved|indoor',
-                      'stable', '.*', '.*']
+    DEFAULT_LABELS = [
+        'day|night', 'dry|rain|snow',
+        'local|residential|highway|unpaved|indoor', 'stable', '.*', '.*'
+    ]
     RESET_CONFIG = {
         'default': {
             'n_bins': 100,
@@ -27,21 +29,24 @@ class Trace:
         'road_width': 4,
     }
 
-    def __init__(self, trace_path: str, trace_config: Optional[Dict] = dict()) -> None:
+    def __init__(
+        self, trace_path: str, trace_config: Optional[Dict] = dict()) -> None:
         self._trace_path: str = trace_path
         self._config: Dict = misc.merge_dict(trace_config, self.DEFAULT_CONFIG)
 
         # Divide trace to good segments based on video labels and timestamps
-        self._multi_sensor: MultiSensor = MultiSensor(self._trace_path, 
-                                                      self._config['master_sensor'])
+        self._multi_sensor: MultiSensor = MultiSensor(
+            self._trace_path, self._config['master_sensor'])
         self._labels: LabelSearch = LabelSearch(*self._config['labels'])
 
         good_frames, good_timestamps = self._divide_to_good_segments()
         self._good_frames: Dict[str, List[int]] = good_frames
         self._good_timestamps: Dict[str, List[float]] = good_timestamps
 
-        self._num_of_frames: int = np.sum([len(_v) for _v in \
-            self._good_frames[self._multi_sensor.master_sensor]])
+        self._num_of_frames: int = np.sum([
+            len(_v)
+            for _v in self._good_frames[self._multi_sensor.master_sensor]
+        ])
 
         # Get function representation of state information
         self._f_speed, self._f_curvature = self._get_states_func()
@@ -56,12 +61,14 @@ class Trace:
         Returns:
             int: index to a segment
         """
-        segment_reset_probs = np.zeros(len(self._good_frames[self._multi_sensor.master_sensor]))
+        segment_reset_probs = np.zeros(
+            len(self._good_frames[self._multi_sensor.master_sensor]))
         for i in range(segment_reset_probs.shape[0]):
             segment = self._good_frames[self._multi_sensor.master_sensor][i]
             segment_reset_probs[i] = len(segment)
         segment_reset_probs /= np.sum(segment_reset_probs)
-        new_segment_index = np.random.choice(segment_reset_probs.shape[0], p=segment_reset_probs)
+        new_segment_index = np.random.choice(segment_reset_probs.shape[0],
+                                             p=segment_reset_probs)
 
         return new_segment_index
 
@@ -78,10 +85,13 @@ class Trace:
             NotImplementedError: for invalid reset mode
         """
         # Compute sample probability
-        timestamps = self.good_timestamps[self._multi_sensor.master_sensor][segment_index]
-        if self._config['reset_mode'] == 'default': # bias toward large road curvature
+        timestamps = self.good_timestamps[
+            self._multi_sensor.master_sensor][segment_index]
+        if self._config[
+                'reset_mode'] == 'default':  # bias toward large road curvature
             n_bins = Trace.RESET_CONFIG['default']['n_bins']
-            smoothing_factor = Trace.RESET_CONFIG['default']['smoothing_factor']
+            smoothing_factor = Trace.RESET_CONFIG['default'][
+                'smoothing_factor']
 
             curvatures = np.abs(self.f_curvature(timestamps))
             curvatures = np.clip(curvatures, 0, 1 / 3.)
@@ -90,63 +100,79 @@ class Trace:
             hist_density = hist / float(np.sum(hist))
             probs = 1.0 / (hist_density[bins - 1] + smoothing_factor)
             probs /= np.sum(probs)
-        elif self._config['reset_mode'] == 'uniform': # uniform sampling
+        elif self._config['reset_mode'] == 'uniform':  # uniform sampling
             n_timestamps = len(timestamps)
-            probs = np.ones((n_timestamps,)) / n_timestamps
-        elif self._config['reset_mode'] == 'segment_start': # bias toward the start of a segment
-            first_n_percent = Trace.RESET_CONFIG['segment_start']['first_n_percent']
+            probs = np.ones((n_timestamps, )) / n_timestamps
+        elif self._config[
+                'reset_mode'] == 'segment_start':  # bias toward the start of a segment
+            first_n_percent = Trace.RESET_CONFIG['segment_start'][
+                'first_n_percent']
 
             n_timestamps = len(timestamps)
-            probs = np.zeros((n_timestamps,))
+            probs = np.zeros((n_timestamps, ))
             probs[:int(first_n_percent * n_timestamps)] = 1.
             probs /= np.sum(probs)
         else:
-            raise NotImplementedError('Unrecognized trace reset mode {}'.format(self._reset_mode))
+            raise NotImplementedError(
+                'Unrecognized trace reset mode {}'.format(self._reset_mode))
 
         # Sample frame index
         frame_index = np.random.choice(probs.shape[0], p=probs)
-        
+
         return frame_index
 
-    def get_master_timestamp(self, segment_index: int, frame_index: int,
+    def get_master_timestamp(self,
+                             segment_index: int,
+                             frame_index: int,
                              check_end: Optional[bool] = False) -> float:
         master_name = self.multi_sensor.master_sensor
         if check_end:
-            exceed_end = frame_index >= len(self.good_timestamps[master_name][segment_index])
+            exceed_end = frame_index >= len(
+                self.good_timestamps[master_name][segment_index])
             frame_index = -1 if exceed_end else frame_index
-            return exceed_end, self.good_timestamps[master_name][segment_index][frame_index]
+            return exceed_end, self.good_timestamps[master_name][
+                segment_index][frame_index]
         else:
-            return self.good_timestamps[master_name][segment_index][frame_index]
+            return self.good_timestamps[master_name][segment_index][
+                frame_index]
 
-    def get_master_frame_number(self, segment_index: int, frame_index: int,
+    def get_master_frame_number(self,
+                                segment_index: int,
+                                frame_index: int,
                                 check_end: Optional[bool] = False) -> float:
         master_name = self.multi_sensor.master_sensor
         if check_end:
-            exceed_end = frame_index >= len(self.good_timestamps[master_name][segment_index])
+            exceed_end = frame_index >= len(
+                self.good_timestamps[master_name][segment_index])
             frame_index = -1 if exceed_end else frame_index
-            return exceed_end, self.good_frames[master_name][segment_index][frame_index]
+            return exceed_end, self.good_frames[master_name][segment_index][
+                frame_index]
         else:
             return self.good_frames[master_name][segment_index][frame_index]
 
     def _divide_to_good_segments(self) -> Dict[str, List[int]]:
-        """ Divide a trace into good segments based on video labels and time difference between
-            consecutive frames. Note that only master sensor is used for the time difference check
-            since every sensors may have triggering frequencies.
+        """ Divide a trace into good segments based on video labels and time
+            difference between consecutive frames. Note that only master
+            sensor is used for the time difference check since every sensors
+            may have triggering frequencies.
 
         Args:
             None
-        
+
         Returns:
-            dict: good frames for all sensors. Key is sensor name and value is a list with each 
-                  element as frame indices of a good segment, 
-                  i.e., a good frame number = dict[sensor_name][which_good_segment][i]
+            dict: good frames for all sensors. Key is sensor name and value
+                  is a list with each element as frame indices of a good
+                  segment, i.e., a good frame number =
+                  dict[sensor_name][which_good_segment][i]
             dict: timestamps of good frames
         """
         # Filter by video labels
-        _, good_labeled_timestamps = self._labels.find_good_labeled_frames(self._trace_path)
+        _, good_labeled_timestamps = self._labels.find_good_labeled_frames(
+            self._trace_path)
         if good_labeled_timestamps is None:
             logging.warning('No video_label.csv')
-            good_labeled_timestamps = np.array(self._multi_sensor.get_master_timestamps())
+            good_labeled_timestamps = np.array(
+                self._multi_sensor.get_master_timestamps())
 
         # Filter by end-of-trace and time difference across consecutive frames
         good_frames = {_k: [] for _k in self._multi_sensor.sensor_names}
@@ -155,22 +181,25 @@ class Trace:
         for i in range(good_labeled_timestamps.shape[0]):
             trace_end = i == good_labeled_timestamps.shape[0] - 1
             if not trace_end:
-                time_diff_too_large = good_labeled_timestamps[i+1] - good_labeled_timestamps[i] \
-                    >= self._config['max_timestamp_diff_across_frames']
+                time_diff = good_labeled_timestamps[
+                    i + 1] - good_labeled_timestamps[i]
+                time_diff_too_large = time_diff >= self._config[
+                    'max_timestamp_diff_across_frames']
             else:
                 time_diff_too_large = False
 
             if trace_end or time_diff_too_large:
-                good_segment_frames = self._multi_sensor.get_frames_from_times( \
+                good_segment_frames = self._multi_sensor.get_frames_from_times(
                     good_labeled_timestamps[segment_start:i])
 
                 for k, v in good_segment_frames.items():
                     good_frames[k].append(v)
-                    
+
                     segment_timestamps = []
                     for frame_num in v:
                         segment_timestamps.append(
-                            self._multi_sensor.get_time_from_frame_num(k, frame_num))
+                            self._multi_sensor.get_time_from_frame_num(
+                                k, frame_num))
                     good_timestamps[k].append(segment_timestamps)
 
                 segment_start += i
@@ -215,7 +244,7 @@ class Trace:
     @property
     def good_timestamps(self) -> Dict[str, List[int]]:
         return self._good_timestamps
-    
+
     @property
     def num_of_frames(self) -> int:
         return self._num_of_frames

@@ -6,10 +6,13 @@ import numpy as np
 
 
 class LabelSearch(object):
-    FIELDS = ['timestamp', 'time_of_day', 'weather', 'road_type', 'maneuver', 'direction', 'tag']
+    FIELDS = [
+        'timestamp', 'time_of_day', 'weather', 'road_type', 'maneuver',
+        'direction', 'tag'
+    ]
 
-    def __init__(self, time_of_day: str, weather: str, road_type: str, maneuver: str, 
-                 direction: str, tag: str) -> None:
+    def __init__(self, time_of_day: str, weather: str, road_type: str,
+                 maneuver: str, direction: str, tag: str) -> None:
         self._time_of_day = time_of_day
         self._weather = weather
         self._road_type = road_type
@@ -17,9 +20,10 @@ class LabelSearch(object):
         self._direction = direction
         self._tag = tag
 
-    def find_good_labeled_frames(self, trace_path: str) -> Tuple[np.ndarray, np.ndarray]:
-        """ Find good frames based on video labels. Assume video labels have consistent timestamps
-            with the specified master sensor/topic.
+    def find_good_labeled_frames(
+            self, trace_path: str) -> Tuple[np.ndarray, np.ndarray]:
+        """ Find good frames based on video labels. Assume video labels have
+            consistent timestampswith the specified master sensor/topic.
 
         Args:
             trace_path (str): path to a trace
@@ -34,14 +38,17 @@ class LabelSearch(object):
             is_good_frames = []
             good_timestamps = []
             with open(fpath, 'r') as f:
-                reader = csv.DictReader(f, fieldnames=LabelSearch.FIELDS, delimiter=',')
-                for line in reader: # for each line
+                reader = csv.DictReader(f,
+                                        fieldnames=LabelSearch.FIELDS,
+                                        delimiter=',')
+                for line in reader:  # for each line
                     # assume consistency between master sensor and video labels
                     good_timestamps.append(float(line.pop('timestamp')))
 
                     match = True
                     for field in line.keys():
-                        regex = getattr(self, '_' + field) # get the search regex
+                        regex = getattr(self,
+                                        '_' + field)  # get the search regex
                         res = re.search(regex, line[field])
                         if not res:
                             match = False

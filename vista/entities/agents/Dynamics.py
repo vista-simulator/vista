@@ -6,7 +6,7 @@ from ...utils import logging
 
 
 class State:
-    def __init__(self, 
+    def __init__(self,
                  x: Optional[float] = 0.,
                  y: Optional[float] = 0.,
                  yaw: Optional[float] = 0.) -> None:
@@ -19,7 +19,7 @@ class State:
 
     def reset(self) -> None:
         self.update(0., 0., 0.)
-    
+
     def numpy(self) -> np.ndarray:
         return np.array([self._x, self._y, self._yaw])
 
@@ -36,7 +36,8 @@ class State:
         return self._yaw
 
     def __repr__(self) -> str:
-        return '<{}: [{}, {}, {}]>'.format(self.__class__.__name__, self._x, self._y, self._yaw)
+        return '<{}: '.format(self.__class__.__name__) + \
+               '[{}, {}, {}]>'.format(self._x, self._y, self._yaw)
 
 
 class StateDynamics:
@@ -67,22 +68,28 @@ class StateDynamics:
         self._speed_bound = speed_bound
         self._wheel_base = wheel_base
 
-    def step(self, steering_velocity: float, acceleration: float, 
-             dt: float, max_steps: Optional[int] = 100) -> np.ndarray:
+    def step(self,
+             steering_velocity: float,
+             acceleration: float,
+             dt: float,
+             max_steps: Optional[int] = 100) -> np.ndarray:
         # Define dynamics
         def _ode_func(t, z):
             _x, _y, _phi, _delta, _v = z
             u_delta = steering_velocity
             u_a = acceleration
-            new_z = np.array([-_v * np.sin(_phi), # swap x-y axis with sign change
-                              _v * np.cos(_phi),
-                              _v / self._wheel_base * np.tan(_delta),
-                              u_delta,
-                              u_a])
+            new_z = np.array([
+                -_v * np.sin(_phi),  # swap x-y axis with sign change
+                _v * np.cos(_phi),
+                _v / self._wheel_base * np.tan(_delta),
+                u_delta,
+                u_a
+            ])
             return new_z
 
         # Solve ODE
-        z_0 = np.array([self._x, self._y, self._yaw, self._steering, self._speed])
+        z_0 = np.array(
+            [self._x, self._y, self._yaw, self._steering, self._speed])
         solver = ode_solve.RK45(_ode_func, 0., z_0, dt)
         steps = 0
         while solver.status is 'running' and steps <= max_steps:
@@ -100,13 +107,18 @@ class StateDynamics:
         return self.numpy()
 
     def numpy(self) -> np.ndarray:
-        return np.array([self._x, self._y, self._yaw, self._steering, self._speed])
+        return np.array(
+            [self._x, self._y, self._yaw, self._steering, self._speed])
 
     def copy(self):
-        return StateDynamics(x=self._x, y=self._y, yaw=self._yaw, 
-                             steering=self._steering, speed=self._speed)
-    
-    def update(self, x: float, y: float, yaw: float, steering: float, speed: float) -> None:
+        return StateDynamics(x=self._x,
+                             y=self._y,
+                             yaw=self._yaw,
+                             steering=self._steering,
+                             speed=self._speed)
+
+    def update(self, x: float, y: float, yaw: float, steering: float,
+               speed: float) -> None:
         self._x = x
         self._y = y
         self._yaw = yaw
@@ -137,7 +149,7 @@ class StateDynamics:
         return self._speed
 
     def __repr__(self) -> str:
-        return '<{}: [{}, {}, {}, {}, {}]>'.format(self.__class__.__name__, 
+        return '<{}: [{}, {}, {}, {}, {}]>'.format(self.__class__.__name__,
                                                    self._x, self._y, self._yaw,
                                                    self._steering, self._speed)
 
@@ -152,7 +164,8 @@ def tireangle2curvature(tire_angle: float, wheel_base: float) -> float:
     return np.tan(tire_angle) / wheel_base
 
 
-def curvature2steering(curvature: float, wheel_base: float, steering_ratio: float) -> float:
+def curvature2steering(curvature: float, wheel_base: float,
+                       steering_ratio: float) -> float:
     """ Convert curvature to steering angle. """
     tire_angle = curvature2tireangle(curvature, wheel_base)
     steering = tire_angle * steering_ratio * 180. / np.pi
@@ -160,7 +173,8 @@ def curvature2steering(curvature: float, wheel_base: float, steering_ratio: floa
     return steering
 
 
-def steering2curvature(steering: float, wheel_base: float, steering_ratio: float) -> float:
+def steering2curvature(steering: float, wheel_base: float,
+                       steering_ratio: float) -> float:
     """ Convert steering angle to curvature. """
     tire_angle = steering * (np.pi / 180.) / steering_ratio
     curvature = tireangle2curvature(tire_angle, wheel_base)
@@ -168,8 +182,8 @@ def steering2curvature(steering: float, wheel_base: float, steering_ratio: float
     return curvature
 
 
-def update_with_perfect_controller(desired_state: List[float], 
-                                   dt: float, dynamics: StateDynamics):
+def update_with_perfect_controller(desired_state: List[float], dt: float,
+                                   dynamics: StateDynamics):
     # simulate condition when the desired state can be instantaneously achieved
     new_dyn = dynamics.numpy()
     new_dyn[-2:] = desired_state

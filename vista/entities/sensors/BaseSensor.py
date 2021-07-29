@@ -4,7 +4,8 @@ from ..Entity import Entity
 
 
 class BaseSensor(Entity):
-    def __init__(self, attach_to: Entity, 
+    def __init__(self,
+                 attach_to: Entity,
                  config: Optional[Dict] = None) -> None:
         super(BaseSensor, self).__init__()
 

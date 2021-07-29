@@ -8,19 +8,18 @@ from . import transform
 from ..entities.agents import Car
 from ..entities.agents.Dynamics import StateDynamics
 
-
 Vec = Union[List, Tuple, np.ndarray]
 
 
-def agent2poly(agent: Car, ref_dynamics: Optional[StateDynamics] = None) -> Box:
+def agent2poly(agent: Car,
+               ref_dynamics: Optional[StateDynamics] = None) -> Box:
     """ Convert Agent object to polygon w.r.t. a reference dynamics. """
     ref_dynamics = agent.human_dynamics if ref_dynamics is None else ref_dynamics
-    rel_pose = transform.compute_relative_latlongyaw(agent.ego_dynamics.numpy()[:3],
-                                                     ref_dynamics.numpy()[:3])
-    poly = Box(rel_pose[0] - agent.width / 2.,
-               rel_pose[1] - agent.length / 2.,
-               rel_pose[0] + agent.width / 2.,
-               rel_pose[1] + agent.length / 2.)
+    rel_pose = transform.compute_relative_latlongyaw(
+        agent.ego_dynamics.numpy()[:3],
+        ref_dynamics.numpy()[:3])
+    poly = Box(rel_pose[0] - agent.width / 2., rel_pose[1] - agent.length / 2.,
+               rel_pose[0] + agent.width / 2., rel_pose[1] + agent.length / 2.)
     poly = affinity.rotate(poly, np.degrees(rel_pose[2]))
     return poly
 
@@ -59,9 +58,11 @@ def fetch_agent_info(agent: Car):
     return info
 
 
-def img2flow(img: np.ndarray, mag_minmax: Vec, flow_size: Optional[Vec] = None) -> np.ndarray:
+def img2flow(img: np.ndarray,
+             mag_minmax: Vec,
+             flow_size: Optional[Vec] = None) -> np.ndarray:
     """ Convert HSV-encoded flow image to optical flow. """
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) # assume image is BGR
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)  # assume image is BGR
     if flow_size is not None:
         hsv = cv2.resize(hsv, flow_size[::-1])
     ang = hsv[..., 0] * 2. * np.pi / 180
@@ -70,9 +71,9 @@ def img2flow(img: np.ndarray, mag_minmax: Vec, flow_size: Optional[Vec] = None) 
     return flow
 
 
-def biinterp(I0: np.ndarray, I1: np.ndarray, F_0_1: np.ndarray, F_1_0: np.ndarray,
-             ts: float, t0: float, t1: float) -> np.ndarray:
-    """ Interpolate frame with bidirectional flow. """ 
+def biinterp(I0: np.ndarray, I1: np.ndarray, F_0_1: np.ndarray,
+             F_1_0: np.ndarray, ts: float, t0: float, t1: float) -> np.ndarray:
+    """ Interpolate frame with bidirectional flow. """
     t = (ts - t0) / (t1 - t0)
     temp = -t * (1 - t)
     fCoeff = [temp, t * t, (1 - t) * (1 - t), temp]
@@ -87,7 +88,8 @@ def biinterp(I0: np.ndarray, I1: np.ndarray, F_0_1: np.ndarray, F_1_0: np.ndarra
     return out
 
 
-def flow_backwarp(img: np.ndarray, flow: np.ndarray, 
+def flow_backwarp(img: np.ndarray,
+                  flow: np.ndarray,
                   use_pytorch: Optional[bool] = False) -> np.ndarray:
     """ Warp image based on optical flow. """
     H, W = img.shape[:2]
@@ -105,11 +107,14 @@ def flow_backwarp(img: np.ndarray, flow: np.ndarray,
         grid = torch.from_numpy(np.stack((x, y), axis=2))
 
         img = torch.from_numpy(img / 255.).permute(2, 0, 1)
-        out = torch.nn.functional.grid_sample(img[None, ...], grid[None, ...], align_corners=True)
+        out = torch.nn.functional.grid_sample(img[None, ...],
+                                              grid[None, ...],
+                                              align_corners=True)
         out = (out[0].permute(1, 2, 0).cpu().numpy() * 255.).astype(np.uint8)
     else:
         img = img / 255.
         grid = np.stack([x, y], axis=-1)
-        out = cv2.remap(img, x.astype(np.float32), y.astype(np.float32), cv2.INTER_LINEAR)
+        out = cv2.remap(img, x.astype(np.float32), y.astype(np.float32),
+                        cv2.INTER_LINEAR)
         out = np.clip(out * 255, 0, 255).astype(np.uint8)
     return out

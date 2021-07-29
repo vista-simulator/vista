@@ -4,7 +4,6 @@ import inspect
 import logging
 from functools import partial
 
-
 DEBUG = logging.DEBUG
 INFO = logging.INFO
 WARNING = logging.WARNING
@@ -14,13 +13,13 @@ logging.CRITICAL = logging.CRITICAL
 
 class CustomFormatter(logging.Formatter):
     PURPLE = '\033[95m'
-    RED   = "\033[0;31m"
-    BOLD_RED   = "\033[1;31m"
-    BLUE  = "\033[0;34m"
-    CYAN  = "\033[0;36m"
+    RED = "\033[0;31m"
+    BOLD_RED = "\033[1;31m"
+    BLUE = "\033[0;34m"
+    CYAN = "\033[0;36m"
     GREEN = "\033[0;32m"
     YELLOW = '\033[93m'
-    BOLD    = "\033[;1m"
+    BOLD = "\033[;1m"
     UNDERLINE = '\033[4m'
     ENDC = '\033[0;0m'
     format = '%(asctime)s::%(levelname)s::%(message)s'

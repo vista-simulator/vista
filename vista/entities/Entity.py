@@ -1,5 +1,6 @@
 import uuid
 
+
 class Entity:
     def __init__(self):
         # Identifier for this Entity. Unique given during creation.
