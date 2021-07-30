@@ -18,6 +18,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-i',
                     '--input',
                     type=str,
+                    required=True,
                     help='Path to the trace to prepare')
 parser.add_argument('-j',
                     '--jobs',
@@ -26,8 +27,6 @@ parser.add_argument('-j',
                     help='Threads')
 args = parser.parse_args()
 
-out_dir = os.path.join(args.input, 'tmp_lidar')
-
 synthesizer = LidarSynthesis()
 f_in = h5py.File(os.path.join(args.input, "lidar_3d.h5"), "r")
 f_xyz = f_in['xyz']
@@ -35,18 +34,24 @@ f_intensity = f_in['intensity']
 f_timestamp = f_in['timestamp']
 n_total = f_timestamp.shape[0]
 
-f_out = h5py.File(os.path.join(args.input, "lidar_3d_vista.h5"), "w")
+f_out = h5py.File(os.path.join(args.input, "lidar_3d_vista_new.h5"), "w")
 d_timestamp = f_out.create_dataset(name="timestamp", data=f_timestamp[:])
 d_pcd = f_out.create_dataset(name="pcd",
                              shape=(n_total, f_xyz.shape[1], 5),
                              chunks=(1, f_xyz.shape[1], 5),
-                             dtype=np.float32)
-d_dense = f_out.create_dataset(name="dense",
+                             dtype=np.float16)
+d_depth = f_out.create_dataset(name="d_depth",
                                shape=(n_total, synthesizer._dims[1],
-                                      synthesizer._dims[0], 2),
+                                      synthesizer._dims[0], 1),
                                chunks=(1, synthesizer._dims[1],
-                                       synthesizer._dims[0], 2),
-                               dtype=np.float32)
+                                       synthesizer._dims[0], 1),
+                               dtype=np.float16)
+d_int = f_out.create_dataset(name="d_int",
+                             shape=(n_total, synthesizer._dims[1],
+                                    synthesizer._dims[0], 1),
+                             chunks=(1, synthesizer._dims[1],
+                                     synthesizer._dims[0], 1),
+                             dtype=np.uint8)
 d_mask = f_out.create_dataset(name="mask",
                               shape=(n_total, synthesizer._dims[1],
                                      synthesizer._dims[0], 1),
@@ -69,12 +74,11 @@ def preprocess_scan(i):
 
     mask, s_depth, s_int = synthesizer.pcd2sparse(scan_valid, fill=[-1, 3, 4])
 
-    dense = (synthesizer.sparse2dense(s_depth),
-             synthesizer.sparse2dense(s_int))
-    dense = np.stack(dense, axis=-1)
-    mask = ~np.isnan(mask[:, :, np.newaxis])
+    depth = np.expand_dims(synthesizer.sparse2dense(s_depth), -1)
+    intensity = np.expand_dims(synthesizer.sparse2dense(s_int), -1)
+    mask = ~np.isnan(np.expand_dims(mask, -1))
 
-    return (scan, dense, mask)
+    return (scan, depth, intensity, mask)
 
 
 print(f"Preprocessing LiDAR data with {args.jobs} parallel threads")
@@ -92,9 +96,10 @@ with tqdm(total=n_total) as pbar:
                 pbar.update()
 
         # Save results to disk
-        scan, dense, mask = zip(*results)
+        scan, depth, intensity, mask = zip(*results)
         d_pcd[chunk] = scan
-        d_dense[chunk] = dense
+        d_depth[chunk] = depth
+        d_int[chunk] = intensity
         d_mask[chunk] = mask
 
 f_out.close()

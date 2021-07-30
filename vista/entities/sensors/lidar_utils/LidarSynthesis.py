@@ -21,18 +21,17 @@ class LidarSynthesis:
         self._grid_idx = np.meshgrid(np.arange(0, self._dims[0]),
                                      np.arange(0, self._dims[1]))
 
-        #### TODO: CLEAN for synthesize(...) ####
-        pitch, yaw = np.meshgrid(
-            np.linspace(pitch_lims[0], pitch_lims[1], img_.shape[0] + 1)[:-1],
-            np.linspace(yaw_lims[0], yaw_lims[1], img_.shape[1] + 1)[:-1])
-        (pitch, yaw) = (pitch.flatten(), yaw.flatten())
+        self._grid_angles = np.meshgrid(
+            np.linspace(self._fov[1, 0], self._fov[1, 0], self._dims[1, 0]),
+            np.linspace(self._fov[0, 0], self._fov[0, 0], self._dims[0, 0]))
+        self._grid_pitch, self._grid_yaw = (self._grid_angles[0].flatten(),
+                                            self._grid_angles[1].flatten())
 
-        xyLen = np.cos(pitch)
+        xyLen = np.cos(self._grid_pitch)
         self.rays = np.array([ \
-            xyLen * np.cos(yaw),
-            xyLen * np.sin(-yaw),
-            np.sin(-pitch)])
-        #### TODO: CLEAN for synthesize(...) ####
+            xyLen * np.cos(self._grid_yaw),
+            xyLen * np.sin(-self._grid_yaw),
+            np.sin(-self._grid_pitch)])
 
     def synthesize(
             self,
