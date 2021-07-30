@@ -65,6 +65,7 @@ class ViewSynthesis:
         imgs: Dict[str, np.ndarray],
         depth: Optional[Dict[str, np.ndarray]] = None
     ) -> Tuple[np.ndarray, np.ndarray]:
+
         for name, img in imgs.items():
             # Refresh meshes in renderer; otherwise mesh vertex/color won't update
             mesh = self._bg_node[name].mesh

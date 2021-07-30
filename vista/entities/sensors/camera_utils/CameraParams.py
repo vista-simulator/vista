@@ -1,6 +1,6 @@
 """
 The **CameraParams** object stores information pertaining to a single physical camera
-mounted on the car. It is useful for encapsulating the relevant calibration information 
+mounted on the car. It is useful for encapsulating the relevant calibration information
 for easy access in other modules.
 
 """
@@ -19,7 +19,6 @@ def ignore_case(tree):
 
 class CameraParams(object):
     """ Object to store camera calibration information. """
-
     def __init__(self, name, rig_path):
         """ Initialize the camera object
         Args:
@@ -40,7 +39,8 @@ class CameraParams(object):
         cameras = dict(zip(names, xml_cameras))
 
         if name not in cameras.keys():
-            raise ValueError('{} is not a valid camera within RIG.xml'.format(name))
+            raise ValueError(
+                '{} is not a valid camera within RIG.xml'.format(name))
 
         self.name = name
         cam = cameras[self.name]
@@ -292,8 +292,9 @@ class CameraParams(object):
         p = self._position
 
         normal = [
-            2. * (q[1] * q[2] + q[3] * q[1]), 1 - 2. *
-            (q[0] * q[0] + q[2] * q[2]), 2. * (q[0] * q[1] - q[2] * q[3])
+            2. * (q[1] * q[2] + q[3] * q[1]),
+            1 - 2. * (q[0] * q[0] + q[2] * q[2]),
+            2. * (q[0] * q[1] - q[2] * q[3])
         ]
         intercept = np.dot(p.T, normal)
 
