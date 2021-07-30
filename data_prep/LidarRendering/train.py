@@ -22,9 +22,10 @@ parser.add_argument('-l', '--num_layers', type=int, default=3)
 args = parser.parse_args()
 
 print("Loading data")
+subset = 5 # only train with a small subset (debugging for speed)
 f = h5py.File(os.path.join(args.input, "lidar_3d_vista.h5"), "r")
-x = f['dense'][:5, :, :, [0]].astype(np.float32) / 50.
-y = f['mask'][:5].astype(np.float32)
+x = f['d_depth'][:subset].astype(np.float32) / 50.
+y = f['mask'][:subset].astype(np.float32)
 
 print("Building model")
 optimizer = tf.keras.optimizers.Adam(args.learning_rate)
