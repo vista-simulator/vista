@@ -15,12 +15,10 @@ from vista.entities.sensors.lidar_utils import LidarSynthesis
 # Parse Arguments
 parser = argparse.ArgumentParser(
     description='Preprocess lidar data to be compatible with VISTA')
-parser.add_argument(
-    '-i',
-    '--input',
-    type=str,
-    default="/home/amini/dk_data/traces/20210726-131322_lexus_devens_center",
-    help='Path to the trace to prepare')
+parser.add_argument('-i',
+                    '--input',
+                    type=str,
+                    help='Path to the trace to prepare')
 parser.add_argument('-j',
                     '--jobs',
                     type=int,
