@@ -49,10 +49,21 @@ def compute_relative_latlongyaw(latlongyaw: Vec, latlongyaw_ref: Vec) -> Vec:
     """ Compute relative lateral, longitudinal, yaw compoenents. """
     mat = vec2mat(*latlongyaw2vec(latlongyaw))
     mat_ref = vec2mat(*latlongyaw2vec(latlongyaw_ref))
-    rel_mat = np.matmul(mat, np.linalg.inv(mat_ref))
+    rel_mat = np.matmul(SE3_inv(mat_ref), mat)
+    # print(rel_mat) # DEBUG
+    # import pdb; pdb.set_trace()
     rel_trans, rel_rot = mat2vec(rel_mat)
     rel_xyyaw = vec2latlongyaw(rel_trans, rel_rot)
     return rel_xyyaw
+
+
+def SE3_inv(T_in):
+    """ More efficient matrix inversion for SE(3) """
+    R_in = T_in[:3,:3]
+    t_in = T_in[:3,[-1]]
+    R_out = R_in.T
+    t_out = -np.matmul(R_out,t_in)
+    return np.vstack((np.hstack((R_out,t_out)),np.array([0, 0, 0, 1])))
 
 
 def mat2vec(mat,

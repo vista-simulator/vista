@@ -219,6 +219,26 @@ class Car(Entity):
         # Update relative transformation between human and ego dynamics
         self._relative_state.update(*latlongyaw_closest)
 
+        ### DEBUG
+        if True:
+            ego_x_state, ego_y_state, ego_theta_state, _, _ = self.ego_dynamics.numpy()
+            human_x_state, human_y_state, human_theta_state, _, _ = self.human_dynamics.numpy()
+
+            c = np.cos(human_theta_state)
+            s = np.sin(human_theta_state)
+            R_2 = np.array([[c, -s], [s, c]])
+            xy_global_centered = np.array([[ego_x_state - human_x_state],
+                                        [human_y_state - ego_y_state]])
+            [[translation_x], [translation_y]] = np.matmul(R_2, xy_global_centered)
+            translation_y *= -1  # negate the longitudinal translation (due to VS setup)
+
+            theta = ego_theta_state - human_theta_state
+            
+            print(translation_x, translation_y, theta)
+            print(self.relative_state.numpy())
+            import pdb; pdb.set_trace() # DEBUG
+        ### DEBUG
+
     def step_sensors(self) -> None:
         logging.info('Car ({}) step sensors'.format(self.id))
         self._observations = dict()

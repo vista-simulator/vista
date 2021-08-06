@@ -39,7 +39,7 @@ class Camera(BaseSensor):
             stream.close()
 
         for flow_stream in [
-                _vv for _v in self.flow_streams.values() for _vv in _v
+                _vv for _v in self.flow_streams.values() for _vv in _v.values()
         ]:
             flow_stream.close()
 
@@ -70,19 +70,19 @@ class Camera(BaseSensor):
                 if os.path.exists(flow_meta_path):
                     self._flow_meta[camera_name] = h5py.File(
                         flow_meta_path, 'r')
+
+                    self._flow_streams[camera_name] = dict()
+                    for flow_name in self.flow_meta[camera_name].keys():
+                        flow_path = os.path.join(
+                            self.parent.trace.trace_path,
+                            camera_name + '_flow_{}.mp4'.format(flow_name))
+                        flow_stream = FFReader(flow_path, verbose=False)
+                        flow_frame_num = frame_num  # flow for (frame_num, frame_num + 1)
+                        flow_seek_sec = flow_stream.frame_to_secs(flow_frame_num)
+                        flow_stream.seek(flow_seek_sec)
+                        self._flow_streams[camera_name][flow_name] = flow_stream
                 else:
                     logging.error('No flow data')
-
-                self._flow_streams[camera_name] = dict()
-                for flow_name in self.flow_meta[camera_name].keys():
-                    flow_path = os.path.join(
-                        self.parent.trace.trace_path,
-                        camera_name + '_flow_{}.mp4'.format(flow_name))
-                    flow_stream = FFReader(flow_path, verbose=False)
-                    flow_frame_num = frame_num  # flow for (frame_num, frame_num + 1)
-                    flow_seek_sec = flow_stream.frame_to_secs(flow_frame_num)
-                    flow_stream.seek(flow_seek_sec)
-                    self._flow_streams[camera_name][flow_name] = flow_stream
         else:  # use shared streams from the main camera
             main_name = multi_sensor.main_camera
             main_sensor = [
@@ -130,45 +130,47 @@ class Camera(BaseSensor):
                     stream.read()
 
                 # flow stream
-                flow_frame_num = frame_num  # flow for (frame_num, frame_num + 1)
-                for flow_stream in self.flow_streams[camera_name].values():
-                    if flow_frame_num < flow_stream.frame_num:
-                        flow_seek_sec = flow_stream.frame_to_secs(
-                            flow_frame_num)
-                        flow_stream.seek(flow_seek_sec)
+                if self.flow_streams != dict():
+                    flow_frame_num = frame_num  # flow for (frame_num, frame_num + 1)
+                    for flow_stream in self.flow_streams[camera_name].values():
+                        if flow_frame_num < flow_stream.frame_num:
+                            flow_seek_sec = flow_stream.frame_to_secs(
+                                flow_frame_num)
+                            flow_stream.seek(flow_seek_sec)
 
-                    while flow_stream.frame_num != flow_frame_num:
-                        flow_stream.read()
+                        while flow_stream.frame_num != flow_frame_num:
+                            flow_stream.read()
 
         frames = dict()
         for camera_name in multi_sensor.camera_names:
             frames[camera_name] = self.streams[camera_name].image.copy()
 
         # Interpolate frame at the exact timestamp
-        for camera_name in self.flow_streams.keys():
-            frame = frames[camera_name]
+        if self.flow_streams != dict():
+            for camera_name in self.flow_streams.keys():
+                frame = frames[camera_name]
 
-            flow = dict()
-            for flow_name, flow_minmax in self.flow_meta[camera_name].items():
-                flow_stream = self.flow_streams[camera_name][flow_name]
-                flow[flow_name] = misc.img2flow(
-                    flow_stream.image.copy(),
-                    flow_minmax[int(flow_stream.frame_num)], frame.shape[:2])
+                flow = dict()
+                for flow_name, flow_minmax in self.flow_meta[camera_name].items():
+                    flow_stream = self.flow_streams[camera_name][flow_name]
+                    flow[flow_name] = misc.img2flow(
+                        flow_stream.image.copy(),
+                        flow_minmax[int(flow_stream.frame_num)], frame.shape[:2])
 
-            frame_num = int(self.streams[camera_name].frame_num)
-            curr_ref_ts = multi_sensor.get_time_from_frame_num(
-                camera_name, frame_num)
-            next_ref_ts = multi_sensor.get_time_from_frame_num(
-                camera_name, frame_num + 1)
+                frame_num = int(self.streams[camera_name].frame_num)
+                curr_ref_ts = multi_sensor.get_time_from_frame_num(
+                    camera_name, frame_num)
+                next_ref_ts = multi_sensor.get_time_from_frame_num(
+                    camera_name, frame_num + 1)
 
-            logging.warning('Stream frame number exceed 1 non-intentionally')
-            self.streams[camera_name].read(
-            )  # NOTE: stream frame number exceed 1 here
-            next_frame = self.streams[camera_name].image.copy()
-            frames[camera_name] = misc.biinterp(frame, next_frame,
-                                                flow['forward'],
-                                                flow['backward'], timestamp,
-                                                curr_ref_ts, next_ref_ts)
+                logging.warning('Stream frame number exceed 1 non-intentionally')
+                self.streams[camera_name].read(
+                )  # NOTE: stream frame number exceed 1 here
+                next_frame = self.streams[camera_name].image.copy()
+                frames[camera_name] = misc.biinterp(frame, next_frame,
+                                                    flow['forward'],
+                                                    flow['backward'], timestamp,
+                                                    curr_ref_ts, next_ref_ts)
 
         # Synthesis by rendering
         lat, long, yaw = self.parent.relative_state.numpy()
