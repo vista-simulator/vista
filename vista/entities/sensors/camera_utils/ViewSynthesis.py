@@ -100,14 +100,9 @@ class ViewSynthesis:
         color_bg, depth_bg = self._renderer.render(
             self._scene, flags=pyrender.constants.RenderFlags.FLAT)
 
-        ### DEBUG
-        logging.warning('Only using background image for rendering')
+        # TODO: add meshes for virtual agent
+        logging.debug('Only using background image for rendering')
         color, depth = color_bg, depth_bg
-        # import cv2
-        # cv2.imwrite('test.png', imgs['camera_front'])
-        # cv2.imwrite('test2.png', color)
-        # import pdb; pdb.set_trace()
-        ### DEBUG
 
         return color, depth
 

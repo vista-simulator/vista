@@ -48,13 +48,6 @@ class World:
         new_trace_index, new_segment_index, new_frame_index = \
             self.sample_new_location()
 
-        ### DEBUG
-        logging.warning('Fix trace/segment/frame index for debugging')
-        new_trace_index = 0
-        new_segment_index = 0
-        new_frame_index = 100
-        ### DEBUG
-
         # Reset agents
         for agent in self.agents:
             agent.reset(new_trace_index, new_segment_index, new_frame_index)
