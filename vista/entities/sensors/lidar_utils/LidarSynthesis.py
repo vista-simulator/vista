@@ -40,8 +40,10 @@ class LidarSynthesis:
             np.sin(-self._grid_pitch)])
 
         with pkg_resources.path(resources, "LidarMaskModel.h5") as path:
-            logging.debug(f"Loading Lidar mask model from {path}")
-            self.mask_net = tf.keras.models.load_model(path)
+            self.mask_net = None
+            if path.is_file():
+                logging.debug(f"Loading Lidar mask model from {path}")
+                self.mask_net = tf.keras.models.load_model(path)
 
     def synthesize(
             self,
