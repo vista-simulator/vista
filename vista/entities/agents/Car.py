@@ -233,10 +233,10 @@ class Car(Entity):
             translation_y *= -1  # negate the longitudinal translation (due to VS setup)
 
             theta = ego_theta_state - human_theta_state
-            
+
             print(translation_x, translation_y, theta)
             print(self.relative_state.numpy())
-            import pdb; pdb.set_trace() # DEBUG
+            # import pdb; pdb.set_trace() # DEBUG
         ### DEBUG
 
     def step_sensors(self) -> None:

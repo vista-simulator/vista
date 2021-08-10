@@ -1,6 +1,12 @@
+import importlib.resources as pkg_resources
 import numpy as np
-from typing import Tuple, Optional
 from scipy import interpolate
+from typing import Tuple, Optional
+from ....utils import transform, logging
+
+import tensorflow as tf
+
+from vista import resources
 
 
 class LidarSynthesis:
@@ -33,29 +39,48 @@ class LidarSynthesis:
             xyLen * np.sin(-self._grid_yaw),
             np.sin(-self._grid_pitch)])
 
+        with pkg_resources.path(resources, "LidarMaskModel.h5") as path:
+            logging.debug(f"Loading Lidar mask model from {path}")
+            self.mask_net = tf.keras.models.load_model(path)
+
     def synthesize(
             self,
             trans: np.ndarray,
             rot: np.ndarray,
-            dense_pcd: np.ndarray,
+            pcd: np.ndarray,
+            d_depth: np.ndarray,
             return_as_pcd: Optional[bool] = True
     ) -> Tuple[np.ndarray, np.ndarray]:
         """ Apply rigid transformation to a dense pointcloud and return new
         dense representation or sparse pointcloud. """
 
         # Sample dense pcd to return sparse pcd
-        dist = img_.reshape(-1, order="F")
+        # TODO: For now, use the sparse pointcloud -- eventually replace with
+        # the two lines below which compute points from the dense depths
+        points = pcd[:, :3].T
 
-        points = self.rays * dist
-        new_points = np.matmul(R, points) + t[:, np.newaxis]
+        # dist = d_depth.reshape(-1, order="F")
+        # points = self.rays * dist
 
-        new_dist = np.linalg.norm(new_points, ord=2, axis=0)
-        new_pcd = np.stack((new_points, new_dist), axis=0).T
+        # Rigid transform of points
+        R = transform.vec2mat(trans, rot)
+        new_points = np.matmul(R[:3, :3], points) + R[:3, 3][:, np.newaxis]
 
-        transformed = self.sparse2dense(self.pcd2sparse(new_pcd, fill=3))
+        # Update distances and intensities (FIXME: intensity placeholder zeros)
+        new_dist = np.linalg.norm(new_points, ord=2, axis=0, keepdims=True)
+        new_int = np.zeros_like(new_dist)  # TODO: fixme
+        new_pcd = np.concatenate((new_points, new_dist, new_int), axis=0).T
+
+        # Convert from new pointcloud to dense image
+        transformed_sparse = self.pcd2sparse(new_pcd, fill=3)
+        transformed_dense = self.sparse2dense(transformed_sparse, "nearest")
+
+        # Sample the image to simulate active LiDAR using neural masking
         if return_as_pcd:
-            transformed = self.dense2pcd(transformed)
-        return transformed
+            transformed_pcd = self.dense2pcd(transformed_sparse)
+            return transformed_pcd
+        else:
+            return transformed_dense
 
     def pcd2sparse(self, pcd, fill=3):
         """ Convert from pointcloud to sparse image in polar coordinates.
@@ -128,3 +153,15 @@ class LidarSynthesis:
         np.clip(inds, np.zeros((2, 1)), self._dims - 1, out=inds)
 
         return inds
+
+    # def _euler2rot(self, euler):
+    #     euler = np.reshape(euler, -1)
+    #     s, c = (np.sin(euler), np.cos(euler))
+    #     sx, sy, sz = s
+    #     cx, cy, cz = c
+    #
+    #     Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
+    #     Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
+    #     Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
+    #
+    #     return Rx @ Ry @ Rz

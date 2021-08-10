@@ -15,25 +15,34 @@ class Lidar(BaseSensor):
 
         logging.debug('Not actually streaming lidar data when reading')
         self._streams: Dict[str, h5py.File] = dict()
-        # TODO: initialize lidar novel view synthesis object
+
+        # Initialize lidar novel view synthesis object
+        self._view_synthesis = LidarSynthesis()
 
     def reset(self) -> None:
-        logging.info('Lidar ({}) reset'.format(self.id))
+        logging.info(f'Lidar ({self.id}) reset')
 
-        # Initiate lidar data stream based on current reference pointer to the dataset. All data
-        # streams are handled by the main lidar and shared across all Lidar objects in an agent.
+        # Initiate lidar data stream based on current reference pointer to the
+        # dataset. All data streams are handled by the main lidar and shared
+        # across all Lidar objects in an agent.
         multi_sensor = self.parent.trace.multi_sensor
         if self.name == multi_sensor.main_lidar:
             for lidar_name in multi_sensor.lidar_names:
-                fpath = os.path.join(self.parent.trace.trace_path, lidar_name + '.h5')
+                fpath = os.path.join(self.parent.trace.trace_path,
+                                     lidar_name + '_vista' + '.h5')
                 stream = h5py.File(fpath, 'r')
                 self._streams[lidar_name] = stream
         else:
             main_name = multi_sensor.main_lidar
-            main_sensor = [_s for _s in self.parent.sensors if _s.name == main_name]
-            assert len(main_sensor) == 1, 'Cannot find main sensor {}'.format(main_name)
+            main_sensor = [
+                _s for _s in self.parent.sensors if _s.name == main_name
+            ]
+            assert len(main_sensor) == 1, \
+                    f'Cannot find main sensor {main_name}'
+
             main_sensor = main_sensor[0]
-            assert isinstance(main_sensor, Lidar), 'Main sensor is not Lidar object'
+            assert isinstance(main_sensor, Lidar), \
+                    'Main sensor is not Lidar object'
             self._streams = main_sensor.streams
 
         # TODO: reset lidar synthesis
@@ -47,13 +56,29 @@ class Lidar(BaseSensor):
         for lidar_name in multi_sensor.lidar_names:
             stream = self.streams[lidar_name]
             frame_num = all_frame_nums[lidar_name][0]
-            pc = stream['xyz'][frame_num]
+            pcd = stream['pcd'][frame_num]
+            d_depth = stream['d_depth'][frame_num]
+            # TODO: when is it possible for there to be multiple (multi_sensor.lidar_names)?
 
         # TODO: Interpolate frame at the exact timestamp
+        pass
 
         # TODO: Synthesis by rendering
         lat, long, yaw = self.parent.relative_state.numpy()
-        raise NotImplementedError
+        trans = np.array([lat, 0., -long])
+        rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
+        rendered_lidar = self.view_synthesis.synthesize(
+            trans,
+            rot,
+            pcd=pcd,
+            d_depth=d_depth,
+            return_as_pcd=False,
+        )
+
+        logging.debug("Visualizing the rendered lidar scan")
+        import cv2; cv2.imshow("rendered", rendered_lidar[::3, ::3] / 150.); cv2.waitKey(1)
+
+        return rendered_lidar
 
     @property
     def config(self) -> Dict:
@@ -62,3 +87,7 @@ class Lidar(BaseSensor):
     @property
     def streams(self) -> Dict[str, h5py.File]:
         return self._streams
+
+    @property
+    def view_synthesis(self) -> LidarSynthesis:
+        return self._view_synthesis

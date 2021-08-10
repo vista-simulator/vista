@@ -47,7 +47,8 @@ def main(args):
             ### DEBUG
             logging.warning('Dump image for debugging and set pdb')
             import cv2; cv2.imwrite('test.png', img[:,:,::-1])
-            import pdb; pdb.set_trace()
+            # import cv2; cv2.imshow('test', img); cv2.waitKey(1)
+            # import pdb; pdb.set_trace()
             ### DEBUG
 
 
