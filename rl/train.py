@@ -63,7 +63,8 @@ def main():
     assert len(exp_names) == 1
     exp = experiments[exp_names[0]]
     exp['trial_name_creator'] = trial_name_creator
-    path_keys = ['local_dir', 'config:env_config:trace_paths', 'config:env_config:mesh_dir']
+    path_keys = ['local_dir', 'config:env_config:trace_paths', 
+                 'config:env_config:env_config:sensors_config1:rig_path'] # TODO: hacky
     for k in path_keys:
         try:
             paths = misc.get_dict_value_by_str(exp, k)

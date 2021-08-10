@@ -85,7 +85,7 @@ class Car(Entity):
         logging.info('Car ({}) reset'.format(self.id))
 
         # Update pointers to dataset
-        self._trace = self.parent.traces[self.trace_index]
+        self._trace = self.parent.traces[trace_index]
         self._timestamp = self.trace.get_master_timestamp(
             segment_index, frame_index)
         self._frame_number = self.trace.get_master_frame_number(
