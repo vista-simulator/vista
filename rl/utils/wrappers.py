@@ -7,8 +7,10 @@ from PIL import Image
 import torchvision
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
+import vista
 from vista.entities.sensors import Camera
 from vista.entities.agents.Dynamics import tireangle2curvature
+from vista.utils import misc
 
 
 class ToRllib(MultiAgentEnv):
@@ -78,9 +80,53 @@ class ToRllib(MultiAgentEnv):
     def curvature_bound(self):
         return self._curvature_bound
 
+    @property
+    def spec(self):
+        return None
+
     def close(self):
         # TODO: close simulation
         pass
+
+
+class _MultiAgentMonitor(gym.Wrapper):
+    def __init__(self, env, display_config):
+        super(_MultiAgentMonitor, self).__init__(env)
+        self._display = vista.Display(env.world, display_config)
+
+    def reset(self):
+        observation = super().reset()
+        self._display.reset()
+        return observation
+
+    def render(self, mode='rgb_array'):
+        return self._display.render()
+
+
+class MultiAgentMonitor(gym.wrappers.Monitor, MultiAgentEnv):
+    DEFAULT_CONFIG = {
+        'road_buffer_size': 300,
+    }
+
+    def __init__(self, env, directory, video_callable=None, force=False, resume=False,
+                 write_upon_reset=False, uid=None, mode=None, display_config={}):
+        self._env = env
+        display_config = misc.merge_dict(display_config, self.DEFAULT_CONFIG)
+        env = _MultiAgentMonitor(env, display_config)
+        super(MultiAgentMonitor, self).__init__(env, directory, video_callable, 
+            force, resume, write_upon_reset, uid, mode)
+
+    def step(self, action):
+        self._before_step(action)
+        observation, reward, done, info = self.env.step(action)
+        self.env.info = info
+        agent_id = list(observation.keys())[0]
+        self._after_step(observation[agent_id], reward[agent_id], done[agent_id], info[agent_id])
+
+        return observation, reward, done, info
+
+    def close(self):
+        self._env.close()
 
 
 class PreprocessObservation(gym.Wrapper, MultiAgentEnv):

@@ -33,7 +33,7 @@ class LaneFollowing(Base):
         free_width = agent.trace.road_width - agent.width
         out_of_lane = np.abs(lat) > (free_width / 2.)
         exceed_rot = np.abs(theta) > self._config['maximal_rotation']
-        done = out_of_lane or exceed_rot
+        done = out_of_lane or exceed_rot or agent.done
 
         # Define reward
         reward_type = self._config['reward_type']
