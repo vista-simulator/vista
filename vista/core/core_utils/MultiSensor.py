@@ -26,7 +26,10 @@ class MultiSensor:
             sensor_name, ext = os.path.splitext(fname)
             if sensor_name in sensor_topic_names and ext == '.csv':
                 fpath = os.path.join(self._trace_dir, fname)
-                data = np.genfromtxt(fpath, delimiter=',', dtype=np.float64)
+                data = np.genfromtxt(fpath,
+                                     delimiter=',',
+                                     skip_header=1,
+                                     dtype=np.float64)
                 frame_to_time = OrderedDict()
                 for i in range(data.shape[0]):
                     frame_to_time[int(data[i, 0])] = data[i, 1]
