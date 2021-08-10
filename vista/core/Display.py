@@ -151,7 +151,7 @@ class Display:
 
         # Update road in birds eye view (in reference agent's coordinate)
         ref_pose = self.ref_agent.human_dynamics.numpy()[:3]
-        logging.warning(
+        logging.debug(
             'Computation of road in reference frame not vectorized')
         road_in_ref = np.array([
             transform.compute_relative_latlongyaw(_v, ref_pose)

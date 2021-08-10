@@ -99,33 +99,6 @@ class StateDynamics:
             logging.error('Reach max steps {} without reaching t_bound ({} < {})'.format( \
                 max_steps, solver.t, solver.t_bound))
 
-        ### DEBUG
-        if True:
-            curvature = tireangle2curvature(self._steering, self._wheel_base)
-            velocity = self._speed
-
-            arc_length = velocity * dt
-            theta = arc_length * curvature # angle of traversed circle
-
-            # Compute R
-            self._yaw += theta
-            c = np.cos(self._yaw)
-            s = np.sin(self._yaw)
-            R = np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]])
-
-            # Compute local x, y positions
-            x = (1 - np.cos(theta)) / (curvature + 1e-11)
-            y = np.sin(theta) / (curvature + 1e-11)
-
-            # Transform positions from local to global
-            R_2 = np.array([[c, -s], [s, c]])
-            xy_local = np.array([[x], [y]])
-            [[x_global], [y_global]] = np.matmul(R_2, xy_local)
-
-            self._x += x_global
-            self._y += y_global
-        ### DEBUG
-
         self._x, self._y, self._yaw, self._steering, self._speed = solver.y
 
         # Clip by value bounds

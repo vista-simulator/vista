@@ -20,17 +20,17 @@ def main(args):
     trace_config = dict(
         road_width=4,
         reset_mode='default',
-        master_sensor='camera_front',
+        master_sensor='front_center',
     )
     car_config = dict(
         length=5.,
         width=2.,
         wheel_base=2.78,
-        steering_ratio=14.7, #17.6,
+        steering_ratio=14.7,
     )
     camera_config1 = dict(
         # camera params
-        name='camera_front',
+        name='front_center',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
         size=(250, 400),
         # rendering params
@@ -55,12 +55,10 @@ def main(args):
         display.reset()
 
         while not agent.done and not stop_sim:
-            steering_curvature = 0.01 # DEBUG
             action = np.array([steering_curvature,
                                agent.trace.f_speed(agent.timestamp)])
             agent.step_dynamics(action)
             agent.step_sensors()
-            logging.info(steering_curvature)
 
             img = display.render()
 
@@ -86,7 +84,7 @@ def on_press(key):
 if __name__ == '__main__':
     # Parse Arguments
     parser = argparse.ArgumentParser(
-        description='Run the simulator with random actions')
+        description='Run the simulator with keyboard control')
     parser.add_argument(
         '--trace-path',
         type=str,

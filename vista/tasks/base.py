@@ -31,5 +31,5 @@ class Base:
     def reset(self):
         raise NotImplementedError
 
-    def step(self):
+    def step(self, action):
         raise NotImplementedError

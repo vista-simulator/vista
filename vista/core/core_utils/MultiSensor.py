@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 from collections import OrderedDict
 
 from . import TopicNames
+from ...utils import logging
 
 
 class MultiSensor:
@@ -95,7 +96,8 @@ class MultiSensor:
 
     @property
     def camera_names(self) -> List[str]:
-        return [_x for _x in self._sensor_names if 'camera' in _x]
+        logging.debug('Hacky way to include RGB camera with name front_center')
+        return [_x for _x in self._sensor_names if 'camera' in _x or 'front_center' == _x]
 
     @property
     def main_camera(self) -> str:

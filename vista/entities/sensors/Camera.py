@@ -82,7 +82,7 @@ class Camera(BaseSensor):
                         flow_stream.seek(flow_seek_sec)
                         self._flow_streams[camera_name][flow_name] = flow_stream
                 else:
-                    logging.error('No flow data')
+                    logging.warning('No flow data')
         else:  # use shared streams from the main camera
             main_name = multi_sensor.main_camera
             main_sensor = [

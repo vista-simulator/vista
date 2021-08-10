@@ -50,8 +50,6 @@ def compute_relative_latlongyaw(latlongyaw: Vec, latlongyaw_ref: Vec) -> Vec:
     mat = vec2mat(*latlongyaw2vec(latlongyaw))
     mat_ref = vec2mat(*latlongyaw2vec(latlongyaw_ref))
     rel_mat = np.matmul(SE3_inv(mat_ref), mat)
-    # print(rel_mat) # DEBUG
-    # import pdb; pdb.set_trace()
     rel_trans, rel_rot = mat2vec(rel_mat)
     rel_xyyaw = vec2latlongyaw(rel_trans, rel_rot)
     return rel_xyyaw
