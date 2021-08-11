@@ -1,5 +1,5 @@
 class TopicNames:
-    camera_front = 'front_center'
+    camera_front = 'camera_front'
     camera_wing_left = 'camera_wing_left'
     camera_wing_right = 'camera_wing_right'
     camera_left = 'camera_left'

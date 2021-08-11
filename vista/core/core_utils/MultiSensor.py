@@ -99,7 +99,7 @@ class MultiSensor:
         return timestamps
 
     def set_main_sensor(self, sensor_type: str, sensor_name: str) -> None:
-        assert sensor_type in ['camera', 'lidar']
+        assert sensor_type in ['camera', 'lidar', 'event_camera']
         setattr(self, '_main_{}'.format(sensor_type), sensor_name)
 
     @property
@@ -122,6 +122,10 @@ class MultiSensor:
     @property
     def main_lidar(self) -> str:
         return self._main_lidar if hasattr(self, '_main_lidar') else None
+
+    @property
+    def main_event_camera(self) -> str:
+        return self._main_event_camera if hasattr(self, '_main_event_camera') else None
 
     @property
     def master_sensor(self) -> str:

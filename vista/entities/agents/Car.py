@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+from vista.entities.sensors.EventCamera import EventCamera
 import numpy as np
 from collections import deque
 
@@ -6,7 +7,7 @@ from .Dynamics import State, StateDynamics, curvature2steering, curvature2tirean
                       tireangle2curvature, update_with_perfect_controller
 from ..Entity import Entity
 
-from ..sensors import BaseSensor, Camera, Lidar
+from ..sensors import BaseSensor, Camera, Lidar, EventCamera
 from ...core import World, Trace
 from ...utils import transform
 from ...utils import logging
@@ -81,6 +82,14 @@ class Car(Entity):
 
         return lidar
 
+    def spawn_event_camera(self, event_cam_config: Dict) -> EventCamera:
+        logging.info('Spawn a new event camera {} in car ({})'.format(
+            event_cam_config['name'], self.id))
+        event_cam = EventCamera(attach_to=self, config=event_cam_config)
+        self._sensors.append(event_cam)
+
+        return event_cam
+
     def reset(self, trace_index: int, segment_index: int, frame_index: int):
         logging.info('Car ({}) reset'.format(self.id))
 
@@ -124,6 +133,10 @@ class Car(Entity):
                     sensor,
                     Lidar) and self._trace.multi_sensor.main_lidar is None:
                 self._trace.multi_sensor.set_main_sensor('lidar', sensor.name)
+            elif isinstance(
+                    sensor,
+                    EventCamera) and self._trace.multi_sensor.main_event_camera is None:
+                self._trace.multi_sensor.set_main_sensor('event_camera', sensor.name)
 
             sensor.reset()
 
