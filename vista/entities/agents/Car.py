@@ -216,12 +216,6 @@ class Car(Entity):
         self._timestamp = ratio * top2_closest['timestamp'][0] + (
             1. - ratio) * top2_closest['timestamp'][1]
 
-        ### DEBUG
-        # self._timestamp = top2_closest['timestamp'][0]
-        print(ratio, self.timestamp, top2_closest['timestamp'][0], top2_closest['timestamp'][1],
-            self.frame_index, self.frame_number, self.ego_dynamics.numpy()[:2])
-        ### DEBUG
-
         # Update human control based on current timestamp
         self._human_speed = self.trace.f_speed(self.timestamp)
         self._human_curvature = self.trace.f_curvature(self.timestamp)

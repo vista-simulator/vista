@@ -123,16 +123,6 @@ class Camera(BaseSensor):
                 stream = self.streams[camera_name]
                 frame_num = all_frame_nums[camera_name][0]
 
-                ### DEBUG
-                if hasattr(self, 'debug_frame_num'):
-                    if self.debug_frame_num == frame_num or (frame_num-self.debug_frame_num) > 1:
-                        print(f'Frame number goes from {self.debug_frame_num} to {frame_num}')
-                        print('this should not happen when using human control but can happen')
-                        print('sometime with control different from the human\'s')
-                        import pdb; pdb.set_trace()
-                self.debug_frame_num = frame_num
-                ### DEBUG
-
                 if frame_num < stream.frame_num:
                     seek_sec = stream.frame_to_secs(frame_num)
                     stream.seek(seek_sec)
