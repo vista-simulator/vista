@@ -83,9 +83,9 @@ class MultiSensor:
                         else:
                             if np.abs(frame_to_time[pointer] - ts) >= \
                                 np.abs(ts - frame_to_time[pointer + 1]):
-                                frames[sensor].append(pointer)
-                            else:
                                 frames[sensor].append(pointer + 1)
+                            else:
+                                frames[sensor].append(pointer)
                         break
                     else:
                         pointer += 1

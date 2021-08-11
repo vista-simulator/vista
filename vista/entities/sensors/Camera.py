@@ -116,7 +116,8 @@ class Camera(BaseSensor):
         # Get frame at the closest smaller timestamp from dataset
         multi_sensor = self.parent.trace.multi_sensor
         if self.name == multi_sensor.main_camera:
-            all_frame_nums = multi_sensor.get_frames_from_times([timestamp])
+            fetch_smaller = self.flow_streams != dict() # only when using optical flow
+            all_frame_nums = multi_sensor.get_frames_from_times([timestamp], fetch_smaller)
             for camera_name in multi_sensor.camera_names:
                 # rgb camera stream
                 stream = self.streams[camera_name]
@@ -125,6 +126,9 @@ class Camera(BaseSensor):
                 ### DEBUG
                 if hasattr(self, 'debug_frame_num'):
                     if self.debug_frame_num == frame_num or (frame_num-self.debug_frame_num) > 1:
+                        print(f'Frame number goes from {self.debug_frame_num} to {frame_num}')
+                        print('this should not happen when using human control but can happen')
+                        print('sometime with control different from the human\'s')
                         import pdb; pdb.set_trace()
                 self.debug_frame_num = frame_num
                 ### DEBUG

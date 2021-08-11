@@ -217,10 +217,19 @@ class Car(Entity):
             1. - ratio) * top2_closest['timestamp'][1]
 
         ### DEBUG
-        self._timestamp = top2_closest['timestamp'][0]
+        # self._timestamp = top2_closest['timestamp'][0]
         print(ratio, self.timestamp, top2_closest['timestamp'][0], top2_closest['timestamp'][1],
             self.frame_index, self.frame_number, self.ego_dynamics.numpy()[:2])
         ### DEBUG
+
+        # Update human control based on current timestamp
+        self._human_speed = self.trace.f_speed(self.timestamp)
+        self._human_curvature = self.trace.f_curvature(self.timestamp)
+        self._human_steering = curvature2steering(self.human_curvature,
+                                                  self.wheel_base,
+                                                  self.steering_ratio)
+        self._human_tire_angle = curvature2tireangle(self.human_curvature,
+                                                     self.wheel_base)
 
         # Update relative transformation between human and ego dynamics
         self._relative_state.update(*latlongyaw_closest)
