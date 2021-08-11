@@ -216,6 +216,12 @@ class Car(Entity):
         self._timestamp = ratio * top2_closest['timestamp'][0] + (
             1. - ratio) * top2_closest['timestamp'][1]
 
+        ### DEBUG
+        self._timestamp = top2_closest['timestamp'][0]
+        print(ratio, self.timestamp, top2_closest['timestamp'][0], top2_closest['timestamp'][1],
+            self.frame_index, self.frame_number, self.ego_dynamics.numpy()[:2])
+        ### DEBUG
+
         # Update relative transformation between human and ego dynamics
         self._relative_state.update(*latlongyaw_closest)
 

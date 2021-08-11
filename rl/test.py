@@ -7,13 +7,11 @@ try:
     import yaml
 except:
     import ruamel.yaml as yaml
-import cv2 # DEBUG
 import ray
 from ray.rllib.evaluation.worker_set import WorkerSet
 from ray.rllib.agents.registry import get_trainer_class
 
 from utils import misc, wrappers
-from utils.policy_manager import PolicyManager
 
 
 def parse_args():

@@ -53,7 +53,8 @@ class MultiSensor:
         return self._sensor_frame_to_time[sensor].get(frame_num, None)
 
     def get_frames_from_times(self,
-                              timestamps: List[float]) -> Dict[str, List[int]]:
+                              timestamps: List[float],
+                              fetch_smaller: Optional[bool] = False) -> Dict[str, List[int]]:
         """ Takes in a list of timestamps and returns corresponding frame
         numbers for each sensor. Note that since sensors are not necessarily
         sync'ed, the returned frame numbers are the one with the closest
@@ -61,6 +62,7 @@ class MultiSensor:
 
         Args:
             timestamps (list): a list of timestamps
+            fetch_smaller (bool): whether to fetch the closes AND smaller timestamps
 
         Returns:
             dict: corresponding frame numbers for all sensors
@@ -76,7 +78,14 @@ class MultiSensor:
                 while pointer < len(frame_to_time):
                     if ts >= frame_to_time[pointer] and ts < frame_to_time[
                             pointer + 1]:
-                        frames[sensor].append(pointer)
+                        if fetch_smaller:
+                            frames[sensor].append(pointer)
+                        else:
+                            if np.abs(frame_to_time[pointer] - ts) >= \
+                                np.abs(ts - frame_to_time[pointer + 1]):
+                                frames[sensor].append(pointer)
+                            else:
+                                frames[sensor].append(pointer + 1)
                         break
                     else:
                         pointer += 1

@@ -5,7 +5,7 @@ import vista
 from vista.entities.sensors.camera_utils.ViewSynthesis import DepthModes
 from vista.utils import logging
 
-logging.setLevel(logging.DEBUG)
+logging.setLevel(logging.ERROR)
 
 
 def main(args):
@@ -13,39 +13,39 @@ def main(args):
     trace_config = dict(
         road_width=4,
         reset_mode='default',
-        master_sensor='camera_front',
+        master_sensor='front_center',
     )
     car_config = dict(
         length=5.,
         width=2.,
-        wheel_base=2.8,
-        steering_ratio=17.6,
+        wheel_base=2.78,
+        steering_ratio=14.7,
     )
     camera_config1 = dict(
         # camera params
-        name='camera_front',
+        name='front_center',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
-        size=(250, 400),
+        size=(200, 320), #(250, 400),
         # rendering params
         depth_mode=DepthModes.FIXED_PLANE,
         use_lighting=False,
     )
-    camera_config2 = dict(
-        # camera params
-        name='camera_left',
-        rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
-        size=(250, 400),
-        # rendering params
-        depth_mode=DepthModes.FIXED_PLANE,
-        use_lighting=False,
-    )
+    # camera_config2 = dict(
+    #     # camera params
+    #     name='camera_left',
+    #     rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
+    #     size=(250, 400),
+    #     # rendering params
+    #     depth_mode=DepthModes.FIXED_PLANE,
+    #     use_lighting=False,
+    # )
     display_config = dict(
         road_buffer_size=1000,
     )
     world = vista.World(args.trace_path, trace_config)
     agent = world.spawn_agent(car_config)
     camera1 = agent.spawn_camera(camera_config1)
-    camera2 = agent.spawn_camera(camera_config2)
+    # camera2 = agent.spawn_camera(camera_config2)
     display = vista.Display(world, display_config=display_config)
 
     # Main running loop
@@ -59,12 +59,12 @@ def main(args):
             agent.step_dynamics(action)
             agent.step_sensors()
 
-            img = display.render()
-            ### DEBUG
-            logging.warning('Dump image for debugging and set pdb')
-            import cv2; cv2.imwrite('test.png', img[:,:,::-1])
-            import pdb; pdb.set_trace()
-            ### DEBUG
+            # img = display.render()
+            # ### DEBUG
+            # logging.warning('Dump image for debugging and set pdb')
+            # import cv2; cv2.imwrite('test.png', img[:,:,::-1])
+            # import pdb; pdb.set_trace()
+            # ### DEBUG
 
 
 if __name__ == '__main__':
