@@ -24,6 +24,8 @@ class Base:
             sensor_type = sensor_config.pop('type')
             if sensor_type == 'camera':
                 agent.spawn_camera(sensor_config)
+            elif sensor_type == 'event_camera':
+                agent.spawn_event_camera(sensor_config)
             else:
                 raise NotImplementedError(
                     'Unrecognized sensor type {}'.format(sensor_type))

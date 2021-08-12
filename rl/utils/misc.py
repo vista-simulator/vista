@@ -147,7 +147,7 @@ def register_custom_env(env_name):
             if 'sensors_config' not in _k:
                 continue
             _v = env_config.pop(_k)
-            if _v['type'] == 'camera':
+            if _v['type'] in ['event_camera', 'camera']:
                 assert 'depth_mode' in _v.keys()
                 _v['depth_mode'] = getattr(DepthModes, _v['depth_mode'])
             sensor_configs.append(_v)

@@ -29,23 +29,31 @@ lane-following-base:
         wheel_base: 2.78
         steering_ratio: 14.7
       sensors_config1:
-        type: camera 
-        name: front_center
+        type: event_camera 
+        name: event_camera_front
         rig_path: ~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml
         size: [200, 320]
+        base_camera_name: front_center
         depth_mode: FIXED_PLANE
         use_lighting: false
+        optical_flow_root: ../data_prep/Super-SloMo
+        checkpoint: /home/tsunw/workspace/vista/data_prep/Super-SloMo/ckpt/SuperSloMo.ckpt
+        lambda_flow: 0.5
+        max_sf: -1
+        use_gpu: True
+        positive_threshold: 0.1
+        sigma_positive_threshold: 0.02
+        negative_threshold: -0.1
+        sigma_negative_threshold: 0.02
       task_config:
         reward_type: non-crash
         non_crash_reward: 0. # using center reward
       logging_level: ERROR
-      wrappers: [ToRllib, PreprocessObservation, BasicManeuverReward]
+      wrappers: [ToRllib, Event2FrameObservation, PreprocessObservation, BasicManeuverReward]
       wrappers_config:
         PreprocessObservation:
           fx: 1
           fy: 1
-          random_gamma: [0.5, 1.5]
-          color_jitter: [0.5, 0.7, 0.5, 0.0] # brightness / contrast / saturation / hue
         BasicManeuverReward:
           center_coeff: 0.01
           jitter_coeff: 0.0

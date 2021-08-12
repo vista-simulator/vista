@@ -1,5 +1,6 @@
 import os
 from collections import deque
+from vista.entities.sensors.EventCamera import EventCamera
 import gym
 import numpy as np
 import cv2
@@ -11,6 +12,24 @@ import vista
 from vista.entities.sensors import Camera
 from vista.entities.agents.Dynamics import tireangle2curvature
 from vista.utils import misc
+from vista.core.Display import events2frame
+
+
+class Event2FrameObservation(gym.ObservationWrapper, MultiAgentEnv):
+    def __init__(self, env, mode=1):
+        super(Event2FrameObservation, self).__init__(env)
+        self._mode = mode
+
+    def observation(self, observation):
+        self.agent_ids
+        for agent_id, obs in observation.items():
+            idx = self.agent_ids.index(agent_id)
+            # TODO: support multiple sensors
+            cam_param = self.env.world.agents[idx].sensors[0].camera_param
+            frame_obs = events2frame(obs, cam_param.get_height(), cam_param.get_width())
+            observation[agent_id] = frame_obs
+
+        return observation
 
 
 class ToRllib(MultiAgentEnv):
@@ -21,6 +40,15 @@ class ToRllib(MultiAgentEnv):
         obs_space = []
         for sensor in ref_agent.sensors:
             if isinstance(sensor, Camera):
+                cam = sensor.camera_param
+                obs_space.append(gym.spaces.Box(
+                    low=0,
+                    high=255,
+                    shape=(cam.get_height(), cam.get_width(), 3),
+                    dtype=np.uint8
+                ))
+            elif isinstance(sensor, EventCamera):
+                # TODO: assume frame representation
                 cam = sensor.camera_param
                 obs_space.append(gym.spaces.Box(
                     low=0,

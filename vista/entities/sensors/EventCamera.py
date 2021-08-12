@@ -37,6 +37,7 @@ class EventCamera(BaseSensor):
         # load video interpolation model
         sys.path.append(os.path.abspath(self._config['optical_flow_root']))
         from slowmo_warp import SlowMoWarp
+        self._config['checkpoint'] = os.path.abspath(self._config['checkpoint'])
         self._interp = SlowMoWarp(height=self._config['size'][0],
                                   width=self._config['size'][1],
                                   checkpoint=self._config['checkpoint'],
@@ -151,10 +152,11 @@ class EventCamera(BaseSensor):
                     interp_frame = cv2.cvtColor(interp_frame, cv2.COLOR_RGB2GRAY)
                     log_d_interp = np.log(interp_frame / 255. + 1e-8) - \
                                    np.log(last_interp_frame / 255. + 1e-8)
-                    # TODO: make noisy events
-                    logging.debug('Noiseless event generation for now')
-                    positive_C = self.config['positive_threshold']
-                    negative_C = self.config['negative_threshold']
+                    sample_fn = lambda mu, sig: np.clip(np.random.normal(mu, sig), 0., 1.)
+                    positive_C = sample_fn(self.config['positive_threshold'], 
+                                           self.config['sigma_positive_threshold'])
+                    negative_C = -sample_fn(-self.config['negative_threshold'],
+                                            self.config['sigma_negative_threshold'])
                     positive_uv = np.argwhere(log_d_interp >= positive_C)
                     negative_uv = np.argwhere(log_d_interp <= negative_C)
                     event_timestamp += dt

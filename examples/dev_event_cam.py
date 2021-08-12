@@ -1,3 +1,4 @@
+import os
 import argparse
 import numpy as np
 
@@ -25,6 +26,8 @@ def main(args):
         name='event_camera_front',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
         base_camera_name='front_center',
+        depth_mode=DepthModes.FIXED_PLANE,
+        use_lighting=False,
         size=(200, 320),
         optical_flow_root='../data_prep/Super-SloMo',
         checkpoint='../data_prep/Super-SloMo/ckpt/SuperSloMo.ckpt',
@@ -32,7 +35,9 @@ def main(args):
         max_sf=-1,
         use_gpu=True,
         positive_threshold=0.1,
-        negative_threshold=-0.1
+        sigma_positive_threshold=0.02,
+        negative_threshold=-0.1,
+        sigma_negative_threshold=0.02,
     )
     display_config = dict(
         road_buffer_size=1000,
@@ -42,6 +47,11 @@ def main(args):
     event_cam = agent.spawn_event_camera(event_cam_config)
     display = vista.Display(world, display_config=display_config)
 
+    if args.video_path:
+        from skvideo.io import FFmpegWriter
+        args.video_path = os.path.abspath(os.path.expanduser(args.video_path))
+        video_writer = FFmpegWriter(args.video_path)
+
     # Main running loop
     while True:
         world.reset()
@@ -49,17 +59,18 @@ def main(args):
 
         step = 0
         while not agent.done:
-            action = np.array([agent.trace.f_curvature(agent.timestamp) + 0.3 * np.sin(step / 10.),
+            dev = 0.01 * np.sin(step / 10.)
+            action = np.array([agent.trace.f_curvature(agent.timestamp) + dev,
                                agent.trace.f_speed(agent.timestamp)])
             agent.step_dynamics(action)
             agent.step_sensors()
 
             img = display.render()
-            ### DEBUG
-            logging.warning('Dump image for debugging and set pdb')
-            import cv2; cv2.imwrite('test.png', img[:,:,::-1])
-            import pdb; pdb.set_trace()
-            ### DEBUG
+            if args.video_path:
+                video_writer.writeFrame(img)
+
+            step += 1
+        import pdb ; pdb.set_trace()
 
 
 if __name__ == '__main__':
@@ -71,6 +82,11 @@ if __name__ == '__main__':
         type=str,
         nargs='+',
         help='Path to the traces to use for simulation')
+    parser.add_argument(
+        '--video-path',
+        type=str,
+        default=None,
+        help='Path to recorded video; Default as None for not saving')
     args = parser.parse_args()
 
     main(args)
