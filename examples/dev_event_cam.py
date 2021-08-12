@@ -13,7 +13,7 @@ def main(args):
     trace_config = dict(
         road_width=4,
         reset_mode='default',
-        master_sensor='camera_front',
+        master_sensor='front_center',
     )
     car_config = dict(
         length=5.,
@@ -24,14 +24,15 @@ def main(args):
     event_cam_config = dict(
         name='event_camera_front',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
-        base_camera_name='camera_front',
+        base_camera_name='front_center',
         size=(200, 320),
         optical_flow_root='../data_prep/Super-SloMo',
         checkpoint='../data_prep/Super-SloMo/ckpt/SuperSloMo.ckpt',
         lambda_flow=0.5,
+        max_sf=-1,
         use_gpu=True,
-        positive_threshold=0.03,
-        negative_threshold=-0.03
+        positive_threshold=0.1,
+        negative_threshold=-0.1
     )
     display_config = dict(
         road_buffer_size=1000,
@@ -46,18 +47,19 @@ def main(args):
         world.reset()
         display.reset()
 
+        step = 0
         while not agent.done:
-            action = np.array([agent.trace.f_curvature(agent.timestamp),
+            action = np.array([agent.trace.f_curvature(agent.timestamp) + 0.3 * np.sin(step / 10.),
                                agent.trace.f_speed(agent.timestamp)])
             agent.step_dynamics(action)
             agent.step_sensors()
 
-            # img = display.render()
-            # ### DEBUG
-            # logging.warning('Dump image for debugging and set pdb')
-            # import cv2; cv2.imwrite('test.png', img[:,:,::-1])
-            # import pdb; pdb.set_trace()
-            # ### DEBUG
+            img = display.render()
+            ### DEBUG
+            logging.warning('Dump image for debugging and set pdb')
+            import cv2; cv2.imwrite('test.png', img[:,:,::-1])
+            import pdb; pdb.set_trace()
+            ### DEBUG
 
 
 if __name__ == '__main__':

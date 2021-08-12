@@ -1,5 +1,7 @@
+from threading import Event
 from typing import Optional, Dict, Tuple, List, Any
 from collections import deque
+from vista.entities.sensors.EventCamera import EventCamera
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -10,7 +12,7 @@ from . import World
 from ..entities.agents.Dynamics import StateDynamics, update_with_perfect_controller, \
                                        curvature2tireangle
 from ..entities.agents import Car
-from ..entities.sensors import Camera
+from ..entities.sensors import Camera, EventCamera
 from ..utils import logging, transform, misc
 
 
@@ -98,7 +100,8 @@ class Display:
             'Does not handle preprocessed (cropped/resized) observation')
         for i, agent in enumerate(self._agents_with_sensors):
             for j, sensor in enumerate(agent.sensors):
-                if not isinstance(sensor, Camera):
+                if not (isinstance(sensor, Camera) or isinstance(sensor, EventCamera)):
+                    logging.error('Unrecognized sensor type {}'.format(type(sensor)))
                     continue
                 gs_ij = self._gs[gs_agent_h * j:gs_agent_h * (j + 1),
                                  self._config['gs_agent_w'] *
@@ -175,21 +178,34 @@ class Display:
 
         # Update sensory measurements
         for i, agent in enumerate(self._agents_with_sensors):
-            camera_names = [
-                _v.name for _v in agent.sensors if isinstance(_v, Camera)
-            ]
+            cameras = {
+                _v.name: _v for _v in agent.sensors if isinstance(_v, Camera)
+            }
+            event_cameras = {
+                _v.name: _v for _v in agent.sensors if isinstance(_v, EventCamera)
+            }
             for j, (obs_name, obs) in enumerate(agent.observations.items()):
-                if obs_name not in camera_names:
-                    continue
                 ax_name = 'a{}s{}'.format(i, j)
+                if obs_name in cameras.keys():
+                    obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
+                                               obs[:, :, ::-1])
+                    # TODO: draw noodle for curvature visualization
+                elif obs_name in event_cameras.keys():
+                    event_cam_param = event_cameras[obs_name].camera_param
+                    frame_obs = events2frame(obs, event_cam_param.get_height(), 
+                                             event_cam_param.get_width())
+                    obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
+                                               frame_obs[:, :, ::-1])
+                    # TODO: obs_render shape changes at the first frame
+                    logging.debug('obs_render shape changes at the first frame')
+                else:
+                    logging.error('Unrecognized observation {}'.format(obs_name))
+                    continue
                 self._axes[ax_name].set_title('{}: {}'.format(
                     agent.id, obs_name),
                                               color='white',
                                               size=20,
                                               weight='bold')
-                obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
-                                           obs[:, :, ::-1])
-                # TODO: draw noodle for curvature visualization
                 self._artists['im:{}'.format(ax_name)].set_data(obs_render)
 
         # Convert to image
@@ -211,6 +227,30 @@ class Display:
     @property
     def ref_agent(self) -> Car:
         return self._world.agents[0]
+
+
+def events2frame(events: List[np.ndarray], cam_h: int, cam_w: int,
+                 positive_color: Optional[List] = [255, 255, 255],
+                 negative_color: Optional[List] = [212, 188, 114],
+                 mode: Optional[int] = 1) -> np.ndarray:
+    if mode == 0:
+        frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
+        for color, p_events in zip([positive_color, negative_color], events):
+            uv = np.concatenate(p_events)[:,:2]
+            frame[uv[:,0], uv[:,1], :] = color
+    elif mode == 1:
+        frame_acc = np.zeros((cam_h, cam_w), dtype=np.int8)
+        for polarity, p_events in zip([1, -1], events):
+            for sub_p_events in p_events:
+                uv = sub_p_events[:,:2]
+                frame_acc[uv[:,0], uv[:,1]] += polarity
+        
+        frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
+        frame[frame_acc > 0, :] = positive_color
+        frame[frame_acc < 0, :] = negative_color
+    else:
+        raise NotImplementedError('Unknown mode {}'.format(mode))
+    return frame
 
 
 def fig2img(fig: plt.Figure) -> np.ndarray:

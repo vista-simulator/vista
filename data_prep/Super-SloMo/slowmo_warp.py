@@ -104,7 +104,7 @@ class SlowMoWarp:
             interpolated.append(out)
         return interpolated
 
-    def interpolate_max_flow(self, I0, I1, F_0_1, F_1_0):
+    def interpolate_max_flow(self, I0, I1, F_0_1, F_1_0, max_sf=-1):
         fwd_mag = F_0_1.norm(dim=1)
         bwd_mag = F_1_0.norm(dim=1)
 
@@ -112,6 +112,7 @@ class SlowMoWarp:
         bwd_mag_max = bwd_mag.max().item()
 
         sf = int(round(max(fwd_mag_max, bwd_mag_max) * self.lambda_flow))
+        sf = sf if max_sf == -1 else min(sf, max_sf)
         return self.interpolate_sync(I0, I1, F_0_1, F_1_0, sf), sf
 
     def forward(self, frame0, frame1):
@@ -123,7 +124,7 @@ class SlowMoWarp:
 
         return flowOut        
 
-    def forward_warp(self, frame0, frame1, sf=-1):
+    def forward_warp(self, frame0, frame1, sf=-1, max_sf=-1):
         I0 = self.transform(frame0).to(self.device)[None]
         I1 = self.transform(frame1).to(self.device)[None]
 
@@ -132,7 +133,7 @@ class SlowMoWarp:
         F_1_0 = flowOut[:, 2:, :, :]
 
         if sf == -1:
-            inter_frame, sf = self.interpolate_max_flow(I0, I1, F_0_1, F_1_0)
+            inter_frame, sf = self.interpolate_max_flow(I0, I1, F_0_1, F_1_0, max_sf)
         else:
             inter_frame = self.interpolate_sync(I0, I1, F_0_1, F_1_0, sf)
 

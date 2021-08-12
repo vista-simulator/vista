@@ -2,7 +2,6 @@ import os
 import sys
 from typing import Dict, List
 import numpy as np
-import h5py
 from ffio import FFReader
 import cv2
 import torch
@@ -44,6 +43,7 @@ class EventCamera(BaseSensor):
                                   lambda_flow=self._config['lambda_flow'],
                                   cuda=self._config['use_gpu'])
         self._prev_frame: np.ndarray = None
+        self._prev_timestamp: float = None
 
     def reset(self) -> None:
         logging.info('Event camera ({}) reset'.format(self.id))
@@ -136,40 +136,41 @@ class EventCamera(BaseSensor):
 
         # work with RGB instead of BGR; need copy otherwise fail at converting to tensor
         rendered_frame = rendered_frame[:,:,::-1].copy()
-        dvs_frame = np.zeros(rendered_frame.shape[:2])
-        dvs_frame_vis = np.zeros_like(rendered_frame) # TODO: dev
+        events = [[], []]
         if self.prev_frame is not None:
             with torch.no_grad():
-                out = self._interp.forward_warp(self.prev_frame, rendered_frame, sf=-1)
+                out = self._interp.forward_warp(self.prev_frame, rendered_frame, 
+                                                sf=-1, max_sf=self.config['max_sf'])
             
             interp = [self.prev_frame] + out['interpolated']
             if len(interp) >= 2:
                 last_interp_frame = cv2.cvtColor(interp[0], cv2.COLOR_RGB2GRAY)
+                dt = (timestamp - self.prev_timestamp) / out['sf']
+                event_timestamp = self.prev_timestamp
                 for interp_frame in interp[1:]:
                     interp_frame = cv2.cvtColor(interp_frame, cv2.COLOR_RGB2GRAY)
                     log_d_interp = np.log(interp_frame / 255. + 1e-8) - \
                                    np.log(last_interp_frame / 255. + 1e-8)
-                    # TODO: make events
-                    logging.debug('Use frame representation for now')
-                    positive_events = log_d_interp >= self.config['positive_threshold']
-                    negative_events = log_d_interp <= self.config['negative_threshold']
-                    dvs_frame[positive_events] += 1
-                    dvs_frame[negative_events] -= 1
-                    dvs_frame = np.clip(dvs_frame, -1, 1)
+                    # TODO: make noisy events
+                    logging.debug('Noiseless event generation for now')
+                    positive_C = self.config['positive_threshold']
+                    negative_C = self.config['negative_threshold']
+                    positive_uv = np.argwhere(log_d_interp >= positive_C)
+                    negative_uv = np.argwhere(log_d_interp <= negative_C)
+                    event_timestamp += dt
+                    event_timestamp_us = (event_timestamp * 1e6).astype(np.int64)
+                    positive_events = np.concatenate([positive_uv, 
+                        np.tile([event_timestamp_us, 1], (positive_uv.shape[0], 1))], axis=1)
+                    negative_events = np.concatenate([negative_uv, 
+                        np.tile([event_timestamp_us, 1], (negative_uv.shape[0], 0))], axis=1)
+                    events[0].append(positive_events)
+                    events[1].append(negative_events)
                     last_interp_frame = interp_frame
 
-            dvs_frame_vis[dvs_frame == 1, :] = np.array([255, 255, 255])
-            dvs_frame_vis[dvs_frame == -1, :] = np.array([114, 188, 212])
-
-            ### TODO dev
-            dvs_compare = np.concatenate([rendered_frame, dvs_frame_vis], axis=1)
-            cv2.imwrite('test.png', dvs_compare[:,:,::-1])
-            import pdb; pdb.set_trace()
-            ### TODO dev
-
         self._prev_frame = rendered_frame
+        self._prev_timestamp = timestamp
 
-        return dvs_frame_vis # TODO: dev
+        return events
 
     @property
     def config(self) -> Dict:
@@ -194,3 +195,7 @@ class EventCamera(BaseSensor):
     @property
     def prev_frame(self) -> np.ndarray:
         return self._prev_frame
+
+    @property
+    def prev_timestamp(self) -> float:
+        return self._prev_timestamp
