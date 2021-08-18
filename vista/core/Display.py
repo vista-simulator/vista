@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from shapely.geometry import LineString
 from descartes import PolygonPatch
+import cv2
 
 from . import World
 from ..entities.agents.Dynamics import StateDynamics, update_with_perfect_controller, \
@@ -187,6 +188,7 @@ class Display:
             for j, (obs_name, obs) in enumerate(agent.observations.items()):
                 ax_name = 'a{}s{}'.format(i, j)
                 if obs_name in cameras.keys():
+                    obs = plot_roi(obs.copy(), cameras[obs_name].camera_param.get_roi())
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                obs[:, :, ::-1])
                     # TODO: draw noodle for curvature visualization
@@ -194,6 +196,8 @@ class Display:
                     event_cam_param = event_cameras[obs_name].camera_param
                     frame_obs = events2frame(obs, event_cam_param.get_height(), 
                                              event_cam_param.get_width())
+                    # frame_obs = plot_roi(frame_obs.copy(), event_cam_param.get_roi())
+                    frame_obs = np.concatenate([event_cameras[obs_name].prev_frame[:,:,::-1], frame_obs], axis=1) # DEBUG
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                frame_obs[:, :, ::-1])
                     # TODO: obs_render shape changes at the first frame
@@ -227,6 +231,12 @@ class Display:
     @property
     def ref_agent(self) -> Car:
         return self._world.agents[0]
+
+
+def plot_roi(img, roi, color=(0, 0, 255), thickness=2):
+    (i1, j1, i2, j2) = roi
+    img = cv2.rectangle(img, (j1, i1), (j2, i2), color, thickness)
+    return img
 
 
 def events2frame(events: List[np.ndarray], cam_h: int, cam_w: int,

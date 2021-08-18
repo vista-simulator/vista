@@ -28,7 +28,7 @@ def main(args):
         base_camera_name='front_center',
         depth_mode=DepthModes.FIXED_PLANE,
         use_lighting=False,
-        size=(200, 320),
+        size=(480, 640), #(200, 320),
         optical_flow_root='../data_prep/Super-SloMo',
         checkpoint='../data_prep/Super-SloMo/ckpt/SuperSloMo.ckpt',
         lambda_flow=0.5,
@@ -59,7 +59,7 @@ def main(args):
 
         step = 0
         while not agent.done:
-            dev = 0.01 * np.sin(step / 10.)
+            dev = 0 # 0.01 * np.sin(step / 10.)
             action = np.array([agent.trace.f_curvature(agent.timestamp) + dev,
                                agent.trace.f_speed(agent.timestamp)])
             agent.step_dynamics(action)
