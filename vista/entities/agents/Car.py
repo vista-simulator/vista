@@ -58,6 +58,13 @@ class Car(Entity):
         self._observations: Dict[str, Any] = dict()
         self._done: bool = False
 
+        # Privileged information
+        if car_config.get('lookahead_road', False):
+            road_buffer_size = car_config.get('road_buffer_size', 200)
+            self._road: deque[np.ndarray] = deque(maxlen=road_buffer_size)
+            self._road_frame_idcs: deque[int] = deque(maxlen=road_buffer_size)
+            self._road_dynamics: StateDynamics = StateDynamics()
+
     def spawn_camera(self, cam_config: Dict) -> Camera:
         """ Spawn and attach a camera to this car.
 
@@ -122,6 +129,14 @@ class Car(Entity):
         self.human_dynamics.update(0., 0., 0., self.human_tire_angle,
                                    self.human_speed)
         self.ego_dynamics.update(0., 0., 0., self.tire_angle, self.speed)
+
+        # Reset for privileged information
+        if hasattr(self, '_road'):
+            self._road.clear()
+            self._road.append(self.human_dynamics.numpy()[:3])
+            self._road_dynamics = self.human_dynamics.copy()
+            self._road_frame_idcs.clear()
+            self._road_frame_idcs.append(self.frame_index)
 
         # Reset sensors
         for sensor in self.sensors:
@@ -289,6 +304,27 @@ class Car(Entity):
         # Update relative transformation between human and ego dynamics
         self._relative_state.update(*latlongyaw_closest)
 
+        # Update privileged information (in global coordinates)
+        if hasattr(self, '_road'):
+            exceed_end = False
+            get_timestamp = lambda _idx: self.trace.get_master_timestamp(
+                self.segment_index, _idx, check_end=True)
+            while self._road_frame_idcs[-1] < (
+                    self.frame_index +
+                    self._road.maxlen / 2.) and not exceed_end:
+                exceed_end, ts = get_timestamp(self._road_frame_idcs[-1])
+                self._road_frame_idcs.append(self._road_frame_idcs[-1] + 1)
+                exceed_end, next_ts = get_timestamp(self._road_frame_idcs[-1])
+
+                state = [
+                    curvature2tireangle(self.trace.f_curvature(ts),
+                                        self.wheel_base),
+                    self.trace.f_speed(ts)
+                ]
+                update_with_perfect_controller(state, next_ts - ts,
+                                               self._road_dynamics)
+                self._road.append(self._road_dynamics.numpy()[:3])
+
     def step_sensors(self) -> None:
         logging.info('Car ({}) step sensors'.format(self.id))
         self._observations = dict()
@@ -390,6 +426,10 @@ class Car(Entity):
     @property
     def done(self) -> bool:
         return self._done
+
+    @property
+    def road(self) -> np.ndarray:
+        return np.array(self._road) if hasattr(self, '_road') else None
 
     def __repr__(self) -> str:
         return '<{} (id={})> '.format(self.__class__.__name__, self.id) + \
