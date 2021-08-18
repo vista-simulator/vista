@@ -18,7 +18,7 @@ class Trace:
             'smoothing_factor': 0.001,
         },
         'segment_start': {
-            'first_n_percent': 0.4,
+            'first_n_percent': 0.0,
         },
     }
     DEFAULT_CONFIG = {
@@ -110,7 +110,7 @@ class Trace:
 
             n_timestamps = len(timestamps)
             probs = np.zeros((n_timestamps, ))
-            to_idx = min(int(first_n_percent * n_timestamps), 1)
+            to_idx = max(int(first_n_percent * n_timestamps), 1)
             probs[:to_idx] = 1.
             probs /= np.sum(probs)
         else:

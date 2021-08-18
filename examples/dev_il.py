@@ -13,7 +13,6 @@ def main(args):
     trace_config = dict(
         road_width=4,
         reset_mode='segment_start',
-        segment_start={'first_n_percent': 0}, # NOTE: always start from zero
         master_sensor='front_center',
     )
     car_config = dict(
