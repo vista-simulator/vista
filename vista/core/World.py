@@ -65,14 +65,11 @@ class World:
                  instead of element)
         """
         new_trace_index = self.sample_new_trace_index()
-        new_trace_index = 0 # DEBUG
         trace = self.traces[new_trace_index]
 
         new_segment_index = trace.find_segment_reset()
-        new_segment_index = 0 # DEBUG
 
         new_frame_index = trace.find_frame_reset(new_segment_index)
-        new_frame_index = 100 # DEBUG
 
         return new_trace_index, new_segment_index, new_frame_index
 

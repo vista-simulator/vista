@@ -143,6 +143,54 @@ class Car(Entity):
         # Update observation
         self.step_sensors()
 
+    def step_dataset(self, step_dynamics=True):
+        logging.info('Car ({}) step based on dataset'.format(self.id))
+
+        # Step by incrementing frame number
+        ts = self.timestamp
+        frame_index = self.frame_index + 1
+        exceed_end, self._timestamp = self.trace.get_master_timestamp(self.segment_index,
+            frame_index, check_end=True)
+        if exceed_end: # trigger trace done terminatal condition
+            self._done = True
+            logging.info('Car ({}) exceed the end of trace'.format(self.id))
+        else:
+            self._frame_index = frame_index
+            self._frame_number = self.trace.get_master_frame_number(
+                self.segment_index, self.frame_index)
+
+            self._human_speed = self.trace.f_speed(self.timestamp)
+            self._human_curvature = self.trace.f_curvature(self.timestamp)
+            self._human_steering = curvature2steering(self.human_curvature,
+                                                    self.wheel_base,
+                                                    self.steering_ratio)
+            self._human_tire_angle = curvature2tireangle(self.human_curvature,
+                                                        self.wheel_base)
+
+            self._speed = self._human_speed
+            self._curvature = self._human_curvature
+            self._steering = self._human_steering
+            self._tire_angle = self._human_tire_angle
+
+            # Step human dynamics if queried
+            if step_dynamics:
+                current_state = [
+                    curvature2tireangle(self.human_curvature,
+                                        self.wheel_base),
+                    self.human_speed
+                ]
+                update_with_perfect_controller(current_state,
+                    self.timestamp - ts, self._human_dynamics)
+                self._ego_dynamics = self.human_dynamics.copy()
+
+            # Get image frame
+            self._observations = dict()
+            for sensor in self.sensors:
+                if type(sensor) not in [Camera]:
+                    raise NotImplementedError(
+                        'Sensor {} is not supported in step dynamics'.format(sensor))
+                self._observations[sensor.name] = sensor.capture(self.timestamp)
+
     def step_dynamics(self, action: np.ndarray, dt: Optional[float] = 1 / 30.):
         assert not self.done, 'Agent status is done. Please call reset first.'
         logging.info('Car ({}) step dynamics'.format(self.id))

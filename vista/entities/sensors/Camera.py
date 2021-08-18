@@ -28,8 +28,11 @@ class Camera(BaseSensor):
         self._streams: Dict[str, FFReader] = dict()
         self._flow_streams: Dict[str, List[FFReader]] = dict()
         self._flow_meta: Dict[str, h5py.File] = dict()
-        self._view_synthesis: ViewSynthesis = ViewSynthesis(
-            self._camera_param, self._config)
+        if self._config.get('use_synthesizer', True):
+            self._view_synthesis: ViewSynthesis = ViewSynthesis(
+                self._camera_param, self._config)
+        else:
+            self._view_synthesis = None
 
     def reset(self) -> None:
         logging.info('Camera ({}) reset'.format(self.id))
@@ -99,16 +102,17 @@ class Camera(BaseSensor):
             self._flow_meta = main_sensor.flow_meta
 
         # Add background mesh for all video stream in view synthesis
-        parent_sensor_dict = {_s.name: _s for _s in self.parent.sensors}
-        for camera_name in self.streams.keys():
-            if camera_name not in self.view_synthesis.bg_mesh_names:
-                if camera_name in parent_sensor_dict.keys():
-                    camera_param = parent_sensor_dict[camera_name].camera_param
-                else:
-                    camera_param = CameraParams(camera_name,
-                                                self._config['rig_path'])
-                    camera_param.resize(*self._config['size'])
-                self.view_synthesis.add_bg_mesh(camera_param)
+        if self.view_synthesis is not None:
+            parent_sensor_dict = {_s.name: _s for _s in self.parent.sensors}
+            for camera_name in self.streams.keys():
+                if camera_name not in self.view_synthesis.bg_mesh_names:
+                    if camera_name in parent_sensor_dict.keys():
+                        camera_param = parent_sensor_dict[camera_name].camera_param
+                    else:
+                        camera_param = CameraParams(camera_name,
+                                                    self._config['rig_path'])
+                        camera_param.resize(*self._config['size'])
+                    self.view_synthesis.add_bg_mesh(camera_param)
 
     def capture(self, timestamp: float) -> np.ndarray:
         logging.info('Camera ({}) capture'.format(self.id))
@@ -174,10 +178,13 @@ class Camera(BaseSensor):
                                                     curr_ref_ts, next_ref_ts)
 
         # Synthesis by rendering
-        lat, long, yaw = self.parent.relative_state.numpy()
-        trans = np.array([lat, 0., -long])
-        rot = np.array([0., yaw, 0.])
-        rendered_frame, _ = self.view_synthesis.synthesize(trans, rot, frames)
+        if self.view_synthesis is not None:
+            lat, long, yaw = self.parent.relative_state.numpy()
+            trans = np.array([lat, 0., -long])
+            rot = np.array([0., yaw, 0.])
+            rendered_frame, _ = self.view_synthesis.synthesize(trans, rot, frames)
+        else:
+            rendered_frame = frames[self.name]
 
         return rendered_frame
 

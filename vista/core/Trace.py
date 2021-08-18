@@ -110,7 +110,8 @@ class Trace:
 
             n_timestamps = len(timestamps)
             probs = np.zeros((n_timestamps, ))
-            probs[:int(first_n_percent * n_timestamps)] = 1.
+            to_idx = min(int(first_n_percent * n_timestamps), 1)
+            probs[:to_idx] = 1.
             probs /= np.sum(probs)
         else:
             raise NotImplementedError(
