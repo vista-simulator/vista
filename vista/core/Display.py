@@ -243,7 +243,7 @@ def plot_roi(img, roi, color=(0, 0, 255), thickness=2):
 def events2frame(events: List[np.ndarray], cam_h: int, cam_w: int,
                  positive_color: Optional[List] = [255, 255, 255],
                  negative_color: Optional[List] = [212, 188, 114],
-                 mode: Optional[int] = 1) -> np.ndarray:
+                 mode: Optional[int] = 2) -> np.ndarray:
     if mode == 0:
         frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
         for color, p_events in zip([positive_color, negative_color], events):
@@ -259,6 +259,16 @@ def events2frame(events: List[np.ndarray], cam_h: int, cam_w: int,
         frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
         frame[frame_acc > 0, :] = positive_color
         frame[frame_acc < 0, :] = negative_color
+    elif mode == 2:
+        frame_abs_acc = np.zeros((cam_h, cam_w), dtype=np.int8)
+        frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
+        for polarity, p_events in zip([1, -1], events):
+            for sub_p_events in p_events:
+                uv = sub_p_events[:,:2]
+                add_c = np.array(positive_color if polarity > 0 else negative_color)[None,...]
+                cnt = frame_abs_acc[uv[:,0], uv[:,1]][:,None]
+                frame[uv[:,0], uv[:,1]] = (frame[uv[:,0], uv[:,1]] * cnt + add_c) / (cnt + 1)
+                frame_abs_acc[uv[:,0], uv[:,1]] = cnt[:,0] + 1
     else:
         raise NotImplementedError('Unknown mode {}'.format(mode))
     return frame

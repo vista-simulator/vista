@@ -26,10 +26,10 @@ def main(args):
         name='event_camera_front',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
         base_camera_name='front_center',
-        base_size=(480, 640), #(600, 960),
+        base_size=(600, 960),
         depth_mode=DepthModes.FIXED_PLANE,
         use_lighting=False,
-        size=(200, 320), #(200, 320),
+        size=(200, 320),
         optical_flow_root='../data_prep/Super-SloMo',
         checkpoint='../data_prep/Super-SloMo/ckpt/SuperSloMo.ckpt',
         lambda_flow=0.5,
@@ -39,7 +39,7 @@ def main(args):
         sigma_positive_threshold=0.02,
         negative_threshold=-0.1,
         sigma_negative_threshold=0.02,
-        reproject_pixel=True,
+        reproject_pixel=False,
     )
     display_config = dict(
         road_buffer_size=1000,
