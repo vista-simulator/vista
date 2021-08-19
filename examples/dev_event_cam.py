@@ -26,9 +26,10 @@ def main(args):
         name='event_camera_front',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
         base_camera_name='front_center',
+        base_size=(600, 960),
         depth_mode=DepthModes.FIXED_PLANE,
         use_lighting=False,
-        size=(480, 640), #(200, 320),
+        size=(200, 320),
         optical_flow_root='../data_prep/Super-SloMo',
         checkpoint='../data_prep/Super-SloMo/ckpt/SuperSloMo.ckpt',
         lambda_flow=0.5,
@@ -38,6 +39,7 @@ def main(args):
         sigma_positive_threshold=0.02,
         negative_threshold=-0.1,
         sigma_negative_threshold=0.02,
+        reproject_pixel=False,
     )
     display_config = dict(
         road_buffer_size=1000,
@@ -66,6 +68,8 @@ def main(args):
             agent.step_sensors()
 
             img = display.render()
+            import cv2; cv2.imwrite('test.png', img[:,:,::-1])
+            import pdb; pdb.set_trace()
             if args.video_path:
                 video_writer.writeFrame(img)
 
