@@ -1,5 +1,7 @@
 import argparse
+import cv2
 import numpy as np
+from ffio import FFWriter
 
 import vista
 from vista.entities.sensors.camera_utils.ViewSynthesis import DepthModes
@@ -21,16 +23,16 @@ def main(args):
         wheel_base=2.8,
         steering_ratio=17.6,
     )
-    lidar_config = dict(
-        name='lidar_3d',
-    )
-    display_config = dict(
-        road_buffer_size=1000,
-    )
+    lidar_config = dict(name='lidar_3d', )
+    display_config = dict(road_buffer_size=1000, )
     world = vista.World(args.trace_path, trace_config)
     agent = world.spawn_agent(car_config)
     lidar = agent.spawn_lidar(lidar_config)
     display = vista.Display(world, display_config=display_config)
+
+    # writer = FFWriter("out.mp4", 320, 960)
+    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+    writer = cv2.VideoWriter("out.avi", fourcc, 10, (2*960, 2*320), True)
 
     # Main running loop
     while True:
@@ -38,16 +40,24 @@ def main(args):
         display.reset()
 
         while not agent.done:
-            action = np.array([agent.trace.f_curvature(agent.timestamp),
-                               agent.trace.f_speed(agent.timestamp)])
-            agent.step_dynamics(action)
+
+            timestamp = agent.timestamp
+            offset = 1. / 20 * np.sin(timestamp * np.pi)
+            action = np.array([
+                agent.trace.f_curvature(timestamp) + offset,
+                agent.trace.f_speed(timestamp)
+            ])
+            agent.step_dynamics(action, dt=1. / 10)
             agent.step_sensors()
 
             img = display.render()
             ### DEBUG
-            logging.warning('Dump image for debugging and set pdb')
-            import cv2; cv2.imwrite('test.png', img[:,:,::-1])
-            # import cv2; cv2.imshow('test', img); cv2.waitKey(1)
+            # logging.warning('Dump image for debugging and set pdb')
+            # import cv2; cv2.imwrite('test.png', img[:,:,::-1])
+            writer.write(img)
+
+            cv2.imshow('test', img)
+            cv2.waitKey(1)
             # import pdb; pdb.set_trace()
             ### DEBUG
 
@@ -56,11 +66,10 @@ if __name__ == '__main__':
     # Parse Arguments
     parser = argparse.ArgumentParser(
         description='Run the simulator with random actions')
-    parser.add_argument(
-        '--trace-path',
-        type=str,
-        nargs='+',
-        help='Path to the traces to use for simulation')
+    parser.add_argument('--trace-path',
+                        type=str,
+                        nargs='+',
+                        help='Path to the traces to use for simulation')
     args = parser.parse_args()
 
     main(args)

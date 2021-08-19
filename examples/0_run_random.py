@@ -13,7 +13,7 @@ def main(args):
     trace_config = dict(
         road_width=4,
         reset_mode='default',
-        master_sensor='front_center',
+        master_sensor='camera_front',
     )
     car_config = dict(
         length=5.,
@@ -23,7 +23,7 @@ def main(args):
     )
     camera_config1 = dict(
         # camera params
-        name='front_center',
+        name='camera_front',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
         size=(200, 320), #(250, 400),
         # rendering params

@@ -1,7 +1,7 @@
 from threading import Event
 from typing import Optional, Dict, Tuple, List, Any
 from collections import deque
-from vista.entities.sensors.EventCamera import EventCamera
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -13,7 +13,7 @@ from . import World
 from ..entities.agents.Dynamics import StateDynamics, update_with_perfect_controller, \
                                        curvature2tireangle
 from ..entities.agents import Car
-from ..entities.sensors import Camera, EventCamera
+from ..entities.sensors import Camera, EventCamera, Lidar
 from ..utils import logging, transform, misc
 
 
@@ -69,7 +69,8 @@ class Display:
         # Initialize figure
         self._artists: Dict[Any] = dict()
         self._axes: Dict[plt.Axes] = dict()
-        figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
+        figsize = (12.8 * n_agents_with_sensors + 6.4, 6.4 * max_n_sensors)
+        # figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
         self._fig: plt.Figure = plt.figure(figsize=figsize)
         self._fig.patch.set_facecolor('black')  # use black background
         self._gs = self._fig.add_gridspec(
@@ -77,8 +78,8 @@ class Display:
             self._config['gs_agent_w'] * n_agents_with_sensors +
             self._config['gs_bev_w'])
         assert self._config['gs_h'] % max_n_sensors == 0, \
-            'Height of grid ({}) can not be exactly divided by max number of sensors ({})'.format( \
-                self._config['gs_h'], max_n_sensors)
+            (f'Height of grid ({self._config["gs_h"]}) can not be exactly ' + \
+            f'divided by max number of sensors ({max_n_sensors})')
         gs_agent_h = self._config['gs_h'] // max_n_sensors
 
         # Initialize birds eye view
@@ -101,9 +102,21 @@ class Display:
             'Does not handle preprocessed (cropped/resized) observation')
         for i, agent in enumerate(self._agents_with_sensors):
             for j, sensor in enumerate(agent.sensors):
-                if not (isinstance(sensor, Camera) or isinstance(sensor, EventCamera)):
-                    logging.error('Unrecognized sensor type {}'.format(type(sensor)))
+
+                if (isinstance(sensor, Camera)
+                        or isinstance(sensor, EventCamera)):
+                    param = sensor.camera_param
+                    img_shape = (param.get_height(), param.get_width(), 3)
+
+                elif isinstance(sensor, Lidar):
+                    x_dim, y_dim = sensor.view_synthesis._dims[:, 0]
+                    # Cut width in half and stack on-top
+                    img_shape = (y_dim * 2, x_dim // 2, 3)
+
+                else:
+                    logging.error(f'Unrecognized sensor type {type(sensor)}')
                     continue
+
                 gs_ij = self._gs[gs_agent_h * j:gs_agent_h * (j + 1),
                                  self._config['gs_agent_w'] *
                                  i:self._config['gs_agent_w'] * (i + 1)]
@@ -116,13 +129,12 @@ class Display:
                                               size=20,
                                               weight='bold')
 
-                img_shape = (sensor.camera_param.get_height(),
-                             sensor.camera_param.get_width(), 3)
                 placeholder = fit_img_to_ax(
                     self._fig, self._axes[ax_name],
                     np.zeros(img_shape, dtype=np.uint8))
                 self._artists['im:{}'.format(
                     ax_name)] = self._axes[ax_name].imshow(placeholder)
+
         self._fig.tight_layout()
 
     def reset(self) -> None:
@@ -155,8 +167,7 @@ class Display:
 
         # Update road in birds eye view (in reference agent's coordinate)
         ref_pose = self.ref_agent.human_dynamics.numpy()[:3]
-        logging.debug(
-            'Computation of road in reference frame not vectorized')
+        logging.debug('Computation of road in reference frame not vectorized')
         road_in_ref = np.array([
             transform.compute_relative_latlongyaw(_v, ref_pose)
             for _v in self._road
@@ -180,10 +191,16 @@ class Display:
         # Update sensory measurements
         for i, agent in enumerate(self._agents_with_sensors):
             cameras = {
-                _v.name: _v for _v in agent.sensors if isinstance(_v, Camera)
+                _v.name: _v
+                for _v in agent.sensors if isinstance(_v, Camera)
             }
             event_cameras = {
-                _v.name: _v for _v in agent.sensors if isinstance(_v, EventCamera)
+                _v.name: _v
+                for _v in agent.sensors if isinstance(_v, EventCamera)
+            }
+            lidars = {
+                _v.name: _v
+                for _v in agent.sensors if isinstance(_v, Lidar)
             }
             for j, (obs_name, obs) in enumerate(agent.observations.items()):
                 ax_name = 'a{}s{}'.format(i, j)
@@ -192,21 +209,32 @@ class Display:
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                obs[:, :, ::-1])
                     # TODO: draw noodle for curvature visualization
+
                 elif obs_name in event_cameras.keys():
                     event_cam_param = event_cameras[obs_name].camera_param
-                    frame_obs = events2frame(obs, event_cam_param.get_height(), 
+                    frame_obs = events2frame(obs, event_cam_param.get_height(),
                                              event_cam_param.get_width())
                     # frame_obs = plot_roi(frame_obs.copy(), event_cam_param.get_roi())
                     frame_obs = np.concatenate([event_cameras[obs_name].prev_frame[:,:,::-1], frame_obs], axis=1) # DEBUG
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                frame_obs[:, :, ::-1])
                     # TODO: obs_render shape changes at the first frame
-                    logging.debug('obs_render shape changes at the first frame')
+                    logging.debug(
+                        'obs_render shape changes at the first frame')
+
+                elif obs_name in lidars.keys():
+                    obs = np.roll(obs, -obs.shape[1] // 4, axis=1)  # shift
+                    obs = np.concatenate(np.split(obs, 2, axis=1), 0)  # stack
+                    obs = np.clip(4 * obs, 0, 255).astype(np.uint8)  # norm
+                    obs = cv2.applyColorMap(obs, cv2.COLORMAP_JET)  # color
+                    obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
+                                               obs)
+
                 else:
-                    logging.error('Unrecognized observation {}'.format(obs_name))
+                    logging.error(f'Unrecognized observation {obs_name}')
                     continue
-                self._axes[ax_name].set_title('{}: {}'.format(
-                    agent.id, obs_name),
+                title = '{}: {}'.format(agent.id, obs_name)
+                self._axes[ax_name].set_title(title,
                                               color='white',
                                               size=20,
                                               weight='bold')
@@ -246,15 +274,15 @@ def events2frame(events: List[np.ndarray], cam_h: int, cam_w: int,
     if mode == 0:
         frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
         for color, p_events in zip([positive_color, negative_color], events):
-            uv = np.concatenate(p_events)[:,:2]
-            frame[uv[:,0], uv[:,1], :] = color
+            uv = np.concatenate(p_events)[:, :2]
+            frame[uv[:, 0], uv[:, 1], :] = color
     elif mode == 1:
         frame_acc = np.zeros((cam_h, cam_w), dtype=np.int8)
         for polarity, p_events in zip([1, -1], events):
             for sub_p_events in p_events:
-                uv = sub_p_events[:,:2]
-                frame_acc[uv[:,0], uv[:,1]] += polarity
-        
+                uv = sub_p_events[:, :2]
+                frame_acc[uv[:, 0], uv[:, 1]] += polarity
+
         frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
         frame[frame_acc > 0, :] = positive_color
         frame[frame_acc < 0, :] = negative_color

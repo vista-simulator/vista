@@ -39,23 +39,37 @@ class LidarSynthesis:
             xyLen * np.sin(-self._grid_yaw),
             np.sin(-self._grid_pitch)])
 
-        with pkg_resources.path(resources, "LidarMaskModel.h5") as path:
-            self.mask_net = None
-            if path.is_file():
-                logging.debug(f"Loading Lidar mask model from {path}")
-                self.mask_net = tf.keras.models.load_model(path)
+        # with pkg_resources.path(resources, "LidarMaskModel.h5") as path:
+        #     self.model_mask = None
+        #     if path.is_file():
+        #         logging.debug(f"Loading Lidar mask model from {path}")
+        #         self.model_mask = tf.keras.models.load_model(path)
+        # with pkg_resources.path(resources, "LidarFiller.h5") as path:
+        #     self.model_filler = None
+        #     if path.is_file():
+        #         logging.debug(f"Loading Lidar mask model from {path}")
+        #         obj = {'scaling': 50., 'exp': tf.math.exp}
+        #         self.model_filler = tf.keras.models.load_model(
+        #             path, custom_objects=obj)
+        path = pkg_resources.files(resources) / "test"
+        self.render_model = None
+        if path.is_dir():
+            logging.debug(f"Loading Lidar model from {path}")
+            self.render_model = tf.keras.models.load_model(path)
+            # get the config, load the class manually and fill the weights
+            import pdb; pdb.set_trace()
 
     def synthesize(
             self,
             trans: np.ndarray,
             rot: np.ndarray,
             pcd: np.ndarray,
-            d_depth: np.ndarray,
             return_as_pcd: Optional[bool] = True
     ) -> Tuple[np.ndarray, np.ndarray]:
         """ Apply rigid transformation to a dense pointcloud and return new
         dense representation or sparse pointcloud. """
-
+        import time
+        tic = time.time()
         # Sample dense pcd to return sparse pcd
         # TODO: For now, use the sparse pointcloud -- eventually replace with
         # the two lines below which compute points from the dense depths
@@ -75,7 +89,9 @@ class LidarSynthesis:
 
         # Convert from new pointcloud to dense image
         transformed_sparse = self.pcd2sparse(new_pcd, fill=3)
-        transformed_dense = self.sparse2dense(transformed_sparse, "nearest")
+        tic2 = time.time()
+        transformed_dense = self.sparse2dense(transformed_sparse, method="nn")
+        logging.warning(f"{time.time() - tic2} {time.time() - tic}")
 
         # Sample the image to simulate active LiDAR using neural masking
         if return_as_pcd:
@@ -117,20 +133,26 @@ class LidarSynthesis:
     def sparse2dense(self, sparse, method="linear"):
         """ Convert from sparse image representation of pointcloud to dense. """
 
-        # mask all invalid values
-        zs = np.ma.masked_invalid(sparse)
+        if method == "nn":
+            sparse[np.isnan(sparse)] = 0.0
+            sparse = sparse[np.newaxis, :, :, np.newaxis]
+            dense = self.render_model.s2d(sparse)[0, :, :, 0].numpy()
 
-        # retrieve the valid, non-Nan, defined values
-        valid_xs = self._grid_idx[0][~zs.mask]
-        valid_ys = self._grid_idx[1][~zs.mask]
-        valid_zs = zs[~zs.mask]
+        else:
+            # mask all invalid values
+            zs = np.ma.masked_invalid(sparse)
 
-        # generate interpolated array of values
-        dense = interpolate.griddata((valid_xs, valid_ys),
-                                     valid_zs,
-                                     tuple(self._grid_idx),
-                                     method=method)
-        dense[np.isnan(dense)] = 0.0
+            # retrieve the valid, non-Nan, defined values
+            valid_xs = self._grid_idx[0][~zs.mask]
+            valid_ys = self._grid_idx[1][~zs.mask]
+            valid_zs = zs[~zs.mask]
+
+            # generate interpolated array of values
+            dense = interpolate.griddata((valid_xs, valid_ys),
+                                         valid_zs,
+                                         tuple(self._grid_idx),
+                                         method=method)
+            dense[np.isnan(dense)] = 0.0
         return dense
 
     def dense2pcd(self, dense):

@@ -2,6 +2,7 @@ import os
 import numpy as np
 from typing import Dict, List, Optional
 from collections import OrderedDict
+import h5py
 
 from . import TopicNames
 from ...utils import logging
@@ -17,22 +18,30 @@ class MultiSensor:
 
         # Get frame-to-timestamp mapping for every sensors
         self._sensor_frame_to_time: Dict = dict()
-        sensor_topic_names = [TopicNames.lidar_3d
-                              ] + [_x for _x in TopicNames.cameras]
+        sensor_topic_names = [TopicNames.lidar_3d] + list(TopicNames.cameras)
         assert master_sensor in sensor_topic_names, \
             f'Master sensor {master_sensor} not in topic names' + \
             f'{sensor_topic_names}. Please check camera config or TopicNames.py'
         for fname in os.listdir(self._trace_dir):
             sensor_name, ext = os.path.splitext(fname)
-            if sensor_name in sensor_topic_names and ext == '.csv':
+            if sensor_name in sensor_topic_names:
                 fpath = os.path.join(self._trace_dir, fname)
-                data = np.genfromtxt(fpath,
-                                     delimiter=',',
-                                     skip_header=1,
-                                     dtype=np.float64)
+                if ext == '.csv':
+                    data = np.genfromtxt(fpath,
+                                         delimiter=',',
+                                         skip_header=1,
+                                         dtype=np.float64)
+                    frames, times = (data[:, 0], data[:, 1])
+                elif ext == ".h5":
+                    f = h5py.File(fpath, "r")
+                    times = f["timestamp"][:, 0]
+                    frames = np.arange(times.shape[0])
+                else:
+                    continue  # Not implemented yet...
+
                 frame_to_time = OrderedDict()
-                for i in range(data.shape[0]):
-                    frame_to_time[int(data[i, 0])] = data[i, 1]
+                for i in range(len(frames)):
+                    frame_to_time[int(frames[i])] = times[i]
                 self._sensor_frame_to_time[sensor_name] = frame_to_time
 
         self._sensor_names: List[str] = list(self._sensor_frame_to_time.keys())
@@ -52,9 +61,10 @@ class MultiSensor:
         """
         return self._sensor_frame_to_time[sensor].get(frame_num, None)
 
-    def get_frames_from_times(self,
-                              timestamps: List[float],
-                              fetch_smaller: Optional[bool] = False) -> Dict[str, List[int]]:
+    def get_frames_from_times(
+            self,
+            timestamps: List[float],
+            fetch_smaller: Optional[bool] = False) -> Dict[str, List[int]]:
         """ Takes in a list of timestamps and returns corresponding frame
         numbers for each sensor. Note that since sensors are not necessarily
         sync'ed, the returned frame numbers are the one with the closest
@@ -75,7 +85,7 @@ class MultiSensor:
             frames[sensor] = []
             pointer = 0
             for ts in timestamps:
-                while pointer < len(frame_to_time):
+                while pointer < len(frame_to_time) - 1:
                     if ts >= frame_to_time[pointer] and ts < frame_to_time[
                             pointer + 1]:
                         if fetch_smaller:
@@ -109,7 +119,10 @@ class MultiSensor:
     @property
     def camera_names(self) -> List[str]:
         logging.debug('Hacky way to include RGB camera with name front_center')
-        return [_x for _x in self._sensor_names if 'camera' in _x or 'front_center' == _x]
+        return [
+            _x for _x in self._sensor_names
+            if 'camera' in _x or 'front_center' == _x
+        ]
 
     @property
     def main_camera(self) -> str:
@@ -125,7 +138,8 @@ class MultiSensor:
 
     @property
     def main_event_camera(self) -> str:
-        return self._main_event_camera if hasattr(self, '_main_event_camera') else None
+        return self._main_event_camera if hasattr(
+            self, '_main_event_camera') else None
 
     @property
     def master_sensor(self) -> str:
