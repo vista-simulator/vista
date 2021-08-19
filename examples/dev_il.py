@@ -14,6 +14,7 @@ def main(args):
         road_width=4,
         reset_mode='segment_start',
         master_sensor='front_center',
+        # master_sensor='camera_front',
     )
     car_config = dict(
         length=5.,
@@ -24,7 +25,9 @@ def main(args):
     camera_config1 = dict(
         # camera params
         name='front_center',
+        # name='camera_front',
         rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
+        # rig_path='~/projects/deepknight/gmsl-rig/RIG.xml',
         size=(200, 320),
         # rendering params
         depth_mode=DepthModes.FIXED_PLANE,
@@ -49,6 +52,7 @@ def main(args):
             agent.step_dataset(step_dynamics=False)
 
             print(agent.frame_index, agent.human_curvature, agent.speed)
+            # camera = agent.observations["camera_front"]
 
             img = display.render()
             ### DEBUG
