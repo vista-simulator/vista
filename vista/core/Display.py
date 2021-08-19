@@ -69,8 +69,8 @@ class Display:
         # Initialize figure
         self._artists: Dict[Any] = dict()
         self._axes: Dict[plt.Axes] = dict()
-        figsize = (12.8 * n_agents_with_sensors + 6.4, 6.4 * max_n_sensors)
-        # figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
+        # figsize = (12.8 * n_agents_with_sensors + 6.4, 6.4 * max_n_sensors)
+        figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
         self._fig: plt.Figure = plt.figure(figsize=figsize)
         self._fig.patch.set_facecolor('black')  # use black background
         self._gs = self._fig.add_gridspec(
