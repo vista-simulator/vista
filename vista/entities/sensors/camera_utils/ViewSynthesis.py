@@ -17,7 +17,8 @@ class DepthModes(Enum):
 
 
 class ViewSynthesis:
-    def __init__(self, camera_param: CameraParams, config: Dict) -> None:
+    def __init__(self, camera_param: CameraParams, config: Dict, 
+                 init_with_bg_mesh: Optional[bool] = True) -> None:
         # Parse configuration
         self._camera_param = camera_param
         self._config = config
@@ -56,7 +57,8 @@ class ViewSynthesis:
         if self._config['depth_mode'] == DepthModes.FIXED_PLANE:
             self._depth: Dict[str, np.ndarray] = dict()
         self._bg_node: Dict[str, pyrender.Node] = dict()
-        self.add_bg_mesh(self._camera_param)
+        if init_with_bg_mesh:
+            self.add_bg_mesh(self._camera_param)
 
     def synthesize(
         self,
@@ -114,7 +116,7 @@ class ViewSynthesis:
         # Mesh coordinates, faces, and rays
         name = camera_param.name
         homo_coords, mesh_faces = self._get_homogeneous_image_coords(
-            get_mesh=True)
+            camera_param, get_mesh=True)
         self._world_rays[name] = np.matmul(K_inv, homo_coords)
 
         # Get depth for ground plane assumption
@@ -147,9 +149,9 @@ class ViewSynthesis:
             rotation=camera_param.get_quaternion()[:, 0])
         self._scene.add_node(self._bg_node[name])
 
-    def _get_homogeneous_image_coords(self, get_mesh=False):
-        cam_w = self._camera_param.get_width()
-        cam_h = self._camera_param.get_height()
+    def _get_homogeneous_image_coords(self, camera_param, get_mesh=False):
+        cam_w = camera_param.get_width()
+        cam_h = camera_param.get_height()
 
         xx, yy = np.meshgrid(np.arange(cam_w), np.arange(cam_h))
         coords = np.stack(

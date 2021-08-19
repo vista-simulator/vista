@@ -29,17 +29,23 @@ class EventCamera(BaseSensor):
         self._camera_param.resize(*self._config['size'])
         self._base_camera_param: CameraParams = CameraParams(
             self._config['base_camera_name'], self._config['rig_path'])
-        self._base_camera_param.resize(*self._config['size'])
+        self._base_camera_param.resize(*self._config['base_size'])
         self._streams: Dict[str, FFReader] = dict()
+        vs_cam_param = self._base_camera_param if \
+            self.config['reproject_pixel'] else self._camera_param
         self._view_synthesis: ViewSynthesis = ViewSynthesis(
-            self._camera_param, self._config)
+            vs_cam_param, self._config, init_with_bg_mesh=False)
 
         # load video interpolation model
         sys.path.append(os.path.abspath(self._config['optical_flow_root']))
         from slowmo_warp import SlowMoWarp
         self._config['checkpoint'] = os.path.abspath(self._config['checkpoint'])
-        self._interp = SlowMoWarp(height=self._config['size'][0],
-                                  width=self._config['size'][1],
+        height = self._config['base_size'][0] if \
+            self.config['reproject_pixel'] else self._config['size'][0]
+        width = self._config['base_size'][1] if \
+            self.config['reproject_pixel'] else self._config['size'][1]
+        self._interp = SlowMoWarp(height=height,
+                                  width=width,
                                   checkpoint=self._config['checkpoint'],
                                   lambda_flow=self._config['lambda_flow'],
                                   cuda=self._config['use_gpu'])
@@ -97,7 +103,7 @@ class EventCamera(BaseSensor):
                 else:
                     camera_param = CameraParams(camera_name,
                                                 self._config['rig_path'])
-                    camera_param.resize(*self._config['size'])
+                    camera_param.resize(*self._config['base_size'])
                 self.view_synthesis.add_bg_mesh(camera_param)
 
         # Reset previous frame
@@ -157,8 +163,41 @@ class EventCamera(BaseSensor):
                                            self.config['sigma_positive_threshold'])
                     negative_C = -sample_fn(-self.config['negative_threshold'],
                                             self.config['sigma_negative_threshold'])
-                    positive_uv = np.argwhere(log_d_interp >= positive_C)
-                    negative_uv = np.argwhere(log_d_interp <= negative_C)
+                    if self.config['reproject_pixel']:
+                        # TODO: don't need to recompute this every time
+                        cam_h = self.camera_param.get_height()
+                        cam_w = self.camera_param.get_width()
+                        world_rays = self.view_synthesis._world_rays[self.base_camera_param.name]
+                        K = self.camera_param.get_K()
+                        uv = np.matmul(K, world_rays).T[:,:2][:,::-1]
+
+                        def extract_uv(_mask):
+                            _fl_mask = _mask.flatten()
+                            _uv = uv[_fl_mask]
+                            
+                            _mode = 0
+                            if _mode == 0:
+                                _uv = np.round(_uv).astype(np.int)
+                            else:
+                                _uv_floor = np.floor(_uv)
+                                _uv_ceil = np.ceil(_uv)
+                                _uv = np.concatenate([
+                                    np.stack([_uv_floor[:,0], _uv_floor[:,1]], axis=1),
+                                    np.stack([_uv_floor[:,0], _uv_ceil[:,1]], axis=1),
+                                    np.stack([_uv_ceil[:,0], _uv_floor[:,1]], axis=1),
+                                    np.stack([_uv_ceil[:,0], _uv_ceil[:,1]], axis=1)], axis=0)
+                                _uv = _uv.astype(np.int)
+                            
+                            _valid_mask = (_uv[:,0] > 0) & (_uv[:,0] < cam_h) & \
+                                          (_uv[:,1] > 0) & (_uv[:,1] < cam_w)
+                            _uv = _uv[_valid_mask]
+                            return _uv
+
+                        positive_uv = extract_uv(log_d_interp >= positive_C)
+                        negative_uv = extract_uv(log_d_interp <= negative_C)
+                    else:
+                        positive_uv = np.argwhere(log_d_interp >= positive_C)
+                        negative_uv = np.argwhere(log_d_interp <= negative_C)
                     event_timestamp += dt
                     event_timestamp_us = (event_timestamp * 1e6).astype(np.int64)
                     positive_events = np.concatenate([positive_uv, 

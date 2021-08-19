@@ -197,7 +197,8 @@ class Display:
                     frame_obs = events2frame(obs, event_cam_param.get_height(), 
                                              event_cam_param.get_width())
                     # frame_obs = plot_roi(frame_obs.copy(), event_cam_param.get_roi())
-                    frame_obs = np.concatenate([event_cameras[obs_name].prev_frame[:,:,::-1], frame_obs], axis=1) # DEBUG
+                    rgb = cv2.resize(event_cameras[obs_name].prev_frame[:,:,::-1], frame_obs.shape[:2][::-1]) # DEBUG
+                    frame_obs = np.concatenate([rgb, frame_obs], axis=1) # DEBUG
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                frame_obs[:, :, ::-1])
                     # TODO: obs_render shape changes at the first frame
