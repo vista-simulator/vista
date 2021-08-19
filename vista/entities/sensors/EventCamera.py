@@ -175,9 +175,30 @@ class EventCamera(BaseSensor):
                             _fl_mask = _mask.flatten()
                             _uv = uv[_fl_mask]
                             
-                            _mode = 0
+                            _mode = 1
                             if _mode == 0:
                                 _uv = np.round(_uv).astype(np.int)
+                            elif _mode == 1:
+                                _uv_floor = np.floor(_uv)
+                                _uv_ceil = np.ceil(_uv)
+                                diff_floor = np.abs(_uv - _uv_floor)
+                                diff_ceil = np.abs(_uv - _uv_ceil)
+
+                                n_uv = _uv.shape[0]
+                                zeros = np.zeros((n_uv,))
+                                _uv_score = np.concatenate([
+                                    np.stack([_uv_floor[:,0], _uv_floor[:,1], zeros], axis=1),
+                                    np.stack([_uv_floor[:,0], _uv_ceil[:,1], zeros], axis=1),
+                                    np.stack([_uv_ceil[:,0], _uv_floor[:,1], zeros], axis=1),
+                                    np.stack([_uv_ceil[:,0], _uv_ceil[:,1], zeros], axis=1)], 
+                                    axis=0)
+
+                                _uv_score[:n_uv,2] = diff_ceil[:,0] * diff_ceil[:,1]
+                                _uv_score[n_uv:2*n_uv,2] = diff_ceil[:,0] * diff_floor[:,1]
+                                _uv_score[2*n_uv:3*n_uv,2] = diff_floor[:,0] * diff_ceil[:,1]
+                                _uv_score[3*n_uv:,2] = diff_floor[:,0] * diff_floor[:,1]
+
+                                _uv = _uv_score[_uv_score[:,2]>=0.2, :2].astype(np.int)
                             else:
                                 _uv_floor = np.floor(_uv)
                                 _uv_ceil = np.ceil(_uv)
