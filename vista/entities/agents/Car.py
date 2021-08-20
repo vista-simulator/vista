@@ -149,9 +149,10 @@ class Car(Entity):
                     Lidar) and self._trace.multi_sensor.main_lidar is None:
                 self._trace.multi_sensor.set_main_sensor('lidar', sensor.name)
             elif isinstance(
-                    sensor,
-                    EventCamera) and self._trace.multi_sensor.main_event_camera is None:
-                self._trace.multi_sensor.set_main_sensor('event_camera', sensor.name)
+                    sensor, EventCamera
+            ) and self._trace.multi_sensor.main_event_camera is None:
+                self._trace.multi_sensor.set_main_sensor(
+                    'event_camera', sensor.name)
 
             sensor.reset()
 

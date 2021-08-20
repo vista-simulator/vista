@@ -20,7 +20,7 @@ def main(args):
     trace_config = dict(
         road_width=4,
         reset_mode='default',
-        master_sensor='front_center',
+        master_sensor='camera_front',
     )
     car_config = dict(
         length=5.,
@@ -28,10 +28,11 @@ def main(args):
         wheel_base=2.78,
         steering_ratio=14.7,
     )
+    examples_path = os.path.dirname(os.path.realpath(__file__))
     camera_config1 = dict(
         # camera params
-        name='front_center',
-        rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
+        name='camera_front',
+        rig_path=os.path.join(examples_path, "RIG.xml"),
         size=(250, 400),
         # rendering params
         depth_mode=DepthModes.FIXED_PLANE,

@@ -29,7 +29,7 @@ class Lidar(BaseSensor):
         if self.name == multi_sensor.main_lidar:
             for lidar_name in multi_sensor.lidar_names:
                 fpath = os.path.join(self.parent.trace.trace_path,
-                                     lidar_name + '_vista' + '.h5')
+                                     lidar_name + '.h5')
                 stream = h5py.File(fpath, 'r')
                 self._streams[lidar_name] = stream
         else:
@@ -56,8 +56,7 @@ class Lidar(BaseSensor):
         for lidar_name in multi_sensor.lidar_names:
             stream = self.streams[lidar_name]
             frame_num = all_frame_nums[lidar_name][0]
-            pcd = stream['pcd'][frame_num]
-            d_depth = stream['d_depth'][frame_num]
+            pcd = stream['xyz'][frame_num]
             # TODO: when is it possible for there to be multiple (multi_sensor.lidar_names)?
 
         # TODO: Interpolate frame at the exact timestamp
@@ -65,18 +64,18 @@ class Lidar(BaseSensor):
 
         # TODO: Synthesis by rendering
         lat, long, yaw = self.parent.relative_state.numpy()
-        trans = np.array([lat, 0., -long])
+        logging.debug(f"state: {lat} {long} {yaw} \t timestamp {timestamp}")
+        trans = np.array([lat, -long, 0])
         rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
         rendered_lidar = self.view_synthesis.synthesize(
             trans,
             rot,
             pcd=pcd,
-            d_depth=d_depth,
             return_as_pcd=False,
         )
 
         logging.debug("Visualizing the rendered lidar scan")
-        import cv2; cv2.imshow("rendered", rendered_lidar[::3, ::3] / 150.); cv2.waitKey(1)
+        import cv2; cv2.imshow("rendered", rendered_lidar / 50.); cv2.waitKey(1)
 
         return rendered_lidar
 

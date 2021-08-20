@@ -215,13 +215,16 @@ class Trace:
         odometry = np.genfromtxt(os.path.join(self._trace_path,
                                               TopicNames.odometry + '.csv'),
                                  delimiter=',')
+        imu = np.genfromtxt(os.path.join(self._trace_path,
+                                         TopicNames.imu + '.csv'),
+                            delimiter=',')
 
         # Obtain function representation of speed
         f_speed = interp1d(speed[:, 0], speed[:, 1], fill_value='extrapolate')
 
         # Obtain function representation of curvature
-        timestamps = odometry[:, 0]
-        yaw_rate = odometry[:, 4]
+        timestamps = imu[:, 0]
+        yaw_rate = imu[:, 6]
         curvature = yaw_rate / np.maximum(f_speed(timestamps), 1e-10)
         good_curvature_inds = np.abs(curvature) < 1 / 3.
         f_curvature = interp1d(timestamps[good_curvature_inds],
