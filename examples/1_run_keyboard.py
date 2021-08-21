@@ -1,7 +1,8 @@
 import argparse
-import numpy as np
-from pynput import keyboard
 import cv2
+import numpy as np
+import os
+from pynput import keyboard
 
 import vista
 from vista.entities.sensors.camera_utils.ViewSynthesis import DepthModes

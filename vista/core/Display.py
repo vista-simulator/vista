@@ -111,7 +111,7 @@ class Display:
                 elif isinstance(sensor, Lidar):
                     x_dim, y_dim = sensor.view_synthesis._dims[:, 0]
                     # Cut width in half and stack on-top
-                    img_shape = (y_dim * 2, x_dim // 2, 3)
+                    img_shape = (y_dim * 2, x_dim // 2, 3) #(4,3, 3)  #
 
                 else:
                     logging.error(f'Unrecognized sensor type {type(sensor)}')
@@ -205,7 +205,8 @@ class Display:
             for j, (obs_name, obs) in enumerate(agent.observations.items()):
                 ax_name = 'a{}s{}'.format(i, j)
                 if obs_name in cameras.keys():
-                    obs = plot_roi(obs.copy(), cameras[obs_name].camera_param.get_roi())
+                    obs = plot_roi(obs.copy(),
+                                   cameras[obs_name].camera_param.get_roi())
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                obs[:, :, ::-1])
                     # TODO: draw noodle for curvature visualization
@@ -215,8 +216,11 @@ class Display:
                     frame_obs = events2frame(obs, event_cam_param.get_height(),
                                              event_cam_param.get_width())
                     # frame_obs = plot_roi(frame_obs.copy(), event_cam_param.get_roi())
-                    rgb = cv2.resize(event_cameras[obs_name].prev_frame[:,:,::-1], frame_obs.shape[:2][::-1]) # DEBUG
-                    frame_obs = np.concatenate([rgb, frame_obs], axis=1) # DEBUG
+                    rgb = cv2.resize(
+                        event_cameras[obs_name].prev_frame[:, :, ::-1],
+                        frame_obs.shape[:2][::-1])  # DEBUG
+                    frame_obs = np.concatenate([rgb, frame_obs],
+                                               axis=1)  # DEBUG
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                frame_obs[:, :, ::-1])
                     # TODO: obs_render shape changes at the first frame
@@ -224,12 +228,20 @@ class Display:
                         'obs_render shape changes at the first frame')
 
                 elif obs_name in lidars.keys():
-                    obs = np.roll(obs, -obs.shape[1] // 4, axis=1)  # shift
-                    obs = np.concatenate(np.split(obs, 2, axis=1), 0)  # stack
-                    obs = np.clip(4 * obs, 0, 255).astype(np.uint8)  # norm
-                    obs = cv2.applyColorMap(obs, cv2.COLORMAP_JET)  # color
-                    obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
-                                               obs)
+                    if obs.shape[1] == 3:  # 3D pointcloud
+                        self._axes[ax_name].clear()
+                        self._axes[ax_name].scatter(obs[::50,0], obs[::50,1], s=1, c=obs[::50,2])
+                        self._axes[ax_name].set_xlim(-50, 50)
+                        self._axes[ax_name].set_ylim(-50, 50)
+                        obs_render = None
+                    else: # dense image
+                        obs = np.roll(obs, -obs.shape[1] // 4, axis=1)  # shift
+                        obs = np.concatenate(np.split(obs, 2, axis=1),
+                                             0)  # stack
+                        obs = np.clip(4 * obs, 0, 255).astype(np.uint8)  # norm
+                        obs = cv2.applyColorMap(obs, cv2.COLORMAP_JET)  # color
+                        obs_render = fit_img_to_ax(self._fig,
+                                                   self._axes[ax_name], obs)
 
                 else:
                     logging.error(f'Unrecognized observation {obs_name}')
@@ -239,7 +251,8 @@ class Display:
                                               color='white',
                                               size=20,
                                               weight='bold')
-                self._artists['im:{}'.format(ax_name)].set_data(obs_render)
+                if obs_render is not None:
+                    self._artists['im:{}'.format(ax_name)].set_data(obs_render)
 
         # Convert to image
         img = fig2img(self._fig)
@@ -268,7 +281,9 @@ def plot_roi(img, roi, color=(0, 0, 255), thickness=2):
     return img
 
 
-def events2frame(events: List[np.ndarray], cam_h: int, cam_w: int,
+def events2frame(events: List[np.ndarray],
+                 cam_h: int,
+                 cam_w: int,
                  positive_color: Optional[List] = [255, 255, 255],
                  negative_color: Optional[List] = [212, 188, 114],
                  mode: Optional[int] = 2) -> np.ndarray:
@@ -292,11 +307,14 @@ def events2frame(events: List[np.ndarray], cam_h: int, cam_w: int,
         frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
         for polarity, p_events in zip([1, -1], events):
             for sub_p_events in p_events:
-                uv = sub_p_events[:,:2]
-                add_c = np.array(positive_color if polarity > 0 else negative_color)[None,...]
-                cnt = frame_abs_acc[uv[:,0], uv[:,1]][:,None]
-                frame[uv[:,0], uv[:,1]] = (frame[uv[:,0], uv[:,1]] * cnt + add_c) / (cnt + 1)
-                frame_abs_acc[uv[:,0], uv[:,1]] = cnt[:,0] + 1
+                uv = sub_p_events[:, :2]
+                add_c = np.array(
+                    positive_color if polarity > 0 else negative_color)[None,
+                                                                        ...]
+                cnt = frame_abs_acc[uv[:, 0], uv[:, 1]][:, None]
+                frame[uv[:, 0], uv[:, 1]] = (frame[uv[:, 0], uv[:, 1]] * cnt +
+                                             add_c) / (cnt + 1)
+                frame_abs_acc[uv[:, 0], uv[:, 1]] = cnt[:, 0] + 1
     else:
         raise NotImplementedError('Unknown mode {}'.format(mode))
     return frame

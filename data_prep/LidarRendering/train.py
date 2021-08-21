@@ -7,6 +7,8 @@ from skimage.measure import block_reduce
 import tensorflow as tf
 import os
 from tqdm import tqdm
+import shutil
+from pathlib import Path
 
 from model import LidarRenderModel
 
@@ -25,7 +27,7 @@ parser.add_argument('-l', '--num_layers', type=int, default=3)
 parser.add_argument('-f', '--num_filters', type=int, default=8)
 args = parser.parse_args()
 
-save_name = "LidarRenderModel__.tf"
+save_name = "LidarRenderModel.tf"
 
 print("Loading data")
 f = h5py.File(os.path.join(args.input, "lidar_3d_vista.h5"), "r")
@@ -35,8 +37,8 @@ f = h5py.File(os.path.join(args.input, "lidar_3d_vista.h5"), "r")
 # data_idx = np.random.choice(f["d_depth"].shape[0], dataset_size, replace=False)
 # data_idx = np.sort(data_idx)
 
-MASK = f['mask'][:10]
-DENSE = f['d_depth'][:10].astype(np.float32)
+MASK = f['mask'][:]
+DENSE = f['d_depth'][:].astype(np.float32)
 train_idx = np.random.choice(MASK.shape[0],
                              int(MASK.shape[0] * 0.8),
                              replace=False)
@@ -56,6 +58,10 @@ model = LidarRenderModel(input_shape=mask_train.shape[1:],
                          num_layers=args.num_layers,
                          dropout=args.dropout)
 
+Path(save_name).mkdir(parents=True, exist_ok=True)
+shutil.copy("model.py", save_name)
+with open(os.path.join(save_name, "config"), 'w') as f:
+    f.write(str(model.get_config()))
 
 def compute_weights(mask, block_size=40):
     # Compute weights
@@ -156,16 +162,11 @@ for iter in pbar:
 
         if vloss < best_vloss:
             best_vloss = vloss
-            # tf.keras.models.save_model(model, save_name, save_format="tf")
-            tf.keras.models.save_model(model, "test", save_format="tf")
-            # tf.saved_model.save(model, "test")
-            model.save_weights(os.path.join("test", "weights.h5"))
-
-
+            model.save_weights(os.path.join(save_name, "weights.h5"))
 
         pbar.set_description(f"Loss: {vloss:.2f} ({best_vloss:.2f})")
 
-tf.keras.models.save_model(model, save_name, save_format="tf")
+model.save_weights(os.path.join(save_name, "weights.h5"))
 
 import pdb
 pdb.set_trace()
