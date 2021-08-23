@@ -1,5 +1,6 @@
 """ Minimal example of using guided policy learning (GPL) for lane following. """
 import os
+import time
 import numpy as np
 import argparse
 import torch
@@ -31,6 +32,7 @@ class VistaDataset(Dataset):
             wheel_base=2.78,
             steering_ratio=14.7,
             lookahead_road=True, # NOTE: for optimal control
+            road_buffer_size=50, # NOTE: too large make 
         )
         camera_config = dict(
             # camera params
@@ -89,11 +91,13 @@ class VistaDataset(Dataset):
             self.maneuvor_cnt['lane_following'] = 0
 
         # optimal control
+        tic = time.time()
+
         speed = self.agent.human_speed
 
         road = self.agent.road
         ego_pose = self.agent.ego_dynamics.numpy()[:3]
-        road_in_ego = np.array([ # TODO: vectorize this
+        road_in_ego = np.array([ # TODO: vectorize this: slow if road buffer size too large
             transform.compute_relative_latlongyaw(_v, ego_pose)
             for _v in road
         ])
@@ -120,6 +124,9 @@ class VistaDataset(Dataset):
 
         label = np.array([curvature]).astype(np.float32)
 
+        toc = time.time()
+        time_optimal_control = toc - tic
+
         # actively reset to balance between lane following and recovery maneuvor
         x_diff, y_diff, yaw_diff = self.agent.relative_state.numpy()
         yaw_diff_mag = np.abs(yaw_diff)
@@ -138,8 +145,16 @@ class VistaDataset(Dataset):
 
         # step simulation
         action = np.array([curvature, speed])
+
+        tic = time.time()
         self.agent.step_dynamics(action)
+        toc = time.time()
+        time_step_dynamics = toc - tic
+
+        tic = time.time()
         self.agent.step_sensors()
+        toc = time.time()
+        time_step_sensors = toc - tic
 
         # fetch observation
         sensor_name = self.agent.sensors[0].name
@@ -193,6 +208,7 @@ class Net(nn.Module):
 
 def train(args, model, device, train_loader, criterion, optimizer, epoch):
     model.train()
+    tic = time.time()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
@@ -201,24 +217,30 @@ def train(args, model, device, train_loader, criterion, optimizer, epoch):
         loss.backward()
         optimizer.step()
         if batch_idx % 10 == 0:
+            toc = time.time()
+            elapsed_time = toc - tic
             curr_n_samples = batch_idx * len(data)
             total_samples = len(train_loader.dataset)
             progress = 100. * batch_idx / len(train_loader)
             print(f'Training epoch {epoch} [{curr_n_samples}/{total_samples} ({progress:.2f}%)]' \
-                  + f'\t Loss: {loss.item():.6f}')
+                  + f'\t Loss: {loss.item():.6f}\t Elapsed time: {elapsed_time:.2f}')
+            tic = toc
 
 
 def test(model, device, test_loader, criterion):
     model.eval()
     test_loss = 0
+    tic = time.time()
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += criterion(output, target).item()
+    toc = time.time()
 
+    elapsed_time = toc - tic
     test_loss /= len(test_loader.dataset)
-    print(f'Test set: Average Loss: {test_loss:.6f}')
+    print(f'Test set: Average Loss: {test_loss:.6f}\t Elapsed time: {elapsed_time:.2f}')
     return test_loss
 
 
@@ -287,7 +309,10 @@ def main():
         test_loss = test(model, device, test_loader, criterion)
         all_test_loss.append(test_loss)
         if epoch % 10 == 0:
-            torch.save(model.state_dict(), './ep_{:03d}.ckpt'.format(epoch))
+            save_dir = './ckpt/gpl'
+            if not os.path.isdir(save_dir):
+                os.makedirs(save_dir)
+            torch.save(model.state_dict(), os.path.join(save_dir, 'ep_{:03d}.ckpt'.format(epoch)))
 
 
 if __name__ == '__main__':

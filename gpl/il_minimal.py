@@ -1,5 +1,6 @@
 """ Minimal example of using imitation learning (IL) for lane following. """
 import os
+import time
 import numpy as np
 import argparse
 import torch
@@ -51,6 +52,8 @@ class VistaDataset(Dataset):
         return np.sum([tr.num_of_frames for tr in self.world.traces])
 
     def __getitem__(self, idx):
+        tic = time.time()
+
         if self.agent.done:
             self.world.reset()
         self.agent.step_dataset(step_dynamics=False)
@@ -62,6 +65,10 @@ class VistaDataset(Dataset):
 
         img = self.transform(img)
         label = np.array([self.agent.human_curvature]).astype(np.float32)
+
+        toc = time.time()
+        elapsed_time = toc - tic
+
         return img, label
 
 
@@ -105,6 +112,7 @@ class Net(nn.Module):
 
 def train(args, model, device, train_loader, criterion, optimizer, epoch):
     model.train()
+    tic = time.time()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
@@ -113,24 +121,30 @@ def train(args, model, device, train_loader, criterion, optimizer, epoch):
         loss.backward()
         optimizer.step()
         if batch_idx % 10 == 0:
+            toc = time.time()
+            elapsed_time = toc - tic
             curr_n_samples = batch_idx * len(data)
             total_samples = len(train_loader.dataset)
             progress = 100. * batch_idx / len(train_loader)
             print(f'Training epoch {epoch} [{curr_n_samples}/{total_samples} ({progress:.2f}%)]' \
-                  + f'\t Loss: {loss.item():.6f}')
+                  + f'\t Loss: {loss.item():.6f}\t Elapsed time: {elapsed_time:.2f}')
+            tic = toc
 
 
 def test(model, device, test_loader, criterion):
     model.eval()
     test_loss = 0
+    tic = time.time()
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += criterion(output, target).item()
+    toc = time.time()
 
+    elapsed_time = toc - tic
     test_loss /= len(test_loader.dataset)
-    print(f'Test set: Average Loss: {test_loss:.6f}')
+    print(f'Test set: Average Loss: {test_loss:.6f}\t Elapsed time: {elapsed_time:.2f}')
     return test_loss
 
 
@@ -198,7 +212,10 @@ def main():
         test_loss = test(model, device, test_loader, criterion)
         all_test_loss.append(test_loss)
         if epoch % 10 == 0:
-            torch.save(model.state_dict(), './ep_{:03d}.ckpt'.format(epoch))
+            save_dir = './ckpt/il'
+            if not os.path.isdir(save_dir):
+                os.makedirs(save_dir)
+            torch.save(model.state_dict(), os.path.join(save_dir, 'ep_{:03d}.ckpt'.format(epoch)))
 
 
 if __name__ == '__main__':
