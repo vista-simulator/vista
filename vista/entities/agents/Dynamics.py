@@ -192,41 +192,7 @@ def steering2curvature(steering: float, wheel_base: float,
 def update_with_perfect_controller(desired_state: List[float], dt: float,
                                    dynamics: StateDynamics):
     # simulate condition when the desired state can be instantaneously achieved
-    # new_dyn = dynamics.numpy()
-    # new_dyn[-2:] = desired_state
-    # dynamics.update(*new_dyn)
-    # dynamics.step(0., 0., dt)
-
-    ### DEBUG
-    # dynamics.step(0., 0., dt)
-    # new_dyn = dynamics.numpy()
-    # new_dyn[-2:] = desired_state
-    # dynamics.update(*new_dyn)
-    # old_dynamics = dynamics.copy()
-
-    velocity = desired_state[-1]
-    curvature = tireangle2curvature(desired_state[-2], 2.78)
-    arc_length = velocity * dt
-    theta = arc_length * curvature  # angle of traversed circle
-
-    # Compute R
-    dynamics._yaw += theta
-    c = np.cos(dynamics._yaw)
-    s = np.sin(dynamics._yaw)
-    R = np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]])
-
-    # Compute local x, y positions
-    x = (1 - np.cos(theta)) / curvature
-    y = np.sin(theta) / curvature
-
-    # Transform positions from local to global
-    R_2 = np.array([[c, -s], [s, c]])
-    xy_local = np.array([[x], [y]])
-    [[x_global], [y_global]] = np.matmul(R_2, xy_local)
-
-    dynamics._x += x_global
-    dynamics._y += y_global
-
-    dynamics._steering = desired_state[-2]
-    dynamics._speed = velocity
-    ### DEBUG
+    new_dyn = dynamics.numpy()
+    new_dyn[-2:] = desired_state
+    dynamics.update(*new_dyn)
+    dynamics.step(0., 0., dt)

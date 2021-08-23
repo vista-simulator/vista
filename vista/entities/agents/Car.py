@@ -303,7 +303,6 @@ class Car(Entity):
             top2_closest['dynamics'][1].numpy()[:3])
         ratio = abs(latlongyaw_second_closest[1]) / (
             abs(latlongyaw_closest[1]) + abs(latlongyaw_second_closest[1]))
-        ratio = 1 # DEBUG
         self._timestamp = ratio * top2_closest['timestamp'][0] + (
             1. - ratio) * top2_closest['timestamp'][1]
 

@@ -50,20 +50,20 @@ class VistaDataset(Dataset):
         self.train = train
 
         self.reset_config = dict(
-            # x_perturbation=[-1.0, 1.0],
-            # yaw_perturbation=[-0.05, 0.05],
-            x_perturbation=[-4.0, 4.0], # DEBUG
-            yaw_perturbation=[-1.0, 1.0], # DEBUG
-            curvature_tolerance=0.005,
+            x_perturbation=[-1.0, 1.0],
+            yaw_perturbation=[-0.04, 0.04],
+            yaw_tolerance=0.02,
+            distance_tolerance=0.3,
             maneuvor_cnt_ratio=0.5,
+            max_horizon=400,
         )
         self.do_reset = False
         self.maneuvor_cnt = dict(recovery=0, lane_following=0)
 
         self.optimal_control_config = dict(
-            lookahead_dist=5,
+            lookahead_dist=10,
             dt=1 / 30.,
-            Kp=0.8,
+            Kp=0.5,
         )
 
     def __len__(self):
@@ -71,21 +71,17 @@ class VistaDataset(Dataset):
 
     def __getitem__(self, idx):
         # reset when trace is done or doing lane following for a while
-        # if self.agent.done or self.do_reset:
-        # if self.agent.done or self.do_reset or self.maneuvor_cnt['recovery'] > 100: # DEBUG
-        if self.agent.done or self.maneuvor_cnt['recovery'] + self.maneuvor_cnt['lane_following'] > 200: # DEBUG
-        # if self.agent.done or self.maneuvor_cnt['lane_following'] > 100: # DEBUG
-
+        if self.agent.done or self.do_reset:
             ### DEBUG
             import matplotlib.pyplot as plt
             fig, ax = plt.subplots(1, 1)
             self.debug_ego = np.array(self.debug_ego)
             self.debug_human = np.array(self.debug_human)
-            # ax.plot(self.road_in_ego[:,0], self.road_in_ego[:,1], c='g')
-            ax.plot(self.agent.road[:,0], self.agent.road[:,1], c='g')
-            ax.plot(self.debug_ego[:,0], self.debug_ego[:,1], c='b')
+            try:
+                ax.plot(self.debug_ego[:,0], self.debug_ego[:,1], c='b')
+            except:
+                import pdb; pdb.set_trace()
             ax.plot(self.debug_human[:,0], self.debug_human[:,1], c='r')
-            ax.scatter(*self.agent.road[self.tgt_idx,:2], c='y')
             ax.scatter(*self.agent.ego_dynamics.numpy()[:2], c='b')
             fig.savefig('test.png')
             import pdb; pdb.set_trace() # DEBUG
@@ -117,19 +113,7 @@ class VistaDataset(Dataset):
             transform.compute_relative_latlongyaw(_v, ego_pose)
             for _v in road
         ])
-        road_in_ego = road_in_ego[road_in_ego[:,1] > 0] # DEBUG
-        self.road_in_ego = road_in_ego # DEBUG
-
-        ### DEBUG
-        # ref_x, ref_y, ref_theta = self.agent.ego_dynamics.numpy()[:3]
-        # road_in_ref = np.array(road)
-        # road_in_ref[:,:2] -= np.array([ref_x, ref_y])
-        # road_in_ref[:,2] -= ref_theta
-        # c, s = np.cos(ref_theta), np.sin(ref_theta)
-        # R_T = np.array([[c, -s], [s, c]])
-        # road_in_ref[:,:2] = np.matmul(road_in_ref[:,:2], R_T)
-        # road_in_ego = road_in_ref
-        ### DEBUG
+        road_in_ego = road_in_ego[road_in_ego[:,1] > 0] # drop road in the back
 
         lookahead_dist = self.optimal_control_config['lookahead_dist']
         dt = self.optimal_control_config['dt']
@@ -138,9 +122,6 @@ class VistaDataset(Dataset):
         dist = np.linalg.norm(road_in_ego[:,:2], axis=1)
         tgt_idx = np.argmin(np.abs(dist - lookahead_dist))
         dx, dy, dyaw = road_in_ego[tgt_idx]
-
-        self.tgt_idx = tgt_idx # DEBUG
-        print(tgt_idx, dyaw)
 
         lat_shift = -self.agent.relative_state.x
         dx += lat_shift * np.cos(dyaw)
@@ -151,20 +132,24 @@ class VistaDataset(Dataset):
         curvature_bound = [
             tireangle2curvature(_v, self.agent.wheel_base)
             for _v in self.agent.ego_dynamics.steering_bound]
-        # curvature = np.clip(curvature, *curvature_bound) # DEBUG
-
-        print('hi ', curvature, speed)#DEBUG, self.agent.ego_dynamics, self.agent.human_dynamics) # DEBUG
+        curvature = np.clip(curvature, *curvature_bound)
 
         label = np.array([curvature]).astype(np.float32)
 
         # actively reset to balance between lane following and recovery maneuvor
-        curvature_diff = np.abs(curvature - self.agent.human_curvature)
-        if curvature_diff > self.reset_config['curvature_tolerance']:
-            self.maneuvor_cnt['recovery'] += 1
-        else:
+        x_diff, y_diff, yaw_diff = self.agent.relative_state.numpy()
+        yaw_diff_mag = np.abs(yaw_diff)
+        distance = np.linalg.norm([x_diff, y_diff])
+        if yaw_diff_mag <= self.reset_config['yaw_tolerance'] and \
+            distance <= self.reset_config['distance_tolerance']:
             self.maneuvor_cnt['lane_following'] += 1
-        if self.maneuvor_cnt['lane_following'] >= \
-            self.maneuvor_cnt['recovery'] * self.reset_config['maneuvor_cnt_ratio']:
+        else:
+            self.maneuvor_cnt['recovery'] += 1
+        is_balanced = self.maneuvor_cnt['lane_following'] >= \
+            self.maneuvor_cnt['recovery'] * self.reset_config['maneuvor_cnt_ratio']
+        exceed_max_horizon = (self.maneuvor_cnt['lane_following'] + \
+            self.maneuvor_cnt['recovery']) >= self.reset_config['max_horizon']
+        if is_balanced or exceed_max_horizon:
             self.do_reset = True
 
         # step simulation
@@ -182,11 +167,11 @@ class VistaDataset(Dataset):
         img = self.transform(img)
 
         ### DEBUG
-        print(curvature, self.agent.human_curvature, curvature_diff, self.maneuvor_cnt, 
+        print(curvature, self.agent.human_curvature, yaw_diff, self.maneuvor_cnt, 
               self.do_reset, self.agent.relative_state.numpy())
         if not hasattr(self, 'debug_ego'):
-            self.debug_ego = []
-            self.debug_human = []
+            self.debug_ego = [self.agent.ego_dynamics.numpy()[:2]]
+            self.debug_human = [self.agent.human_dynamics.numpy()[:2]]
         else:
             self.debug_ego.append(self.agent.ego_dynamics.numpy()[:2])
             self.debug_human.append(self.agent.human_dynamics.numpy()[:2])
