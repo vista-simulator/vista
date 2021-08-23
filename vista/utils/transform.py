@@ -72,3 +72,12 @@ def mat2vec(mat,
     R = Rotation.from_matrix(mat[:3, :3])
     rot = R.as_euler(seq, degrees)
     return trans, rot
+
+
+def pi2pi(angle: float) -> float:
+    """ Make sure angle is within -pi to pi. """
+    if angle >= np.pi:
+        angle -= 2 * np.pi
+    if angle <= -np.pi:
+        angle += 2 * np.pi
+    return angle

@@ -1,3 +1,4 @@
+""" Minimal example of using imitation learning (IL) for lane following. """
 import os
 import numpy as np
 import argparse
@@ -192,13 +193,12 @@ def main():
 
     # Run training
     all_test_loss = []
-    try:
-        for epoch in range(1, 100 + 1):
-            train(args, model, device, train_loader, criterion, optimizer, epoch)
-            test_loss = test(model, device, test_loader, criterion)
-            all_test_loss.append(test_loss)
-    except:
-        import pdb; pdb.set_trace()
+    for epoch in range(1, 100 + 1):
+        train(args, model, device, train_loader, criterion, optimizer, epoch)
+        test_loss = test(model, device, test_loader, criterion)
+        all_test_loss.append(test_loss)
+        if epoch % 10 == 0:
+            torch.save(model.state_dict(), './ep_{:03d}.ckpt'.format(epoch))
 
 
 if __name__ == '__main__':

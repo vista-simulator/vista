@@ -225,6 +225,8 @@ class Trace:
         # Obtain function representation of curvature
         timestamps = imu[:, 0]
         yaw_rate = imu[:, 6]
+        timestamps = odometry[:, 0] # DEBUG
+        yaw_rate = odometry[:, 4] # DEBUG
         curvature = yaw_rate / np.maximum(f_speed(timestamps), 1e-10)
         good_curvature_inds = np.abs(curvature) < 1 / 3.
         f_curvature = interp1d(timestamps[good_curvature_inds],

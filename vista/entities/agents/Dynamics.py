@@ -2,7 +2,7 @@ from typing import Optional, List
 import numpy as np
 import scipy.integrate as ode_solve
 
-from ...utils import logging
+from ...utils import logging, transform
 
 
 class State:
@@ -100,6 +100,8 @@ class StateDynamics:
                 max_steps, solver.t, solver.t_bound))
 
         self._x, self._y, self._yaw, self._steering, self._speed = solver.y
+        self._yaw = transform.pi2pi(self._yaw)
+        self._steering = transform.pi2pi(self._steering)
 
         # Clip by value bounds
         self._steering = np.clip(self._steering, *self._steering_bound)
@@ -149,6 +151,10 @@ class StateDynamics:
     def speed(self) -> float:
         return self._speed
 
+    @property
+    def steering_bound(self) -> List[float]:
+        return self._steering_bound
+
     def __repr__(self) -> str:
         return '<{}: [{}, {}, {}, {}, {}]>'.format(self.__class__.__name__,
                                                    self._x, self._y, self._yaw,
@@ -186,7 +192,41 @@ def steering2curvature(steering: float, wheel_base: float,
 def update_with_perfect_controller(desired_state: List[float], dt: float,
                                    dynamics: StateDynamics):
     # simulate condition when the desired state can be instantaneously achieved
-    new_dyn = dynamics.numpy()
-    new_dyn[-2:] = desired_state
-    dynamics.update(*new_dyn)
-    dynamics.step(0., 0., dt)
+    # new_dyn = dynamics.numpy()
+    # new_dyn[-2:] = desired_state
+    # dynamics.update(*new_dyn)
+    # dynamics.step(0., 0., dt)
+
+    ### DEBUG
+    # dynamics.step(0., 0., dt)
+    # new_dyn = dynamics.numpy()
+    # new_dyn[-2:] = desired_state
+    # dynamics.update(*new_dyn)
+    # old_dynamics = dynamics.copy()
+
+    velocity = desired_state[-1]
+    curvature = tireangle2curvature(desired_state[-2], 2.78)
+    arc_length = velocity * dt
+    theta = arc_length * curvature  # angle of traversed circle
+
+    # Compute R
+    dynamics._yaw += theta
+    c = np.cos(dynamics._yaw)
+    s = np.sin(dynamics._yaw)
+    R = np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]])
+
+    # Compute local x, y positions
+    x = (1 - np.cos(theta)) / curvature
+    y = np.sin(theta) / curvature
+
+    # Transform positions from local to global
+    R_2 = np.array([[c, -s], [s, c]])
+    xy_local = np.array([[x], [y]])
+    [[x_global], [y_global]] = np.matmul(R_2, xy_local)
+
+    dynamics._x += x_global
+    dynamics._y += y_global
+
+    dynamics._steering = desired_state[-2]
+    dynamics._speed = velocity
+    ### DEBUG

@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Callable
 import numpy as np
 
 from .Trace import Trace
@@ -41,7 +41,7 @@ class World:
 
         return agent
 
-    def reset(self) -> None:
+    def reset(self, initial_dynamics_fn: Optional[Dict[str, Callable]] = dict()) -> None:
         logging.info('World reset')
 
         # Sample a new trace and a new location at the sampled trace
@@ -50,7 +50,8 @@ class World:
 
         # Reset agents
         for agent in self.agents:
-            agent.reset(new_trace_index, new_segment_index, new_frame_index)
+            agent.reset(new_trace_index, new_segment_index, new_frame_index,
+                        initial_dynamics_fn.get(agent.id, None))
 
     def sample_new_location(self) -> Tuple[int, int, int]:
         """ Sample a pointer to the dataset for simulation.
@@ -65,11 +66,14 @@ class World:
                  instead of element)
         """
         new_trace_index = self.sample_new_trace_index()
+        new_trace_index = 0 # DEBUG
         trace = self.traces[new_trace_index]
 
         new_segment_index = trace.find_segment_reset()
+        new_segment_index = 0 # DEBUG
 
         new_frame_index = trace.find_frame_reset(new_segment_index)
+        new_frame_index = 0 # DEBUG
 
         return new_trace_index, new_segment_index, new_frame_index
 
