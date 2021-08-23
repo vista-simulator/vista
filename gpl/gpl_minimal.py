@@ -44,7 +44,6 @@ class VistaDataset(Dataset):
         self.world = vista.World(trace_paths, trace_config)
         self.agent = self.world.spawn_agent(car_config)
         self.camera = self.agent.spawn_camera(camera_config)
-        self.world.reset() # TODO: random initialize agent pose
 
         self.transform = transform
         self.train = train
@@ -52,7 +51,7 @@ class VistaDataset(Dataset):
         self.reset_config = dict(
             x_perturbation=[-1.0, 1.0],
             yaw_perturbation=[-0.04, 0.04],
-            yaw_tolerance=0.02,
+            yaw_tolerance=0.01,
             distance_tolerance=0.3,
             maneuvor_cnt_ratio=0.5,
             max_horizon=400,
@@ -66,39 +65,24 @@ class VistaDataset(Dataset):
             Kp=0.5,
         )
 
+        def _initial_dynamics_fn(x, y, yaw, steering, speed):
+            return [
+                x + np.random.uniform(*self.reset_config['x_perturbation']),
+                y,
+                yaw + np.random.uniform(*self.reset_config['yaw_perturbation']),
+                steering,
+                speed,
+            ]
+        self.initial_dynamics_fn = _initial_dynamics_fn
+        self.world.reset({self.agent.id: self.initial_dynamics_fn})
+
     def __len__(self):
         return np.sum([tr.num_of_frames for tr in self.world.traces])
 
     def __getitem__(self, idx):
         # reset when trace is done or doing lane following for a while
         if self.agent.done or self.do_reset:
-            ### DEBUG
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(1, 1)
-            self.debug_ego = np.array(self.debug_ego)
-            self.debug_human = np.array(self.debug_human)
-            try:
-                ax.plot(self.debug_ego[:,0], self.debug_ego[:,1], c='b')
-            except:
-                import pdb; pdb.set_trace()
-            ax.plot(self.debug_human[:,0], self.debug_human[:,1], c='r')
-            ax.scatter(*self.agent.ego_dynamics.numpy()[:2], c='b')
-            fig.savefig('test.png')
-            import pdb; pdb.set_trace() # DEBUG
-            self.debug_ego = []
-            self.debug_human = []
-            ### DEBUG
-
-            # random initialize agent pose
-            def _initial_dynamics_fn(x, y, yaw, steering, speed):
-                return [
-                    x + np.random.uniform(*self.reset_config['x_perturbation']),
-                    y,
-                    yaw + np.random.uniform(*self.reset_config['yaw_perturbation']),
-                    steering,
-                    speed,
-                ]
-            self.world.reset({self.agent.id: _initial_dynamics_fn})
+            self.world.reset({self.agent.id: self.initial_dynamics_fn})
 
             self.do_reset = False
             self.maneuvor_cnt['recovery'] = 0
@@ -166,16 +150,6 @@ class VistaDataset(Dataset):
         img = img[i1:i2, j1:j2].copy()
         img = self.transform(img)
 
-        ### DEBUG
-        print(curvature, self.agent.human_curvature, yaw_diff, self.maneuvor_cnt, 
-              self.do_reset, self.agent.relative_state.numpy())
-        if not hasattr(self, 'debug_ego'):
-            self.debug_ego = [self.agent.ego_dynamics.numpy()[:2]]
-            self.debug_human = [self.agent.human_dynamics.numpy()[:2]]
-        else:
-            self.debug_ego.append(self.agent.ego_dynamics.numpy()[:2])
-            self.debug_human.append(self.agent.human_dynamics.numpy()[:2])
-        ### DEBUG
         return img, label
 
 
@@ -266,26 +240,18 @@ def main():
         transforms.ToTensor(),
         transforms.ColorJitter(),
     ])
-    train_trace_paths = ['/home/tsunw/data/traces/20210609-123703_lexus_devens_outerloop'] # DEBUG
-    # train_trace_paths = ['/home/tsunw/data/traces/20210527-131252_lexus_devens_center_outerloop',
-    #                      '/home/tsunw/data/traces/20210527-131709_lexus_devens_center_outerloop_reverse',
-    #                      '/home/tsunw/data/traces/20210609-122400_lexus_devens_outerloop_reverse',
-    #                      '/home/tsunw/data/traces/20210609-123703_lexus_devens_outerloop',
-    #                      '/home/tsunw/data/traces/20210609-133320_lexus_devens_outerloop',
-    #                      '/home/tsunw/data/traces/20210609-154525_lexus_devens_sideroad',
-    #                      '/home/tsunw/data/traces/20210609-154745_lexus_devens_outerloop_reverse',
-    #                      '/home/tsunw/data/traces/20210609-155238_lexus_devens_outerloop',
-    #                      '/home/tsunw/data/traces/20210609-155752_lexus_devens_subroad',
-    #                      '/home/tsunw/data/traces/20210609-175037_lexus_devens_outerloop_reverse',
-    #                      '/home/tsunw/data/traces/20210609-175503_lexus_devens_outerloop']
+    train_trace_paths = ['/home/tsunw/data/traces/20210527-131252_lexus_devens_center_outerloop',
+                         '/home/tsunw/data/traces/20210527-131709_lexus_devens_center_outerloop_reverse',
+                         '/home/tsunw/data/traces/20210609-122400_lexus_devens_outerloop_reverse',
+                         '/home/tsunw/data/traces/20210609-123703_lexus_devens_outerloop',
+                         '/home/tsunw/data/traces/20210609-133320_lexus_devens_outerloop',
+                         '/home/tsunw/data/traces/20210609-154525_lexus_devens_sideroad',
+                         '/home/tsunw/data/traces/20210609-154745_lexus_devens_outerloop_reverse',
+                         '/home/tsunw/data/traces/20210609-155238_lexus_devens_outerloop',
+                         '/home/tsunw/data/traces/20210609-155752_lexus_devens_subroad',
+                         '/home/tsunw/data/traces/20210609-175037_lexus_devens_outerloop_reverse',
+                         '/home/tsunw/data/traces/20210609-175503_lexus_devens_outerloop']
     train_dataset = VistaDataset(train_trace_paths, train_transform, train=True)
-
-    ### DEBUG
-    i = 0
-    while True:
-        train_dataset[i]
-        i += 1
-    ### DEBUG
 
     train_loader = DataLoader(train_dataset,
                               batch_size=64,
