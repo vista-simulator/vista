@@ -35,7 +35,6 @@ class LidarRenderModel(tf.keras.Model):
         mask = self.unet_mask(x / self.scale)
         return mask
 
-    @tf.function(input_signature=[])
     def get_config(self):
         config = {"scale": self.scale}
         config.update(self.kwargs)

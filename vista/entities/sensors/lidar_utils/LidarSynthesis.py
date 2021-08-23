@@ -1,12 +1,12 @@
+import imp
 import importlib.resources as pkg_resources
 import numpy as np
 from scipy import interpolate
 from typing import Tuple, Optional
-from ....utils import transform, logging
-
 import tensorflow as tf
 
 from vista import resources
+from vista.utils import transform, logging
 
 
 class LidarSynthesis:
@@ -39,25 +39,19 @@ class LidarSynthesis:
             xyLen * np.sin(-self._grid_yaw),
             np.sin(-self._grid_pitch)])
 
-        # with pkg_resources.path(resources, "LidarMaskModel.h5") as path:
-        #     self.model_mask = None
-        #     if path.is_file():
-        #         logging.debug(f"Loading Lidar mask model from {path}")
-        #         self.model_mask = tf.keras.models.load_model(path)
-        # with pkg_resources.path(resources, "LidarFiller.h5") as path:
-        #     self.model_filler = None
-        #     if path.is_file():
-        #         logging.debug(f"Loading Lidar mask model from {path}")
-        #         obj = {'scaling': 50., 'exp': tf.math.exp}
-        #         self.model_filler = tf.keras.models.load_model(
-        #             path, custom_objects=obj)
-        path = pkg_resources.files(resources) / "test"
+        path = pkg_resources.files(resources) / "Lidar/LidarRenderModel.tf"
         self.render_model = None
         if path.is_dir():
             logging.debug(f"Loading Lidar model from {path}")
-            self.render_model = tf.keras.models.load_model(path)
+            with open(path / "config", "r") as f:
+                config = f.read().replace('\n', '')
+                config = eval(config)
+
+            obj = imp.load_source("model", str(path / "model.py"))
+            self.render_model = obj.LidarRenderModel(**config)
+            self.render_model.build((1, *config["input_shape"]))
+            self.render_model.load_weights(str(path / "weights.h5"))
             # get the config, load the class manually and fill the weights
-            import pdb; pdb.set_trace()
 
     def synthesize(
             self,
@@ -95,7 +89,7 @@ class LidarSynthesis:
 
         # Sample the image to simulate active LiDAR using neural masking
         if return_as_pcd:
-            transformed_pcd = self.dense2pcd(transformed_sparse)
+            transformed_pcd = self.dense2pcd(transformed_dense)
             return transformed_pcd
         else:
             return transformed_dense
@@ -158,7 +152,28 @@ class LidarSynthesis:
     def dense2pcd(self, dense):
         """ Sample mask from network and render points from mask """
         # TODO: load trained masking network and feed dense through
-        pass
+        mask = self.render_model.d2mask(dense[np.newaxis, :, :, np.newaxis])
+        mask = mask.numpy()[0, :, :, 0]
+        thresh = np.percentile(mask, 80)
+        mask = mask > thresh
+
+        dist = dense[mask]
+        pitch, yaw = np.where(mask)
+
+        yaw = yaw * (self._fov_rad[0, 1] - self._fov_rad[0, 0]) / \
+              self._dims[0, 0] + self._fov_rad[0, 0]
+
+        pitch = pitch * (self._fov_rad[1, 1] - self._fov_rad[1, 0]) / \
+              self._dims[1, 0] + self._fov_rad[1, 0]
+
+        xyLen = np.cos(pitch)
+        rays = np.array([ \
+            xyLen * np.cos(yaw),
+            xyLen * np.sin(-yaw),
+            np.sin(-pitch)])
+
+        points = dist[:, np.newaxis] * rays.T
+        return points
 
     def _compute_sparse_inds(self, x, y, z, dist):
         """ Compute the indicies on the image representation which will be

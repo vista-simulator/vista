@@ -42,7 +42,7 @@ def main(args):
         while not agent.done:
 
             timestamp = agent.timestamp
-            offset = 1. / 20 * np.sin(timestamp * np.pi)
+            offset = 1. / 50 * np.sin(timestamp * np.pi)
             action = np.array([
                 agent.trace.f_curvature(timestamp) + offset,
                 agent.trace.f_speed(timestamp)
@@ -59,7 +59,7 @@ def main(args):
             cv2.imshow('test', img)
             cv2.waitKey(1)
             # import pdb; pdb.set_trace()
-            ### DEBUG
+            ## DEBUG
 
 
 if __name__ == '__main__':

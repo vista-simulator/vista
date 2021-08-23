@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import os
 
 import vista
 from vista.entities.sensors.camera_utils.ViewSynthesis import DepthModes

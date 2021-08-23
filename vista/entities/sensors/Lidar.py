@@ -75,7 +75,7 @@ class Lidar(BaseSensor):
         )
 
         logging.debug("Visualizing the rendered lidar scan")
-        import cv2; cv2.imshow("rendered", rendered_lidar / 50.); cv2.waitKey(1)
+        # import cv2; cv2.imshow("rendered", rendered_lidar / 50.); cv2.waitKey(1)
 
         return rendered_lidar
 
