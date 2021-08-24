@@ -2,6 +2,7 @@ from typing import Dict, Optional, Tuple, List
 from enum import Enum
 import numpy as np
 import pyrender
+import copy # DEBUG
 
 from . import CameraParams
 from ....utils import transform, logging
@@ -69,6 +70,9 @@ class ViewSynthesis:
     ) -> Tuple[np.ndarray, np.ndarray]:
 
         for name, img in imgs.items():
+            # Need this otherwise will cause memory leak
+            self._bg_node[name].mesh = copy.deepcopy(self._bg_node[name].mesh)
+
             # Refresh meshes in renderer; otherwise mesh vertex/color won't update
             mesh = self._bg_node[name].mesh
             for prim in mesh.primitives:

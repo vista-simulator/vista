@@ -54,7 +54,7 @@ class SlowMoWarp:
         negmean = [x * -1 for x in mean]
         self.revNormalize = transforms.Normalize(mean=negmean, std=std)
 
-        move_back_channel = lambda x: x.permute(1, 2, 0) #DEBUG.contiguous()
+        move_back_channel = lambda x: x.permute(1, 2, 0).contiguous()
         to_numpy = lambda x: (x * 255).cpu().data.numpy().astype(np.uint8)
         self.rev_transform = transforms.Compose(
             [self.revNormalize, move_back_channel, to_numpy]
@@ -96,47 +96,49 @@ class SlowMoWarp:
         return Ft_p
 
     def interpolate_sync_batch(self, I0, I1, F_0_1, F_1_0, sf=2):
-        ts = [float(_i) / sf for _i in range(1, sf)]
+        if sf > 1:
+            ts = [float(_i) / sf for _i in range(1, sf)]
 
-        I0_b = I0.repeat(sf-1, 1, 1, 1)
-        I1_b = I1.repeat(sf-1, 1, 1, 1)
-        F_0_1_b = F_0_1.repeat(sf-1, 1, 1, 1)
-        F_1_0_b = F_1_0.repeat(sf-1, 1, 1, 1)
+            I0_b = I0.repeat(sf-1, 1, 1, 1)
+            I1_b = I1.repeat(sf-1, 1, 1, 1)
+            F_0_1_b = F_0_1.repeat(sf-1, 1, 1, 1)
+            F_1_0_b = F_1_0.repeat(sf-1, 1, 1, 1)
 
-        fCoeff_fn = lambda _t: [-_t * (1 - _t), _t * _t, (1 - _t) * (1 - _t), -_t * (1 - _t)]
-        fCoeffs = torch.Tensor([fCoeff_fn(t) for t in ts])[...,None,None].to(self.device)
+            fCoeff_fn = lambda _t: [-_t * (1 - _t), _t * _t, (1 - _t) * (1 - _t), -_t * (1 - _t)]
+            fCoeffs = torch.Tensor([fCoeff_fn(t) for t in ts])[...,None,None].to(self.device)
 
-        wCoeff_fn = lambda _t: [1 - _t, _t]
-        wCoeffs = torch.Tensor([wCoeff_fn(t) for t in ts])[...,None,None].to(self.device)
+            wCoeff_fn = lambda _t: [1 - _t, _t]
+            wCoeffs = torch.Tensor([wCoeff_fn(t) for t in ts])[...,None,None].to(self.device)
 
-        F_t_0_b = fCoeffs[:,0:1] * F_0_1_b + fCoeffs[:,1:2] * F_1_0_b
-        F_t_1_b = fCoeffs[:,2:3] * F_0_1_b + fCoeffs[:,3:4] * F_1_0_b
+            F_t_0_b = fCoeffs[:,0:1] * F_0_1_b + fCoeffs[:,1:2] * F_1_0_b
+            F_t_1_b = fCoeffs[:,2:3] * F_0_1_b + fCoeffs[:,3:4] * F_1_0_b
 
-        g_I0_F_t_0_b = self.flowBackWarp(I0_b, F_t_0_b)
-        g_I1_F_t_1_b = self.flowBackWarp(I1_b, F_t_1_b)
+            g_I0_F_t_0_b = self.flowBackWarp(I0_b, F_t_0_b)
+            g_I1_F_t_1_b = self.flowBackWarp(I1_b, F_t_1_b)
 
-        intrpOut_b = self.ArbTimeFlowIntrp(
-            torch.cat(
-                (I0_b, I1_b, F_0_1_b, F_1_0_b, F_t_1_b, F_t_0_b, g_I1_F_t_1_b, g_I0_F_t_0_b), dim=1
+            intrpOut_b = self.ArbTimeFlowIntrp(
+                torch.cat(
+                    (I0_b, I1_b, F_0_1_b, F_1_0_b, F_t_1_b, F_t_0_b, g_I1_F_t_1_b, g_I0_F_t_0_b), dim=1
+                )
             )
-        )
 
-        F_t_0_f_b = intrpOut_b[:, :2, :, :] + F_t_0_b
-        F_t_1_f_b = intrpOut_b[:, 2:4, :, :] + F_t_1_b
-        V_t_0_b = torch.sigmoid(
-            intrpOut_b[:, 4:5, :, :]
-        )  # this could be critical for the simulator!!!
-        V_t_1_b = 1 - V_t_0_b
+            F_t_0_f_b = intrpOut_b[:, :2, :, :] + F_t_0_b
+            F_t_1_f_b = intrpOut_b[:, 2:4, :, :] + F_t_1_b
+            V_t_0_b = torch.sigmoid(
+                intrpOut_b[:, 4:5, :, :]
+            )  # this could be critical for the simulator!!!
+            V_t_1_b = 1 - V_t_0_b
 
-        g_I0_F_t_0_f_b = self.flowBackWarp(I0_b, F_t_0_f_b)
-        g_I1_F_t_1_f_b = self.flowBackWarp(I1_b, F_t_1_f_b)
+            g_I0_F_t_0_f_b = self.flowBackWarp(I0_b, F_t_0_f_b)
+            g_I1_F_t_1_f_b = self.flowBackWarp(I1_b, F_t_1_f_b)
 
-        Ft_p_b = (wCoeffs[:,0:1] * V_t_0_b * g_I0_F_t_0_f_b + \
-                  wCoeffs[:,1:2] * V_t_1_b * g_I1_F_t_1_f_b) / (
-                  wCoeffs[:,0:1] * V_t_0_b + wCoeffs[:,1:2] * V_t_1_b)
+            Ft_p_b = (wCoeffs[:,0:1] * V_t_0_b * g_I0_F_t_0_f_b + \
+                    wCoeffs[:,1:2] * V_t_1_b * g_I1_F_t_1_f_b) / (
+                    wCoeffs[:,0:1] * V_t_0_b + wCoeffs[:,1:2] * V_t_1_b)
 
-        interpolated = [self.rev_transform(Ft_p) for Ft_p in Ft_p_b]
-        # interpolated = [Ft_p for Ft_p in Ft_p_b] # DEBUG
+            interpolated = [self.rev_transform(Ft_p) for Ft_p in Ft_p_b]
+        else:
+            interpolated = []
 
         return interpolated
 
