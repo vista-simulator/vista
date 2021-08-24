@@ -42,9 +42,10 @@ def main(args):
         while not agent.done:
 
             timestamp = agent.timestamp
+            curv = agent.trace.f_curvature(timestamp)
             offset = 1. / 50 * np.sin(timestamp * np.pi)
             action = np.array([
-                agent.trace.f_curvature(timestamp) + offset,
+                curv + offset * np.clip(-10*abs(curv) + 1, 0, 1),
                 agent.trace.f_speed(timestamp)
             ])
             agent.step_dynamics(action, dt=1. / 10)

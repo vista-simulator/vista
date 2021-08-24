@@ -23,15 +23,15 @@ parser.add_argument('-l', '--num_layers', type=int, default=3)
 args = parser.parse_args()
 
 print("Loading data")
-f = h5py.File(os.path.join(args.input, "lidar_3d_vista.h5"), "r")
+f = h5py.File(os.path.join(args.input, "lidar_3d_vista_new.h5"), "r")
 
 # only train with a small subset (debugging for speed)
 # dataset_size = f["d_depth"].shape[0]
 # data_idx = np.random.choice(f["d_depth"].shape[0], dataset_size, replace=False)
 # data_idx = np.sort(data_idx)
 
-x = f['mask'][:]
-y = f['d_depth'][:].astype(np.float32)
+x = f['mask_trans'][:]
+y = f['d_depth_trans'][:].astype(np.float32)
 train_idx = np.random.choice(x.shape[0], int(x.shape[0] * 0.8), replace=False)
 test_idx = np.setdiff1d(np.arange(x.shape[0]), train_idx, assume_unique=True)
 x_train, y_train, x_test, y_test = (x[train_idx], y[train_idx], x[test_idx],
@@ -42,35 +42,9 @@ print("Building model")
 optimizer = tf.keras.optimizers.Adam(args.learning_rate)
 
 
-class LidarRenderModel(tf.keras.Model):
-    def __init__(self, input_shape):
-        super(LidarRenderModel, self).__init__()
-        unet = functools.partial(
-            custom_unet,
-            input_shape=input_shape,
-            filters=8,
-            num_layers=args.num_layers,
-            dropout=args.dropout,
-            upsample_mode="deconv",
-        )
-        self.unet_s2d = unet(num_classes=1, output_activation=None)
-        self.unet_mask = unet(num_classes=1, output_activation=None)
-
-        self.block_1 = ResNetBlock()
-        self.block_2 = ResNetBlock()
-        self.global_pool = layers.GlobalAveragePooling2D()
-        self.classifier = Dense(num_classes)
-
-    def call(self, inputs):
-        x = self.block_1(inputs)
-        x = self.block_2(x)
-        x = self.global_pool(x)
-        return self.classifier(x)
-
-
 unet = custom_unet(input_shape=x_train.shape[1:],
                    num_classes=1,
-                   filters=8,
+                   filters=16,
                    num_layers=args.num_layers,
                    dropout=args.dropout,
                    upsample_mode="deconv",
@@ -84,9 +58,9 @@ model = tf.keras.Sequential([
 
 
 @tf.function
-def compute_loss(yy, y_hat):
+def compute_loss(yy, y_hat, k=50.):
     i = yy > 0.
-    loss = (yy[i] - y_hat[i])**2
+    loss = tf.abs(yy[i]/k - y_hat[i]/k)
     loss = tf.reduce_mean(loss)
     return loss
 
@@ -128,11 +102,11 @@ for iter in pbar:
     yy_hat, loss = train_step(xx, yy)
 
     if iter % 20 == 0:
-        scaling = 50.
+        scaling = 70.
 
         def gray2color(gray):
             gray = np.clip(gray / scaling * 255, 0, 255).astype(np.uint8)
-            color = cv2.applyColorMap(gray, cv2.COLORMAP_HSV)
+            color = cv2.applyColorMap(gray, cv2.COLORMAP_JET)
             return color
 
         cv2.imshow('pred', gray2color(yy_hat[0].numpy()))
@@ -148,11 +122,11 @@ for iter in pbar:
 
         if vloss < best_vloss:
             best_vloss = vloss
-            tf.keras.models.save_model(model, "LidarFiller2.h5")
+            tf.keras.models.save_model(model, "LidarFiller3.h5")
 
         pbar.set_description(f"Loss: {vloss:.2f} ({best_vloss:.2f})")
 
-tf.keras.models.save_model(model, "LidarFiller2.h5")
+tf.keras.models.save_model(model, "LidarFiller3.h5")
 
 import pdb
 pdb.set_trace()

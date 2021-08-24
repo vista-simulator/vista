@@ -7,12 +7,17 @@ from scipy.spatial.transform import Rotation
 Vec = Union[np.ndarray, List[Any], Tuple[Any]]
 
 
+def rot2mat(rot: Vec, seq: Optional[str] = 'xyz') -> np.ndarray:
+    """ Convert euler vector (with sequence order) to rotation matrix. """
+    R = Rotation.from_euler(seq, rot)
+    return R.as_matrix()
+
+
 def vec2mat(trans: Vec, rot: Vec) -> np.ndarray:
     """ Convert translation and rotation vector to transformation matrix. """
     mat = np.eye(4)
     mat[:3, 3] = trans
-    R = Rotation.from_euler('xyz', rot)
-    mat[:3, :3] = R.as_matrix()
+    mat[:3, :3] = rot2mat(rot)
     return mat
 
 
@@ -57,11 +62,11 @@ def compute_relative_latlongyaw(latlongyaw: Vec, latlongyaw_ref: Vec) -> Vec:
 
 def SE3_inv(T_in):
     """ More efficient matrix inversion for SE(3) """
-    R_in = T_in[:3,:3]
-    t_in = T_in[:3,[-1]]
+    R_in = T_in[:3, :3]
+    t_in = T_in[:3, [-1]]
     R_out = R_in.T
-    t_out = -np.matmul(R_out,t_in)
-    return np.vstack((np.hstack((R_out,t_out)),np.array([0, 0, 0, 1])))
+    t_out = -np.matmul(R_out, t_in)
+    return np.vstack((np.hstack((R_out, t_out)), np.array([0, 0, 0, 1])))
 
 
 def mat2vec(mat,
