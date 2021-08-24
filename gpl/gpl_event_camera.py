@@ -37,7 +37,7 @@ class VistaDataset(Dataset):
         )
         event_cam_config = dict(
             name='event_camera_front',
-            rig_path='~/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
+            rig_path='../examples/RIG.xml',
             base_camera_name='front_center',
             base_size=(600, 960),
             depth_mode=DepthModes.FIXED_PLANE,
@@ -48,10 +48,10 @@ class VistaDataset(Dataset):
             lambda_flow=0.5,
             max_sf=16,
             use_gpu=True,
-            positive_threshold=0.15,
-            sigma_positive_threshold=0.05,
-            negative_threshold=-0.15,
-            sigma_negative_threshold=0.05,
+            positive_threshold=0.1,
+            sigma_positive_threshold=0.02,
+            negative_threshold=-0.1,
+            sigma_negative_threshold=0.02,
             reproject_pixel=False,
         )
         self.world = vista.World(trace_paths, trace_config)
@@ -269,21 +269,24 @@ def main():
     device = torch.device('cuda' if use_cuda else 'cpu')
 
     # Define data loader
+    data_dir = os.environ.get('DATA_DIR', '/home/tsunw/data/traces/')
+
     train_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.ColorJitter(),
     ])
-    train_trace_paths = ['/home/tsunw/data/traces/20210527-131252_lexus_devens_center_outerloop',
-                         '/home/tsunw/data/traces/20210527-131709_lexus_devens_center_outerloop_reverse',
-                         '/home/tsunw/data/traces/20210609-122400_lexus_devens_outerloop_reverse',
-                         '/home/tsunw/data/traces/20210609-123703_lexus_devens_outerloop',
-                         '/home/tsunw/data/traces/20210609-133320_lexus_devens_outerloop',
-                         '/home/tsunw/data/traces/20210609-154525_lexus_devens_sideroad',
-                         '/home/tsunw/data/traces/20210609-154745_lexus_devens_outerloop_reverse',
-                         '/home/tsunw/data/traces/20210609-155238_lexus_devens_outerloop',
-                         '/home/tsunw/data/traces/20210609-155752_lexus_devens_subroad',
-                         '/home/tsunw/data/traces/20210609-175037_lexus_devens_outerloop_reverse',
-                         '/home/tsunw/data/traces/20210609-175503_lexus_devens_outerloop']
+    train_trace_paths = ['20210527-131252_lexus_devens_center_outerloop',
+                         '20210527-131709_lexus_devens_center_outerloop_reverse',
+                         '20210609-122400_lexus_devens_outerloop_reverse',
+                         '20210609-123703_lexus_devens_outerloop',
+                         '20210609-133320_lexus_devens_outerloop',
+                         '20210609-154525_lexus_devens_sideroad',
+                         '20210609-154745_lexus_devens_outerloop_reverse',
+                         '20210609-155238_lexus_devens_outerloop',
+                         '20210609-155752_lexus_devens_subroad',
+                         '20210609-175037_lexus_devens_outerloop_reverse',
+                         '20210609-175503_lexus_devens_outerloop']
+    train_trace_paths = [os.path.join(data_dir, v) for v in train_trace_paths]
     train_dataset = VistaDataset(train_trace_paths, train_transform, train=True)
 
     train_loader = DataLoader(train_dataset,
@@ -296,10 +299,11 @@ def main():
     test_transform = transforms.Compose([
         transforms.ToTensor(),
     ])
-    test_trace_paths = ['/home/tsunw/data/traces/20210613-171636_lexus_devens_outerloop',
-                        '/home/tsunw/data/traces/20210613-172102_lexus_devens_outerloop_reverse',
-                        '/home/tsunw/data/traces/20210613-194157_lexus_devens_subroad',
-                        '/home/tsunw/data/traces/20210613-194324_lexus_devens_subroad_reverse']
+    test_trace_paths = ['20210613-171636_lexus_devens_outerloop',
+                        '20210613-172102_lexus_devens_outerloop_reverse',
+                        '20210613-194157_lexus_devens_subroad',
+                        '20210613-194324_lexus_devens_subroad_reverse']
+    test_trace_paths = [os.path.join(data_dir, v) for v in test_trace_paths]
     test_dataset = VistaDataset(test_trace_paths, test_transform, train=False)
     test_loader = DataLoader(test_dataset,
                              batch_size=64,
@@ -320,7 +324,7 @@ def main():
         test_loss = test(model, device, test_loader, criterion)
         all_test_loss.append(test_loss)
         if epoch % 1 == 0:
-            save_dir = './ckpt/gpl_event_cam'
+            save_dir = os.environ.get('RESULT_DIR', './ckpt/gpl_event_cam')
             if not os.path.isdir(save_dir):
                 os.makedirs(save_dir)
             torch.save(model.state_dict(), os.path.join(save_dir, 'ep_{:03d}.ckpt'.format(epoch)))

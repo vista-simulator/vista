@@ -33,7 +33,7 @@ class VistaDataset(Dataset):
         camera_config = dict(
             # camera params
             name='front_center',
-            rig_path='/home/tsunw/data/traces/20200424-133758_blue_prius_cambridge_rain/RIG.xml',
+            rig_path='../examples/RIG.xml',
             size=(200, 320),
             # rendering params
             depth_mode=DepthModes.FIXED_PLANE,
@@ -162,21 +162,24 @@ def main():
     device = torch.device('cuda' if use_cuda else 'cpu')
 
     # Define data loader
+    data_dir = os.environ.get('DATA_DIR', '/home/tsunw/data/traces/')
+
     train_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.ColorJitter(),
     ])
-    train_trace_paths = ['/home/tsunw/data/traces/20210527-131252_lexus_devens_center_outerloop',
-                         '/home/tsunw/data/traces/20210527-131709_lexus_devens_center_outerloop_reverse',
-                         '/home/tsunw/data/traces/20210609-122400_lexus_devens_outerloop_reverse',
-                         '/home/tsunw/data/traces/20210609-123703_lexus_devens_outerloop',
-                         '/home/tsunw/data/traces/20210609-133320_lexus_devens_outerloop',
-                         '/home/tsunw/data/traces/20210609-154525_lexus_devens_sideroad',
-                         '/home/tsunw/data/traces/20210609-154745_lexus_devens_outerloop_reverse',
-                         '/home/tsunw/data/traces/20210609-155238_lexus_devens_outerloop',
-                         '/home/tsunw/data/traces/20210609-155752_lexus_devens_subroad',
-                         '/home/tsunw/data/traces/20210609-175037_lexus_devens_outerloop_reverse',
-                         '/home/tsunw/data/traces/20210609-175503_lexus_devens_outerloop']
+    train_trace_paths = ['20210527-131252_lexus_devens_center_outerloop',
+                         '20210527-131709_lexus_devens_center_outerloop_reverse',
+                         '20210609-122400_lexus_devens_outerloop_reverse',
+                         '20210609-123703_lexus_devens_outerloop',
+                         '20210609-133320_lexus_devens_outerloop',
+                         '20210609-154525_lexus_devens_sideroad',
+                         '20210609-154745_lexus_devens_outerloop_reverse',
+                         '20210609-155238_lexus_devens_outerloop',
+                         '20210609-155752_lexus_devens_subroad',
+                         '20210609-175037_lexus_devens_outerloop_reverse',
+                         '20210609-175503_lexus_devens_outerloop']
+    train_trace_paths = [os.path.join(data_dir, v) for v in train_trace_paths]
     train_dataset = VistaDataset(train_trace_paths, train_transform, train=True)
     train_loader = DataLoader(train_dataset,
                               batch_size=64,
@@ -188,10 +191,11 @@ def main():
     test_transform = transforms.Compose([
         transforms.ToTensor(),
     ])
-    test_trace_paths = ['/home/tsunw/data/traces/20210613-171636_lexus_devens_outerloop',
-                        '/home/tsunw/data/traces/20210613-172102_lexus_devens_outerloop_reverse',
-                        '/home/tsunw/data/traces/20210613-194157_lexus_devens_subroad',
-                        '/home/tsunw/data/traces/20210613-194324_lexus_devens_subroad_reverse']
+    test_trace_paths = ['20210613-171636_lexus_devens_outerloop',
+                        '20210613-172102_lexus_devens_outerloop_reverse',
+                        '20210613-194157_lexus_devens_subroad',
+                        '20210613-194324_lexus_devens_subroad_reverse']
+    test_trace_paths = [os.path.join(data_dir, v) for v in test_trace_paths]
     test_dataset = VistaDataset(test_trace_paths, test_transform, train=False)
     test_loader = DataLoader(test_dataset,
                              batch_size=64,
@@ -212,7 +216,7 @@ def main():
         test_loss = test(model, device, test_loader, criterion)
         all_test_loss.append(test_loss)
         if epoch % 10 == 0:
-            save_dir = './ckpt/il'
+            save_dir = os.environ.get('RESULT_DIR', './ckpt/il')
             if not os.path.isdir(save_dir):
                 os.makedirs(save_dir)
             torch.save(model.state_dict(), os.path.join(save_dir, 'ep_{:03d}.ckpt'.format(epoch)))
