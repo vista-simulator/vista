@@ -4,7 +4,7 @@ import numpy as np
 import h5py
 
 from .BaseSensor import BaseSensor
-from .lidar_utils import LidarSynthesis
+from .lidar_utils import LidarSynthesis, Pointcloud
 from ..Entity import Entity
 from ...utils import logging
 
@@ -56,26 +56,29 @@ class Lidar(BaseSensor):
         for lidar_name in multi_sensor.lidar_names:
             stream = self.streams[lidar_name]
             frame_num = all_frame_nums[lidar_name][0]
-            pcd = stream['xyz'][frame_num]
+            xyz = stream['xyz'][frame_num]
+            intensity = stream['intensity'][frame_num]
+            pcd = Pointcloud(xyz, intensity)
+            pcd = pcd[pcd.dist > 3]
             # TODO: when is it possible for there to be multiple (multi_sensor.lidar_names)?
 
         # TODO: Interpolate frame at the exact timestamp
         pass
 
         # TODO: Synthesis by rendering
-        lat, long, yaw = self.parent.relative_state.numpy()
-        logging.debug(f"state: {lat} {long} {yaw} \t timestamp {timestamp}")
-        trans = np.array([lat, -long, 0])
-        rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
+        # self.parent.reslative_state.update(0, 0, yaw=np.sin(timestamp))
+        x, y, yaw = self.parent.relative_state.numpy()
+        logging.debug(f"state: {x} {y} {yaw} \t timestamp {timestamp}")
+        trans = np.array([-x, -y, 0])
+        rot = np.array([0., 0, -yaw])  # TODO: should yaw be Y or Z?
         rendered_lidar = self.view_synthesis.synthesize(
             trans,
             rot,
             pcd=pcd,
-            return_as_pcd=False,
+            return_as_pcd=True,
         )
 
         logging.debug("Visualizing the rendered lidar scan")
-        # import cv2; cv2.imshow("rendered", rendered_lidar / 50.); cv2.waitKey(1)
 
         return rendered_lidar
 

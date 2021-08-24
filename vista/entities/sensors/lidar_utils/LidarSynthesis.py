@@ -4,9 +4,11 @@ import numpy as np
 from scipy import interpolate
 from typing import Tuple, Optional
 import tensorflow as tf
+import warnings
 
 from vista import resources
 from vista.utils import transform, logging
+from .Pointcloud import Pointcloud, Point
 
 
 class LidarSynthesis:
@@ -14,7 +16,8 @@ class LidarSynthesis:
                  yaw_res=0.1,
                  pitch_res=0.1,
                  yaw_fov=(-180, 180),
-                 pitch_fov=(-21.0, 15.0)):
+                 pitch_fov=(-21.0, 15.0),
+                 load_model=True):
 
         self._res = np.array([yaw_res, pitch_res], dtype=np.float32)
         self._fov = np.array([yaw_fov, pitch_fov], dtype=np.float32)
@@ -39,19 +42,35 @@ class LidarSynthesis:
             xyLen * np.sin(-self._grid_yaw),
             np.sin(-self._grid_pitch)])
 
-        path = pkg_resources.files(resources) / "Lidar/LidarRenderModel.tf"
-        self.render_model = None
-        if path.is_dir():
-            logging.debug(f"Loading Lidar model from {path}")
-            with open(path / "config", "r") as f:
-                config = f.read().replace('\n', '')
-                config = eval(config)
+        r = 1
+        offsets = tf.meshgrid(tf.range(-r, r + 1), tf.range(-r, r + 1))
+        offsets = tf.reshape(tf.stack(offsets, axis=-1), (-1, 2))
+        offsets = offsets[tf.math.reduce_any(offsets != 0, axis=1)]
+        self.offsets = tf.cast(tf.expand_dims(offsets, 0), tf.int32)
 
-            obj = imp.load_source("model", str(path / "model.py"))
-            self.render_model = obj.LidarRenderModel(**config)
-            self.render_model.build((1, *config["input_shape"]))
-            self.render_model.load_weights(str(path / "weights.h5"))
-            # get the config, load the class manually and fill the weights
+        self.avg_mask = np.load(
+            str(pkg_resources.files(resources) / "Lidar/avg_mask.npy"))
+        self.avg_mask = self.avg_mask[:, :, 0]
+
+        # path = pkg_resources.files(resources) / "Lidar/LidarRenderModel.tf"
+        # self.render_model = None
+        # if path.is_dir() and load_model:
+        #     logging.debug(f"Loading Lidar model from {path}")
+        #     with open(path / "config", "r") as f:
+        #         config = f.read().replace('\n', '')
+        #         config = eval(config)
+        #
+        #     obj = imp.load_source("model", str(path / "model.py"))
+        #     self.render_model = obj.LidarRenderModel(**config)
+        #     self.render_model.build((1, *config["input_shape"]))
+        #     self.render_model.load_weights(str(path / "weights.h5"))
+
+        path = pkg_resources.files(resources) / "Lidar/LidarFiller2.h5"
+        self.render_model = None
+        if path.is_file() and load_model:
+            logging.debug(f"Loading Lidar model from {path}")
+            self.render_model = tf.keras.models.load_model(
+                str(path), custom_objects={"exp": tf.math.exp}, compile=False)
 
     def synthesize(
             self,
@@ -62,76 +81,144 @@ class LidarSynthesis:
     ) -> Tuple[np.ndarray, np.ndarray]:
         """ Apply rigid transformation to a dense pointcloud and return new
         dense representation or sparse pointcloud. """
-        import time
-        tic = time.time()
-        # Sample dense pcd to return sparse pcd
-        # TODO: For now, use the sparse pointcloud -- eventually replace with
-        # the two lines below which compute points from the dense depths
-        points = pcd[:, :3].T
-
-        # dist = d_depth.reshape(-1, order="F")
-        # points = self.rays * dist
+        # points = pcd[:, :3].T
 
         # Rigid transform of points
-        R = transform.vec2mat(trans, rot)
-        new_points = np.matmul(R[:3, :3], points) + R[:3, 3][:, np.newaxis]
+        R = transform.rot2mat(rot)
+        pcd = pcd.transform(R, trans)
+        # R = transform.vec2mat(trans, rot)
+        # new_points = np.matmul(R[:3, :3], points) + R[:3, 3][:, np.newaxis]
 
         # Update distances and intensities (FIXME: intensity placeholder zeros)
-        new_dist = np.linalg.norm(new_points, ord=2, axis=0, keepdims=True)
-        new_int = np.zeros_like(new_dist)  # TODO: fixme
-        new_pcd = np.concatenate((new_points, new_dist, new_int), axis=0).T
+        # new_dist = np.linalg.norm(new_points, ord=2, axis=0, keepdims=True)
+        # new_int = np.zeros_like(new_dist)  # TODO: fixme
+        # new_pcd = np.concatenate((new_points, new_dist, new_int), axis=0).T
 
         # Convert from new pointcloud to dense image
-        transformed_sparse = self.pcd2sparse(new_pcd, fill=3)
-        tic2 = time.time()
-        transformed_dense = self.sparse2dense(transformed_sparse, method="nn")
-        logging.warning(f"{time.time() - tic2} {time.time() - tic}")
+        sparse = self.pcd2sparse(pcd,
+                                 channels=(Point.DEPTH, Point.INTENSITY,
+                                           Point.MASK))
+
+        # Find occlusions and cull them from the rendering
+        occlusions = self.cull_occlusions(sparse[:, :, 0])
+        sparse[occlusions[:, 0], occlusions[:, 1]] = np.nan
+
+        # Densify the image before masking
+        dense = self.sparse2dense(sparse, method="nn")
 
         # Sample the image to simulate active LiDAR using neural masking
-        if return_as_pcd:
-            transformed_pcd = self.dense2pcd(transformed_dense)
-            return transformed_pcd
-        else:
-            return transformed_dense
+        return self.dense2pcd(dense) if return_as_pcd else dense
 
-    def pcd2sparse(self, pcd, fill=3):
+    def pcd2sparse(self, pcd, channels=Point.DEPTH):
         """ Convert from pointcloud to sparse image in polar coordinates.
-        Fill image with specified axis of the data (-1 = binary)
+        Fill image with specified features of the data (-1 = binary) """
 
-        Args:
-            pcd (np.array): array of shape (num_points, 5), with columns
-                            (x, y, z, dist, intensity)
-            fill (int or List[int]): which channel to fill the sparse image
-                            with. `channel=-1` fills a binary mask
+        if not isinstance(channels, list) and not isinstance(channels, tuple):
+            channels = [channels]
 
-        """
-        # Convert from pointcloud (x, y, z) to sparse polar image (yaw, pitch)
-        x, y, z, dist, intensity = np.split(pcd, 5, axis=1)
+        # Compute the values to fill and the indicies where to fill
+        values = [pcd.get(channel) for channel in channels]
+        values = np.stack(values, axis=1)
+        inds = self._compute_sparse_inds(pcd)
 
-        inds = self._compute_sparse_inds(x, y, z, dist)
+        # Re-order to fill points with smallest depth last
+        order = np.argsort(pcd.dist)[::-1]
+        values = values[order]
+        inds = inds[:, order]
 
-        def create_image(channel):
-            img = np.empty((self._dims[1, 0], self._dims[0, 0]))
-            img.fill(np.nan)
-            values = (pcd[:, channel].ravel()) if (channel != -1) else 1
-            img[-inds[1], inds[0]] = values
-            return img
+        # Creat the image and fill it
+        img = np.empty((self._dims[1, 0], self._dims[0, 0], len(channels)),
+                       np.float32)
+        img.fill(np.nan)
+        img[-inds[1], inds[0], :] = values
+        return img
 
-        if type(fill) is list:
-            outputs = [create_image(channel) for channel in fill]
+    @tf.function
+    def cull_occlusions(self, sparse, depth_slack=0.1):
+
+        # Coordinates where we have depth samples
+        coords = tf.cast(tf.where(sparse > 0), tf.int32)
+
+        # Grab the depths we have at these sparse locations
+        # TODO: combine this gather_nd with the gather_nd below (only one
+        # call is necessary)
+        depths = tf.gather_nd(sparse, coords)
+
+        # At each location, also compute coordinate for all of its neighbors
+        samples = tf.expand_dims(coords, 1) + self.offsets  # (N, M, 2)
+
+        # Collect the samples in each neighborhood
+        if tf.test.is_gpu_available():
+            # gather_nd on GPU will not throw error on out-of-bounds indicies;
+            # however, it returns 0.0 at these locations. So we need to set
+            # these to nan manually after.
+            neighbor_depth = tf.gather_nd(sparse, samples)
+            neighbor_depth = tf.where(neighbor_depth == 0.0, np.nan,
+                                      neighbor_depth)
+
         else:
-            outputs = create_image(fill)
+            # gather_nd on CPU will throw error on out-of-bounds indicies.
+            # so before calling we need to clip the indicies to min/max bounds
+            samples = tf.stack([
+                tf.clip_by_value(samples[:, :, 0], 0, sparse.shape[0] - 1),
+                tf.clip_by_value(samples[:, :, 1], 0, sparse.shape[1] - 1)
+            ], -1)
+            neighbor_depth = tf.gather_nd(sparse, samples)
 
-        return outputs
+        # For each location, compute the average depth of all neighbors
+        valid = ~tf.math.is_nan(neighbor_depth)
+        neighbor_depth = tf.where(valid, neighbor_depth, 0.0)
+        avg_depth = (tf.reduce_sum(neighbor_depth, axis=1) /
+                     tf.reduce_sum(tf.cast(valid, tf.float32), axis=1))
+
+        # Estimate if the location is occluded by measuring if its depth
+        # greater than its surroundings (i.e. if it is behind its surroundings)
+        # Some amound of slack can be added here to allow for edge cases.
+        occluded = (depths - depth_slack) > avg_depth
+
+        # Create a new sparse image by replacing all occluded coordinates by
+        # empty depth values (nan)
+        occluded_coords = coords[occluded]
+        # num_occluded = tf.shape(occluded_coords)[0]
+        # nans = tf.fill((num_occluded, ), np.nan)
+        # sparse = tf.tensor_scatter_nd_update(sparse, occluded_coords, nans)
+        #
+        # return sparse
+        return occluded_coords
+
+    def cull_occlusions_np(self, sparse, depth_slack=0.1):
+        coords = np.array(np.where(sparse > 0)).T
+        depths = sparse[coords[:, 0], coords[:, 1]]
+
+        samples = np.expand_dims(coords, 1) + self.offsets.numpy()
+        samples[:, :, 0] = np.clip(samples[:, :, 0], 0, sparse.shape[0] - 1)
+        samples[:, :, 1] = np.clip(samples[:, :, 1], 0, sparse.shape[1] - 1)
+
+        neighbor_depth = sparse[samples[:, :, 0], samples[:, :, 1]]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            avg_depth = np.nanmean(neighbor_depth, axis=1)
+
+        my_depth = sparse[coords[:, 0], coords[:, 1]]
+
+        # point is valid if it is closer than the average depth around it
+        occluded = (my_depth - depth_slack) > avg_depth
+        occluded_coords = coords[occluded]
+
+        # remove (cull) all invalid points
+        # sparse[occluded_coords[:, 0], occluded_coords[:, 1]] = np.nan
+        # return sparse
+        return occluded_coords
 
     def sparse2dense(self, sparse, method="linear"):
         """ Convert from sparse image representation of pointcloud to dense. """
 
         if method == "nn":
             sparse[np.isnan(sparse)] = 0.0
-            sparse = sparse[np.newaxis, :, :, np.newaxis]
-            dense = self.render_model.s2d(sparse)[0, :, :, 0].numpy()
-
+            sparse = sparse[np.newaxis, :, :, [0]]
+            # dense = self.render_model.s2d(sparse)[0, :, :, 0].numpy()
+            dense = self.render_model(sparse)[0, :, :, 0].numpy()
         else:
             # mask all invalid values
             zs = np.ma.masked_invalid(sparse)
@@ -149,15 +236,16 @@ class LidarSynthesis:
             dense[np.isnan(dense)] = 0.0
         return dense
 
-    def dense2pcd(self, dense):
+    def dense2pcd(self, dense_depth, dense_intensity=None):
         """ Sample mask from network and render points from mask """
         # TODO: load trained masking network and feed dense through
-        mask = self.render_model.d2mask(dense[np.newaxis, :, :, np.newaxis])
-        mask = mask.numpy()[0, :, :, 0]
-        thresh = np.percentile(mask, 80)
-        mask = mask > thresh
+        # For now, simply load a mask prior from training data and sample
+        mask = self.avg_mask > np.random.uniform(size=(self.avg_mask.shape))
 
-        dist = dense[mask]
+        dist = dense_depth[mask]
+        intensity = None
+        if dense_intensity is not None:
+            intensity = dense_intensity[mask]
         pitch, yaw = np.where(mask)
 
         yaw = yaw * (self._fov_rad[0, 1] - self._fov_rad[0, 0]) / \
@@ -173,16 +261,17 @@ class LidarSynthesis:
             np.sin(-pitch)])
 
         points = dist[:, np.newaxis] * rays.T
-        return points
+        pcd = Pointcloud(points, intensity)
+        return pcd
 
-    def _compute_sparse_inds(self, x, y, z, dist):
+    def _compute_sparse_inds(self, pcd):
         """ Compute the indicies on the image representation which will be
-        filled for a given pointcloud geometric data `(x, y, z, dist)` """
+        filled for a given pointcloud """
 
         # project point cloud to 2D point map
-        yaw = np.arctan2(-y, x)
-        pitch = np.arcsin(z / dist)
-        angles = np.concatenate((yaw, pitch), axis=1).T
+        yaw = np.arctan2(-pcd.y, pcd.x)
+        pitch = np.arcsin(pcd.z / pcd.dist)
+        angles = np.stack((yaw, pitch))
 
         fov_range = self._fov_rad[:, [1]] - self._fov_rad[:, [0]]
         slope = self._dims / fov_range
@@ -192,15 +281,3 @@ class LidarSynthesis:
         np.clip(inds, np.zeros((2, 1)), self._dims - 1, out=inds)
 
         return inds
-
-    # def _euler2rot(self, euler):
-    #     euler = np.reshape(euler, -1)
-    #     s, c = (np.sin(euler), np.cos(euler))
-    #     sx, sy, sz = s
-    #     cx, cy, cz = c
-    #
-    #     Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
-    #     Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
-    #     Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
-    #
-    #     return Rx @ Ry @ Rz

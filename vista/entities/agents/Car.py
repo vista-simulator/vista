@@ -165,9 +165,9 @@ class Car(Entity):
         # Step by incrementing frame number
         ts = self.timestamp
         frame_index = self.frame_index + 1
-        exceed_end, self._timestamp = self.trace.get_master_timestamp(self.segment_index,
-            frame_index, check_end=True)
-        if exceed_end: # trigger trace done terminatal condition
+        exceed_end, self._timestamp = self.trace.get_master_timestamp(
+            self.segment_index, frame_index, check_end=True)
+        if exceed_end:  # trigger trace done terminatal condition
             self._done = True
             logging.info('Car ({}) exceed the end of trace'.format(self.id))
         else:
@@ -178,10 +178,10 @@ class Car(Entity):
             self._human_speed = self.trace.f_speed(self.timestamp)
             self._human_curvature = self.trace.f_curvature(self.timestamp)
             self._human_steering = curvature2steering(self.human_curvature,
-                                                    self.wheel_base,
-                                                    self.steering_ratio)
-            self._human_tire_angle = curvature2tireangle(self.human_curvature,
-                                                        self.wheel_base)
+                                                      self.wheel_base,
+                                                      self.steering_ratio)
+            self._human_tire_angle = curvature2tireangle(
+                self.human_curvature, self.wheel_base)
 
             self._speed = self._human_speed
             self._curvature = self._human_curvature
@@ -191,12 +191,12 @@ class Car(Entity):
             # Step human dynamics if queried
             if step_dynamics:
                 current_state = [
-                    curvature2tireangle(self.human_curvature,
-                                        self.wheel_base),
+                    curvature2tireangle(self.human_curvature, self.wheel_base),
                     self.human_speed
                 ]
                 update_with_perfect_controller(current_state,
-                    self.timestamp - ts, self._human_dynamics)
+                                               self.timestamp - ts,
+                                               self._human_dynamics)
                 self._ego_dynamics = self.human_dynamics.copy()
 
             # Get image frame
@@ -204,8 +204,10 @@ class Car(Entity):
             for sensor in self.sensors:
                 if type(sensor) not in [Camera]:
                     raise NotImplementedError(
-                        'Sensor {} is not supported in step dynamics'.format(sensor))
-                self._observations[sensor.name] = sensor.capture(self.timestamp)
+                        'Sensor {} is not supported in step dynamics'.format(
+                            sensor))
+                self._observations[sensor.name] = sensor.capture(
+                    self.timestamp)
 
     def step_dynamics(self, action: np.ndarray, dt: Optional[float] = 1 / 30.):
         assert not self.done, 'Agent status is done. Please call reset first.'
@@ -290,8 +292,8 @@ class Car(Entity):
             top2_closest['dynamics'][1].numpy()[:3])
         ratio = abs(latlongyaw_second_closest[1]) / (
             abs(latlongyaw_closest[1]) + abs(latlongyaw_second_closest[1]))
-        self._timestamp = ratio * top2_closest['timestamp'][0] + (
-            1. - ratio) * top2_closest['timestamp'][1]
+        self._timestamp = (ratio * top2_closest['timestamp'][0] +
+                           (1. - ratio) * top2_closest['timestamp'][1])
 
         # Update human control based on current timestamp
         self._human_speed = self.trace.f_speed(self.timestamp)

@@ -30,30 +30,36 @@ args = parser.parse_args()
 save_name = "LidarRenderModel.tf"
 
 print("Loading data")
-f = h5py.File(os.path.join(args.input, "lidar_3d_vista.h5"), "r")
+f = h5py.File(os.path.join(args.input, "lidar_3d_vista_big.h5"), "r")
 
-# only train with a small subset (debugging for speed)
-# dataset_size = f["d_depth"].shape[0]
-# data_idx = np.random.choice(f["d_depth"].shape[0], dataset_size, replace=False)
-# data_idx = np.sort(data_idx)
 
-MASK = f['mask'][:]
-DENSE = f['d_depth'][:].astype(np.float32)
-train_idx = np.random.choice(MASK.shape[0],
-                             int(MASK.shape[0] * 0.8),
-                             replace=False)
-test_idx = np.setdiff1d(np.arange(MASK.shape[0]),
-                        train_idx,
-                        assume_unique=True)
-mask_train = MASK[train_idx]
-dense_train = DENSE[train_idx]
-mask_test = MASK[test_idx]
-dense_test = DENSE[test_idx]
-del MASK, DENSE
+
+def load_data(mask_name, dense_name):
+    MASK = f[mask_name][:]
+    DENSE = f[dense_name][:].astype(np.float32)
+    train_idx = np.random.choice(MASK.shape[0],
+                                 int(MASK.shape[0] * 0.8),
+                                 replace=False)
+    test_idx = np.setdiff1d(np.arange(MASK.shape[0]),
+                            train_idx,
+                            assume_unique=True)
+    mask_train = MASK[train_idx]
+    dense_train = DENSE[train_idx]
+    mask_test = MASK[test_idx]
+    dense_test = DENSE[test_idx]
+
+    return mask_train, dense_train, mask_test, dense_test
+
+
+masko_train, denseo_train, masko_test, denseo_test = load_data(
+    "mask_orig", "d_depth_orig")
+maskt_train, denset_train, maskt_test, denset_test = load_data(
+    "mask_trans", "d_depth_trans")
+
 
 print("Building model")
 optimizer = tf.keras.optimizers.Adam(args.learning_rate)
-model = LidarRenderModel(input_shape=mask_train.shape[1:],
+model = LidarRenderModel(input_shape=masko_train.shape[1:],
                          filters=args.num_filters,
                          num_layers=args.num_layers,
                          dropout=args.dropout)
@@ -62,6 +68,7 @@ Path(save_name).mkdir(parents=True, exist_ok=True)
 shutil.copy("model.py", save_name)
 with open(os.path.join(save_name, "config"), 'w') as f:
     f.write(str(model.get_config()))
+
 
 def compute_weights(mask, block_size=40):
     # Compute weights
@@ -74,7 +81,7 @@ def compute_weights(mask, block_size=40):
     return mask_blocks
 
 
-w_mask = compute_weights(mask_train)
+w_mask = compute_weights(masko_train)
 
 
 def sample(mask, dense):
@@ -105,29 +112,30 @@ def compute_loss(dense, mask, dense_pred, mask_pred, coeff=1 / 50., eps=1e-7):
 
 
 @tf.function
-def train_step(sparse, mask, dense):
+def train_step(sparse_t, dense_t, dense_o, mask_o):
     with tf.GradientTape() as tape:
-        dense_ = model.s2d(sparse)
-        mask_ = model.d2mask(dense)
-        loss, _ = compute_loss(dense, mask, dense_, mask_)
+        dense_t_ = model.s2d(sparse_t)
+        mask_o_ = model.d2mask(dense_o)
+        loss, _ = compute_loss(dense_t, mask_o, dense_t_, mask_o_)
 
     grads = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
-    return dense_, mask_, loss
+    return dense_t_, mask_o_, loss
 
 
 best_vloss = np.float('inf')
 alpha = 0.9
 
-sv, mv, dv = sample(mask_test, dense_test)
-dv_, mv_ = model(sv)
-vloss_, _ = compute_loss(dv, mv, dv_, mv_)
+sov, mov, dov = sample(masko_train, denseo_train)
+dov_, mov_ = model(sov)
+vloss_, _ = compute_loss(dov, mov, dov_, mov_)
 vloss_ = vloss_.numpy()
 
 pbar = tqdm(range(10000))
 for iter in pbar:
-    ss, mm, dd = sample(mask_train, dense_train)
-    dd_, mm_, loss = train_step(ss, mm, dd)
+    so, mo, do = sample(masko_train, denseo_train)
+    st, mt, dt = sample(maskt_train, denset_train)
+    dt_, mo_, loss = train_step(st, dt, do, mo)
 
     if iter % 20 == 0:
 
@@ -145,26 +153,32 @@ for iter in pbar:
 
         # import pdb; pdb.set_trace()
         vis = np.vstack(( \
-            gray2color(transform(ss[0])),
-            gray2color(transform(dd[0])),
-            gray2color(transform(dd_[0].numpy())),
-            gray2color(mm[0]),
-            gray2color(prob2mask(mm_[0].numpy()))
+            gray2color(transform(st[0])),
+            gray2color(transform(dt[0])),
+            gray2color(transform(dt_[0].numpy())),
+            gray2color(mo[0]),
+            gray2color(prob2mask(mo_[0].numpy()))
         ))
-        cv2.imshow("vis", cv2.resize(vis, None, fx=0.5, fy=0.5))
+        cv2.imshow("vis", cv2.resize(vis, None, fx=0.75, fy=0.75))
         cv2.waitKey(1)
 
     if iter % 200 == 0:
-        sv, mv, dv = sample(mask_test, dense_test)
-        dv_, mv_ = model(sv)
-        vloss, _ = compute_loss(dv, mv, dv_, mv_)
-        vloss = alpha * vloss + (1 - alpha) * vloss_
+        # sv, mv, dv = sample(mask_test, dense_test)
+        # dv_, mv_ = model(sv)
+        # vloss, _ = compute_loss(dv, mv, dv_, mv_)
 
-        if vloss < best_vloss:
-            best_vloss = vloss
+        sov, mov, dov = sample(masko_train, denseo_train)
+        dov_, mov_ = model(sov)
+        vloss, _ = compute_loss(dov, mov, dov_, mov_)
+        vloss = vloss.numpy()
+
+        vloss_ = alpha * vloss_ + (1 - alpha) * vloss
+
+        if vloss_ < best_vloss:
+            best_vloss = vloss_
             model.save_weights(os.path.join(save_name, "weights.h5"))
 
-        pbar.set_description(f"Loss: {vloss:.2f} ({best_vloss:.2f})")
+        pbar.set_description(f"Loss: {vloss_:.2f} ({best_vloss:.2f})")
 
 model.save_weights(os.path.join(save_name, "weights.h5"))
 

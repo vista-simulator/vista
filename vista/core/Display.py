@@ -14,6 +14,7 @@ from ..entities.agents.Dynamics import StateDynamics, update_with_perfect_contro
                                        curvature2tireangle
 from ..entities.agents import Car
 from ..entities.sensors import Camera, EventCamera, Lidar
+from ..entities.sensors.lidar_utils import Pointcloud
 from ..utils import logging, transform, misc
 
 
@@ -69,8 +70,8 @@ class Display:
         # Initialize figure
         self._artists: Dict[Any] = dict()
         self._axes: Dict[plt.Axes] = dict()
-        # figsize = (12.8 * n_agents_with_sensors + 6.4, 6.4 * max_n_sensors)
-        figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
+        figsize = (12.8 * n_agents_with_sensors + 6.4, 6.4 * max_n_sensors)
+        # figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
         self._fig: plt.Figure = plt.figure(figsize=figsize)
         self._fig.patch.set_facecolor('black')  # use black background
         self._gs = self._fig.add_gridspec(
@@ -111,7 +112,7 @@ class Display:
                 elif isinstance(sensor, Lidar):
                     x_dim, y_dim = sensor.view_synthesis._dims[:, 0]
                     # Cut width in half and stack on-top
-                    img_shape = (y_dim * 2, x_dim // 2, 3) #(4,3, 3)  #
+                    img_shape = (y_dim * 2, x_dim // 2, 3)
 
                 else:
                     logging.error(f'Unrecognized sensor type {type(sensor)}')
@@ -121,7 +122,8 @@ class Display:
                                  self._config['gs_agent_w'] *
                                  i:self._config['gs_agent_w'] * (i + 1)]
                 ax_name = 'a{}s{}'.format(i, j)
-                self._axes[ax_name] = self._fig.add_subplot(gs_ij)
+                self._axes[ax_name] = self._fig.add_subplot(gs_ij,
+                                                            facecolor='black')
                 self._axes[ax_name].set_xticks([])
                 self._axes[ax_name].set_yticks([])
                 self._axes[ax_name].set_title('Init',
@@ -228,13 +230,20 @@ class Display:
                         'obs_render shape changes at the first frame')
 
                 elif obs_name in lidars.keys():
-                    if obs.shape[1] == 3:  # 3D pointcloud
-                        self._axes[ax_name].clear()
-                        self._axes[ax_name].scatter(obs[::50,0], obs[::50,1], s=1, c=obs[::50,2])
-                        self._axes[ax_name].set_xlim(-50, 50)
-                        self._axes[ax_name].set_ylim(-50, 50)
+                    if isinstance(obs, Pointcloud):
+                        obs_ = obs[::20]
+                        ax = self._axes[ax_name]
+                        ax.clear()
+                        ax.scatter(obs_.x,
+                                   obs_.y,
+                                   c=obs_.z,
+                                   s=1,
+                                   vmin=-2,
+                                   vmax=5)
+                        ax.set_xlim(-50, 50)
+                        ax.set_ylim(-50, 50)
                         obs_render = None
-                    else: # dense image
+                    else:  # dense image
                         obs = np.roll(obs, -obs.shape[1] // 4, axis=1)  # shift
                         obs = np.concatenate(np.split(obs, 2, axis=1),
                                              0)  # stack
