@@ -147,7 +147,8 @@ class EventCamera(BaseSensor):
         if self.prev_frame is not None:
             with torch.no_grad():
                 out = self._interp.forward_warp(self.prev_frame, rendered_frame, 
-                                                sf=-1, max_sf=self.config['max_sf'])
+                                                max_sf=self.config['max_sf'],
+                                                use_max_flow=True)
             
             interp = [self.prev_frame] + out['interpolated']
             if len(interp) >= 2:
