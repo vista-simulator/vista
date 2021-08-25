@@ -2,7 +2,7 @@ import imp
 import importlib.resources as pkg_resources
 import numpy as np
 from scipy import interpolate
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 import tensorflow as tf
 import warnings
 
@@ -16,7 +16,7 @@ class LidarSynthesis:
                  yaw_res: float = 0.1,
                  pitch_res: float = 0.1,
                  yaw_fov: Tuple[float, float] = (-180., 180.),
-                 pitch_fov: Tuple[float, float] = (-21.0, 15.0),
+                 pitch_fov: Tuple[float, float] = (-21.0, 12.6),
                  culling_r: int = 1,
                  load_model: bool = True):
 
@@ -240,8 +240,9 @@ class LidarSynthesis:
         pcd = Pointcloud(points, intensity)
         return pcd
 
-    def coords2angles(self, pitch_coords: np.ndarray,
-                      yaw_coords: np.ndarary) -> Tuple[np.ndarray, np.ndarray]:
+    def coords2angles(
+            self, pitch_coords: np.ndarray,
+            yaw_coords: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
         yaw = yaw_coords * (self._fov_rad[0, 1] - self._fov_rad[0, 0]) / \
               self._dims[0, 0] + self._fov_rad[0, 0]
