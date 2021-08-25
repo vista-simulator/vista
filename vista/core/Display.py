@@ -25,6 +25,7 @@ class Display:
         'gs_bev_w': 2,
         'gs_agent_w': 4,
         'gs_h': 6,
+        'gui_scale': 1.0
     }
 
     def __init__(self,
@@ -70,8 +71,9 @@ class Display:
         # Initialize figure
         self._artists: Dict[Any] = dict()
         self._axes: Dict[plt.Axes] = dict()
-        figsize = (12.8 * n_agents_with_sensors + 6.4, 6.4 * max_n_sensors)
-        # figsize = (6.4 * n_agents_with_sensors + 3.2, 3.2 * max_n_sensors)
+        gui_scale = self._config['gui_scale']
+        figsize = (6.4 * gui_scale * n_agents_with_sensors + 3.2 * gui_scale,
+                   3.2 * gui_scale * max_n_sensors)
         self._fig: plt.Figure = plt.figure(figsize=figsize)
         self._fig.patch.set_facecolor('black')  # use black background
         self._gs = self._fig.add_gridspec(
@@ -217,7 +219,8 @@ class Display:
                     event_cam_param = event_cameras[obs_name].camera_param
                     frame_obs = events2frame(obs, event_cam_param.get_height(),
                                              event_cam_param.get_width())
-                    frame_obs = plot_roi(frame_obs.copy(), event_cam_param.get_roi())
+                    frame_obs = plot_roi(frame_obs.copy(),
+                                         event_cam_param.get_roi())
                     # rgb = cv2.resize(event_cameras[obs_name].prev_frame[:,:,::-1], frame_obs.shape[:2][::-1]) # DEBUG
                     # frame_obs = np.concatenate([rgb, frame_obs], axis=1) # DEBUG
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
@@ -228,11 +231,11 @@ class Display:
 
                 elif obs_name in lidars.keys():
                     if isinstance(obs, Pointcloud):
-                        obs_ = obs[::20] # sub-sample the pointcloud for vis
+                        obs_ = obs[::20]  # sub-sample the pointcloud for vis
                         ax = self._axes[ax_name]
                         ax.clear()
-                        plot_args = {"s": 1, "vmin":-2, "vmax":5}
-                        ax.scatter(obs_.x, obs_.y, c=obs_.z, **kwargs)
+                        plot_args = {"s": 1, "vmin": -2, "vmax": 4}
+                        ax.scatter(obs_.x, obs_.y, c=obs_.z, **plot_args)
                         ax.set_xlim(-50, 50)
                         ax.set_ylim(-50, 50)
                         obs_render = None

@@ -71,16 +71,10 @@ class Lidar(BaseSensor):
         logging.debug(f"state: {lat} {long} {yaw} \t timestamp {timestamp}")
         trans = np.array([long, lat, 0])
         rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
-        rendered_lidar = self.view_synthesis.synthesize(
-            trans,
-            rot,
-            pcd=pcd,
-            return_as_pcd=True,
-        )
+        new_pcd, new_dense = self.view_synthesis.synthesize(trans, rot, pcd)
 
         logging.debug("Visualizing the rendered lidar scan")
-
-        return rendered_lidar
+        return new_dense
 
     @property
     def config(self) -> Dict:
