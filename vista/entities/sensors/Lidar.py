@@ -59,7 +59,7 @@ class Lidar(BaseSensor):
             xyz = stream['xyz'][frame_num]
             intensity = stream['intensity'][frame_num]
             pcd = Pointcloud(xyz, intensity)
-            pcd = pcd[pcd.dist > 3]
+            pcd = pcd[pcd.dist > 2.5]
             # TODO: when is it possible for there to be multiple (multi_sensor.lidar_names)?
 
         # TODO: Interpolate frame at the exact timestamp
@@ -67,10 +67,10 @@ class Lidar(BaseSensor):
 
         # TODO: Synthesis by rendering
         # self.parent.reslative_state.update(0, 0, yaw=np.sin(timestamp))
-        x, y, yaw = self.parent.relative_state.numpy()
-        logging.debug(f"state: {x} {y} {yaw} \t timestamp {timestamp}")
-        trans = np.array([-x, -y, 0])
-        rot = np.array([0., 0, -yaw])  # TODO: should yaw be Y or Z?
+        lat, long, yaw = self.parent.relative_state.numpy()
+        logging.debug(f"state: {lat} {long} {yaw} \t timestamp {timestamp}")
+        trans = np.array([long, lat, 0])
+        rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
         rendered_lidar = self.view_synthesis.synthesize(
             trans,
             rot,

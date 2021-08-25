@@ -13,12 +13,15 @@ from .Pointcloud import Pointcloud, Point
 
 class LidarSynthesis:
     def __init__(self,
-                 yaw_res=0.1,
-                 pitch_res=0.1,
-                 yaw_fov=(-180, 180),
-                 pitch_fov=(-21.0, 15.0),
-                 load_model=True):
+                 yaw_res: float = 0.1,
+                 pitch_res: float = 0.1,
+                 yaw_fov: Tuple[float, float] = (-180., 180.),
+                 pitch_fov: Tuple[float, float] = (-21.0, 15.0),
+                 culling_r: int = 1,
+                 load_model: bool = True):
 
+        ### Basic properties required for setting up the synthesizer including
+        # the dimensionality and resolution of the image representation space
         self._res = np.array([yaw_res, pitch_res], dtype=np.float32)
         self._fov = np.array([yaw_fov, pitch_fov], dtype=np.float32)
         self._fov_rad = self._fov * np.pi / 180.
@@ -26,73 +29,38 @@ class LidarSynthesis:
         self._dims = (self._fov[:, 1] - self._fov[:, 0]) / self._res
         self._dims = np.ceil(self._dims).astype(np.int)[:, np.newaxis]
 
-        # integer arrays for indexing
-        self._grid_idx = np.meshgrid(np.arange(0, self._dims[0]),
-                                     np.arange(0, self._dims[1]))
-
-        self._grid_angles = np.meshgrid(
-            np.linspace(self._fov[1, 0], self._fov[1, 0], self._dims[1, 0]),
-            np.linspace(self._fov[0, 0], self._fov[0, 0], self._dims[0, 0]))
-        self._grid_pitch, self._grid_yaw = (self._grid_angles[0].flatten(),
-                                            self._grid_angles[1].flatten())
-
-        xyLen = np.cos(self._grid_pitch)
-        self.rays = np.array([ \
-            xyLen * np.cos(self._grid_yaw),
-            xyLen * np.sin(-self._grid_yaw),
-            np.sin(-self._grid_pitch)])
-
-        r = 1
-        offsets = tf.meshgrid(tf.range(-r, r + 1), tf.range(-r, r + 1))
+        ### Culling occluded LiDAR
+        # Create a list of offset coordinates within a radius R of the origin,
+        # but excluding the origin itself.
+        cull_axis = tf.range(-culling_r, culling_r + 1)
+        offsets = tf.meshgrid(cull_axis, cull_axis)
         offsets = tf.reshape(tf.stack(offsets, axis=-1), (-1, 2))
         offsets = offsets[tf.math.reduce_any(offsets != 0, axis=1)]
         self.offsets = tf.cast(tf.expand_dims(offsets, 0), tf.int32)
 
-        self.avg_mask = np.load(
-            str(pkg_resources.files(resources) / "Lidar/avg_mask.npy"))
-        self.avg_mask = self.avg_mask[:, :, 0]
+        ### Rendering masks and neural network model for sparse -> dense
+        rsrc_path = pkg_resources.files(resources)
+        self.avg_mask = np.load(str(rsrc_path / "Lidar/avg_mask.npy"))[:, :, 0]
 
-        # path = pkg_resources.files(resources) / "Lidar/LidarRenderModel.tf"
-        # self.render_model = None
-        # if path.is_dir() and load_model:
-        #     logging.debug(f"Loading Lidar model from {path}")
-        #     with open(path / "config", "r") as f:
-        #         config = f.read().replace('\n', '')
-        #         config = eval(config)
-        #
-        #     obj = imp.load_source("model", str(path / "model.py"))
-        #     self.render_model = obj.LidarRenderModel(**config)
-        #     self.render_model.build((1, *config["input_shape"]))
-        #     self.render_model.load_weights(str(path / "weights.h5"))
-
-        path = pkg_resources.files(resources) / "Lidar/LidarFiller2.h5"
         self.render_model = None
+        path = rsrc_path / "Lidar/LidarFiller3.h5"
         if path.is_file() and load_model:
             logging.debug(f"Loading Lidar model from {path}")
             self.render_model = tf.keras.models.load_model(
                 str(path), custom_objects={"exp": tf.math.exp}, compile=False)
 
     def synthesize(
-            self,
-            trans: np.ndarray,
-            rot: np.ndarray,
-            pcd: np.ndarray,
-            return_as_pcd: Optional[bool] = True
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        self,
+        trans: np.ndarray,
+        rot: np.ndarray,
+        pcd: np.ndarray,
+    ) -> Tuple[Pointcloud, np.ndarray]:
         """ Apply rigid transformation to a dense pointcloud and return new
         dense representation or sparse pointcloud. """
-        # points = pcd[:, :3].T
 
         # Rigid transform of points
         R = transform.rot2mat(rot)
         pcd = pcd.transform(R, trans)
-        # R = transform.vec2mat(trans, rot)
-        # new_points = np.matmul(R[:3, :3], points) + R[:3, 3][:, np.newaxis]
-
-        # Update distances and intensities (FIXME: intensity placeholder zeros)
-        # new_dist = np.linalg.norm(new_points, ord=2, axis=0, keepdims=True)
-        # new_int = np.zeros_like(new_dist)  # TODO: fixme
-        # new_pcd = np.concatenate((new_points, new_dist, new_int), axis=0).T
 
         # Convert from new pointcloud to dense image
         sparse = self.pcd2sparse(pcd,
@@ -107,9 +75,13 @@ class LidarSynthesis:
         dense = self.sparse2dense(sparse, method="nn")
 
         # Sample the image to simulate active LiDAR using neural masking
-        return self.dense2pcd(dense) if return_as_pcd else dense
+        new_pcd = self.dense2pcd(dense)
 
-    def pcd2sparse(self, pcd, channels=Point.DEPTH):
+        return (new_pcd, dense)
+
+    def pcd2sparse(self,
+                   pcd: Pointcloud,
+                   channels: Point = Point.DEPTH) -> np.ndarray:
         """ Convert from pointcloud to sparse image in polar coordinates.
         Fill image with specified features of the data (-1 = binary) """
 
@@ -134,7 +106,9 @@ class LidarSynthesis:
         return img
 
     @tf.function
-    def cull_occlusions(self, sparse, depth_slack=0.1):
+    def cull_occlusions(self,
+                        sparse: Union[np.ndarray, tf.Tensor],
+                        depth_slack: float = 0.1) -> tf.Tensor:
 
         # Coordinates where we have depth samples
         coords = tf.cast(tf.where(sparse > 0), tf.int32)
@@ -186,7 +160,10 @@ class LidarSynthesis:
         # return sparse
         return occluded_coords
 
-    def cull_occlusions_np(self, sparse, depth_slack=0.1):
+    def cull_occlusions_np(self,
+                           sparse: np.ndarray,
+                           depth_slack: float = 0.1) -> np.ndarray:
+
         coords = np.array(np.where(sparse > 0)).T
         depths = sparse[coords[:, 0], coords[:, 1]]
 
@@ -211,7 +188,9 @@ class LidarSynthesis:
         # return sparse
         return occluded_coords
 
-    def sparse2dense(self, sparse, method="linear"):
+    def sparse2dense(self,
+                     sparse: np.ndarray,
+                     method: str = "linear") -> np.ndarray:
         """ Convert from sparse image representation of pointcloud to dense. """
 
         if method == "nn":
@@ -223,20 +202,26 @@ class LidarSynthesis:
             # mask all invalid values
             zs = np.ma.masked_invalid(sparse)
 
+            # integer arrays for indexing
+            grid_x, grid_y = np.meshgrid(np.arange(0, self._dims[0]),
+                                         np.arange(0, self._dims[1]))
+
             # retrieve the valid, non-Nan, defined values
-            valid_xs = self._grid_idx[0][~zs.mask]
-            valid_ys = self._grid_idx[1][~zs.mask]
+            valid_xs = grid_x[~zs.mask]
+            valid_ys = grid_y[~zs.mask]
             valid_zs = zs[~zs.mask]
 
             # generate interpolated array of values
             dense = interpolate.griddata((valid_xs, valid_ys),
                                          valid_zs,
-                                         tuple(self._grid_idx),
+                                         tuple((grid_x, grid_y)),
                                          method=method)
             dense[np.isnan(dense)] = 0.0
         return dense
 
-    def dense2pcd(self, dense_depth, dense_intensity=None):
+    def dense2pcd(self,
+                  dense_depth: np.ndarray,
+                  dense_intensity: Optional[np.ndarray] = None):
         """ Sample mask from network and render points from mask """
         # TODO: load trained masking network and feed dense through
         # For now, simply load a mask prior from training data and sample
@@ -246,25 +231,33 @@ class LidarSynthesis:
         intensity = None
         if dense_intensity is not None:
             intensity = dense_intensity[mask]
+
         pitch, yaw = np.where(mask)
-
-        yaw = yaw * (self._fov_rad[0, 1] - self._fov_rad[0, 0]) / \
-              self._dims[0, 0] + self._fov_rad[0, 0]
-
-        pitch = pitch * (self._fov_rad[1, 1] - self._fov_rad[1, 0]) / \
-              self._dims[1, 0] + self._fov_rad[1, 0]
-
-        xyLen = np.cos(pitch)
-        rays = np.array([ \
-            xyLen * np.cos(yaw),
-            xyLen * np.sin(-yaw),
-            np.sin(-pitch)])
+        pitch, yaw = self.coords2angles(pitch, yaw)
+        rays = self.angles2rays(pitch, yaw)
 
         points = dist[:, np.newaxis] * rays.T
         pcd = Pointcloud(points, intensity)
         return pcd
 
-    def _compute_sparse_inds(self, pcd):
+    def coords2angles(self, pitch_coords: np.ndarray,
+                      yaw_coords: np.ndarary) -> Tuple[np.ndarray, np.ndarray]:
+
+        yaw = yaw_coords * (self._fov_rad[0, 1] - self._fov_rad[0, 0]) / \
+              self._dims[0, 0] + self._fov_rad[0, 0]
+        pitch = pitch_coords * (self._fov_rad[1, 1] - self._fov_rad[1, 0]) / \
+              self._dims[1, 0] + self._fov_rad[1, 0]
+        return pitch, yaw
+
+    def angles2rays(self, pitch: np.ndarray, yaw: np.ndarray) -> np.ndarray:
+        xyLen = np.cos(pitch)
+        rays = np.array([ \
+            xyLen * np.cos(yaw),
+            xyLen * np.sin(-yaw),
+            np.sin(-pitch)])
+        return rays
+
+    def _compute_sparse_inds(self, pcd: Pointcloud) -> np.ndarray:
         """ Compute the indicies on the image representation which will be
         filled for a given pointcloud """
 

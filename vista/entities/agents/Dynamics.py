@@ -2,7 +2,7 @@ from typing import Optional, List
 import numpy as np
 import scipy.integrate as ode_solve
 
-from ...utils import logging, transform
+from ...utils import logging
 
 
 class State:
@@ -100,8 +100,6 @@ class StateDynamics:
                 max_steps, solver.t, solver.t_bound))
 
         self._x, self._y, self._yaw, self._steering, self._speed = solver.y
-        self._yaw = transform.pi2pi(self._yaw)
-        self._steering = transform.pi2pi(self._steering)
 
         # Clip by value bounds
         self._steering = np.clip(self._steering, *self._steering_bound)
@@ -150,10 +148,6 @@ class StateDynamics:
     @property
     def speed(self) -> float:
         return self._speed
-
-    @property
-    def steering_bound(self) -> List[float]:
-        return self._steering_bound
 
     def __repr__(self) -> str:
         return '<{}: [{}, {}, {}, {}, {}]>'.format(self.__class__.__name__,
