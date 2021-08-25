@@ -41,10 +41,12 @@ class ViewSynthesis:
                                      bg_color=[0, 0, 0])
 
         # Camera for rendering
+        cam_w = camera_param.get_width()
+        cam_h = camera_param.get_height()
         camera = pyrender.IntrinsicsCamera(fx=self._camera_param._fx,
                                            fy=self._camera_param._fy,
-                                           cx=self._camera_param._cx,
-                                           cy=self._camera_param._cy,
+                                           cx=cam_w / 2., # NOTE: assume calibrated camera
+                                           cy=cam_h / 2.,
                                            znear=self._config['znear'],
                                            zfar=self._config['zfar'])
         self._camera_node = pyrender.Node(
@@ -117,6 +119,11 @@ class ViewSynthesis:
     def add_bg_mesh(self, camera_param: CameraParams) -> None:
         # Projection and re-projection parameters
         K = camera_param.get_K().copy()
+        logging.debug('Hacky way to handle unrectified image')
+        cam_w = camera_param.get_width()
+        cam_h = camera_param.get_height()
+        K[0, 2] = cam_w / 2.
+        K[1, 2] = cam_h / 2.
         K_inv = np.linalg.inv(K)
 
         # Mesh coordinates, faces, and rays

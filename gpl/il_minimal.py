@@ -1,5 +1,6 @@
 """ Minimal example of using imitation learning (IL) for lane following. """
 import os
+import sys
 import time
 import numpy as np
 import argparse
@@ -162,6 +163,7 @@ def train(args, model, device, train_loader, criterion, optimizer, epoch):
     tic = time.time()
     sample_i = 0
     total_samples = len(train_loader.dataset)
+    loss_buf = []
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
@@ -169,14 +171,18 @@ def train(args, model, device, train_loader, criterion, optimizer, epoch):
         loss = 10e4 * criterion(output, target) / len(data)
         loss.backward()
         optimizer.step()
-        if batch_idx % 10 == 0:
+        loss_buf.append(loss.item())
+        if batch_idx % 100 == 0:
             toc = time.time()
             elapsed_time = toc - tic
             curr_n_samples = batch_idx * len(data)
             progress = 100. * batch_idx / len(train_loader)
+            avg_loss = np.mean(loss_buf)
             print(f'Training epoch {epoch} [{curr_n_samples}/{total_samples} ({progress:.2f}%)]' \
-                  + f'\t Loss: {loss.item():.6f}\t Elapsed time: {elapsed_time:.2f}')
+                  + f'\t Average Loss: {avg_loss:.6f}\t Elapsed time: {elapsed_time:.2f}')
+            sys.stdout.flush()
             tic = toc
+            loss_buf = []
         
         sample_i += len(data)
         if sample_i >= total_samples:
@@ -203,6 +209,7 @@ def test(model, device, test_loader, criterion):
     elapsed_time = toc - tic
     test_loss /= len(test_loader.dataset)
     print(f'Test set: Average Loss: {test_loss:.6f}\t Elapsed time: {elapsed_time:.2f}')
+    sys.stdout.flush()
     return test_loss
 
 
@@ -213,11 +220,18 @@ def main():
                         help='random seed (default: 1)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
+    parser.add_argument('--log-path', type=str, default=None,
+                        help='Path to log file; default None to simply print out logs')
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device('cuda' if use_cuda else 'cpu')
+
+    if args.log_path is not None:
+        log_path = os.path.abspath(os.path.expanduser(args.log_path))
+        log_f = open(log_path, 'w')
+        sys.stdout = log_f
 
     # Define data loader
     data_dir = os.environ.get('DATA_DIR', '/home/tsunw/data/')
@@ -266,7 +280,7 @@ def main():
     test_trace_paths = [os.path.join(data_dir, 'traces', v) for v in test_trace_paths]
     test_dataset = VistaDataset(test_trace_paths, test_transform, train=False)
     test_loader = DataLoader(test_dataset,
-                             batch_size=1,
+                             batch_size=64,
                              shuffle=False,
                              pin_memory=True,
                              num_workers=8,
@@ -289,6 +303,9 @@ def main():
             if not os.path.isdir(save_dir):
                 os.makedirs(save_dir)
             torch.save(model.state_dict(), os.path.join(save_dir, 'ep_{:03d}.ckpt'.format(epoch)))
+
+    if args.log_path is not None:
+        log_f.close()
 
 
 if __name__ == '__main__':
