@@ -43,7 +43,7 @@ class LidarSynthesis:
         self.avg_mask = np.load(str(rsrc_path / "Lidar/avg_mask.npy"))[:, :, 0]
 
         self.render_model = None
-        path = rsrc_path / "Lidar/LidarFiller2.h5"
+        path = rsrc_path / "Lidar/LidarFiller3.h5"
         if path.is_file() and load_model:
             logging.debug(f"Loading Lidar model from {path}")
             self.render_model = tf.keras.models.load_model(
