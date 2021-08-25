@@ -95,6 +95,53 @@ class SlowMoWarp:
 
         return Ft_p
 
+    def interpolate_sync_batch(self, I0, I1, F_0_1, F_1_0, sf=2):
+        if sf > 1:
+            ts = [float(_i) / sf for _i in range(1, sf)]
+
+            I0_b = I0.repeat(sf-1, 1, 1, 1)
+            I1_b = I1.repeat(sf-1, 1, 1, 1)
+            F_0_1_b = F_0_1.repeat(sf-1, 1, 1, 1)
+            F_1_0_b = F_1_0.repeat(sf-1, 1, 1, 1)
+
+            fCoeff_fn = lambda _t: [-_t * (1 - _t), _t * _t, (1 - _t) * (1 - _t), -_t * (1 - _t)]
+            fCoeffs = torch.Tensor([fCoeff_fn(t) for t in ts])[...,None,None].to(self.device)
+
+            wCoeff_fn = lambda _t: [1 - _t, _t]
+            wCoeffs = torch.Tensor([wCoeff_fn(t) for t in ts])[...,None,None].to(self.device)
+
+            F_t_0_b = fCoeffs[:,0:1] * F_0_1_b + fCoeffs[:,1:2] * F_1_0_b
+            F_t_1_b = fCoeffs[:,2:3] * F_0_1_b + fCoeffs[:,3:4] * F_1_0_b
+
+            g_I0_F_t_0_b = self.flowBackWarp(I0_b, F_t_0_b)
+            g_I1_F_t_1_b = self.flowBackWarp(I1_b, F_t_1_b)
+
+            intrpOut_b = self.ArbTimeFlowIntrp(
+                torch.cat(
+                    (I0_b, I1_b, F_0_1_b, F_1_0_b, F_t_1_b, F_t_0_b, g_I1_F_t_1_b, g_I0_F_t_0_b), dim=1
+                )
+            )
+
+            F_t_0_f_b = intrpOut_b[:, :2, :, :] + F_t_0_b
+            F_t_1_f_b = intrpOut_b[:, 2:4, :, :] + F_t_1_b
+            V_t_0_b = torch.sigmoid(
+                intrpOut_b[:, 4:5, :, :]
+            )  # this could be critical for the simulator!!!
+            V_t_1_b = 1 - V_t_0_b
+
+            g_I0_F_t_0_f_b = self.flowBackWarp(I0_b, F_t_0_f_b)
+            g_I1_F_t_1_f_b = self.flowBackWarp(I1_b, F_t_1_f_b)
+
+            Ft_p_b = (wCoeffs[:,0:1] * V_t_0_b * g_I0_F_t_0_f_b + \
+                    wCoeffs[:,1:2] * V_t_1_b * g_I1_F_t_1_f_b) / (
+                    wCoeffs[:,0:1] * V_t_0_b + wCoeffs[:,1:2] * V_t_1_b)
+
+            interpolated = [self.rev_transform(Ft_p) for Ft_p in Ft_p_b]
+        else:
+            interpolated = []
+
+        return interpolated
+
     def interpolate_sync(self, I0, I1, F_0_1, F_1_0, sf=2):
         interpolated = []
         for intermediateIndex in range(1, sf):
@@ -104,7 +151,7 @@ class SlowMoWarp:
             interpolated.append(out)
         return interpolated
 
-    def interpolate_max_flow(self, I0, I1, F_0_1, F_1_0, max_sf=-1):
+    def interpolate_max_flow(self, I0, I1, F_0_1, F_1_0, max_sf=10):
         fwd_mag = F_0_1.norm(dim=1)
         bwd_mag = F_1_0.norm(dim=1)
 
@@ -112,29 +159,36 @@ class SlowMoWarp:
         bwd_mag_max = bwd_mag.max().item()
 
         sf = int(round(max(fwd_mag_max, bwd_mag_max) * self.lambda_flow))
-        sf = sf if max_sf == -1 else min(sf, max_sf)
-        return self.interpolate_sync(I0, I1, F_0_1, F_1_0, sf), sf
+        sf = min(sf, max_sf)
+        return self.interpolate_sync_batch(I0, I1, F_0_1, F_1_0, sf), sf
 
-    def forward(self, frame0, frame1):
-        I0 = self.transform(frame0).to(self.device)[None]
-        I1 = self.transform(frame1).to(self.device)[None]
+    def forward(self, I0, I1):
+        if not isinstance(I0, torch.Tensor):
+            I0 = self.transform(I0).to(self.device)[None]
+        if not isinstance(I1, torch.Tensor):
+            I1 = self.transform(I1).to(self.device)[None]
 
         P01 = torch.cat((I0, I1), dim=1)
         flowOut = self.flowComp(P01)
 
         return flowOut        
 
-    def forward_warp(self, frame0, frame1, sf=-1, max_sf=-1):
+    def forward_warp(self, frame0, frame1, max_sf=-1, use_max_flow=True):
         I0 = self.transform(frame0).to(self.device)[None]
         I1 = self.transform(frame1).to(self.device)[None]
 
-        flowOut = self.forward(frame0, frame1)
+        flowOut = self.forward(I0, I1)
         F_0_1 = flowOut[:, :2, :, :]
         F_1_0 = flowOut[:, 2:, :, :]
 
-        if sf == -1:
+        if max_sf == -1:
+            max_sf = 10
+            use_max_flow = True
+
+        if use_max_flow:
             inter_frame, sf = self.interpolate_max_flow(I0, I1, F_0_1, F_1_0, max_sf)
         else:
-            inter_frame = self.interpolate_sync(I0, I1, F_0_1, F_1_0, sf)
+            inter_frame = self.interpolate_sync(I0, I1, F_0_1, F_1_0, max_sf)
+            sf = max_sf
 
         return {"flow": (F_0_1, F_1_0), "interpolated": inter_frame, "sf": sf}
