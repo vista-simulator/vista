@@ -25,6 +25,7 @@ class Display:
         'gs_bev_w': 2,
         'gs_agent_w': 4,
         'gs_h': 6,
+        'gui_scale': 1.0
     }
 
     def __init__(self,
