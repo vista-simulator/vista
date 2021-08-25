@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import IterableDataset, DataLoader
 from torchvision import transforms
 from collections import deque
 
@@ -20,7 +20,7 @@ from vista.core.Display import events2frame
 logging.setLevel(logging.ERROR)
 
 
-class VistaDataset(Dataset):
+class VistaDataset(IterableDataset):
     def __init__(self, trace_paths, transform, train=False):
         trace_config = dict(
             road_width=4,
@@ -54,9 +54,11 @@ class VistaDataset(Dataset):
             sigma_negative_threshold=0.02,
             reproject_pixel=False,
         )
-        self.world = vista.World(trace_paths, trace_config)
-        self.agent = self.world.spawn_agent(car_config)
-        self.event_camera = self.agent.spawn_event_camera(event_cam_config)
+
+        self.trace_paths = trace_paths
+        self.trace_config = trace_config
+        self.car_config = car_config
+        self.event_cam_config = event_cam_config
 
         self.transform = transform
         self.train = train
@@ -69,8 +71,6 @@ class VistaDataset(Dataset):
             maneuvor_cnt_ratio=0.5,
             max_horizon=400,
         )
-        self.do_reset = False
-        self.maneuvor_cnt = dict(recovery=0, lane_following=0)
 
         self.optimal_control_config = dict(
             lookahead_dist=10,
@@ -78,105 +78,114 @@ class VistaDataset(Dataset):
             Kp=0.5,
         )
 
-        def _initial_dynamics_fn(x, y, yaw, steering, speed):
-            return [
-                x + np.random.uniform(*self.reset_config['x_perturbation']),
-                y,
-                yaw + np.random.uniform(*self.reset_config['yaw_perturbation']),
-                steering,
-                speed,
-            ]
-        self.initial_dynamics_fn = _initial_dynamics_fn
-        self.world.reset({self.agent.id: self.initial_dynamics_fn})
+        # NOTE: just to make len() still work in the master process; will be instantiated 
+        # independently for each worker in worker_init_fn
+        self.world = vista.World(trace_paths, trace_config)
 
     def __len__(self):
         return np.sum([tr.num_of_frames for tr in self.world.traces])
 
-    def __getitem__(self, idx):
-        # reset when trace is done or doing lane following for a while
-        if self.agent.done or self.do_reset:
-            self.world.reset({self.agent.id: self.initial_dynamics_fn})
+    def __len__(self):
+        return np.sum([tr.num_of_frames for tr in self.world.traces])
 
-            self.do_reset = False
-            self.maneuvor_cnt['recovery'] = 0
-            self.maneuvor_cnt['lane_following'] = 0
+    def __iter__(self):
+        return self._simulate()
 
-        # optimal control
-        tic = time.time()
+    def _simulate(self):
+        while True:
+            # reset when trace is done or doing lane following for a while
+            if self.agent.done or self.do_reset:
+                self.world.reset({self.agent.id: self.initial_dynamics_fn})
 
-        speed = self.agent.human_speed
+                self.do_reset = False
+                self.maneuvor_cnt['recovery'] = 0
+                self.maneuvor_cnt['lane_following'] = 0
 
-        road = self.agent.road
-        ego_pose = self.agent.ego_dynamics.numpy()[:3]
-        road_in_ego = np.array([ # TODO: vectorize this: slow if road buffer size too large
-            transform.compute_relative_latlongyaw(_v, ego_pose)
-            for _v in road
-        ])
-        road_in_ego = road_in_ego[road_in_ego[:,1] > 0] # drop road in the back
+            # optimal control
+            tic = time.time()
 
-        lookahead_dist = self.optimal_control_config['lookahead_dist']
-        dt = self.optimal_control_config['dt']
-        Kp = self.optimal_control_config['Kp']
+            speed = self.agent.human_speed
 
-        dist = np.linalg.norm(road_in_ego[:,:2], axis=1)
-        tgt_idx = np.argmin(np.abs(dist - lookahead_dist))
-        dx, dy, dyaw = road_in_ego[tgt_idx]
+            road = self.agent.road
+            ego_pose = self.agent.ego_dynamics.numpy()[:3]
+            road_in_ego = np.array([ # TODO: vectorize this: slow if road buffer size too large
+                transform.compute_relative_latlongyaw(_v, ego_pose)
+                for _v in road
+            ])
+            road_in_ego = road_in_ego[road_in_ego[:,1] > 0] # drop road in the back
 
-        lat_shift = -self.agent.relative_state.x
-        dx += lat_shift * np.cos(dyaw)
-        dy += lat_shift * np.sin(dyaw)
+            lookahead_dist = self.optimal_control_config['lookahead_dist']
+            dt = self.optimal_control_config['dt']
+            Kp = self.optimal_control_config['Kp']
 
-        arc_len = speed * dt
-        curvature = (Kp * np.arctan2(-dx, dy) * dt) / arc_len
-        curvature_bound = [
-            tireangle2curvature(_v, self.agent.wheel_base)
-            for _v in self.agent.ego_dynamics.steering_bound]
-        curvature = np.clip(curvature, *curvature_bound)
+            dist = np.linalg.norm(road_in_ego[:,:2], axis=1)
+            tgt_idx = np.argmin(np.abs(dist - lookahead_dist))
+            dx, dy, dyaw = road_in_ego[tgt_idx]
 
-        label = np.array([curvature]).astype(np.float32)
+            lat_shift = -self.agent.relative_state.x
+            dx += lat_shift * np.cos(dyaw)
+            dy += lat_shift * np.sin(dyaw)
 
-        toc = time.time()
-        time_optimal_control = toc - tic
+            arc_len = speed * dt
+            curvature = (Kp * np.arctan2(-dx, dy) * dt) / arc_len
+            curvature_bound = [
+                tireangle2curvature(_v, self.agent.wheel_base)
+                for _v in self.agent.ego_dynamics.steering_bound]
+            curvature = np.clip(curvature, *curvature_bound)
 
-        # actively reset to balance between lane following and recovery maneuvor
-        x_diff, y_diff, yaw_diff = self.agent.relative_state.numpy()
-        yaw_diff_mag = np.abs(yaw_diff)
-        distance = np.linalg.norm([x_diff, y_diff])
-        if yaw_diff_mag <= self.reset_config['yaw_tolerance'] and \
-            distance <= self.reset_config['distance_tolerance']:
-            self.maneuvor_cnt['lane_following'] += 1
-        else:
-            self.maneuvor_cnt['recovery'] += 1
-        is_balanced = self.maneuvor_cnt['lane_following'] >= \
-            self.maneuvor_cnt['recovery'] * self.reset_config['maneuvor_cnt_ratio']
-        exceed_max_horizon = (self.maneuvor_cnt['lane_following'] + \
-            self.maneuvor_cnt['recovery']) >= self.reset_config['max_horizon']
-        if is_balanced or exceed_max_horizon:
-            self.do_reset = True
+            label = np.array([curvature]).astype(np.float32)
 
-        # step simulation
-        action = np.array([curvature, speed])
+            toc = time.time()
+            time_optimal_control = toc - tic
 
-        tic = time.time()
-        self.agent.step_dynamics(action)
-        toc = time.time()
-        time_step_dynamics = toc - tic
+            # actively reset to balance between lane following and recovery maneuvor
+            x_diff, y_diff, yaw_diff = self.agent.relative_state.numpy()
+            yaw_diff_mag = np.abs(yaw_diff)
+            distance = np.linalg.norm([x_diff, y_diff])
+            if yaw_diff_mag <= self.reset_config['yaw_tolerance'] and \
+                distance <= self.reset_config['distance_tolerance']:
+                self.maneuvor_cnt['lane_following'] += 1
+            else:
+                self.maneuvor_cnt['recovery'] += 1
+            is_balanced = self.maneuvor_cnt['lane_following'] >= \
+                self.maneuvor_cnt['recovery'] * self.reset_config['maneuvor_cnt_ratio']
+            exceed_max_horizon = (self.maneuvor_cnt['lane_following'] + \
+                self.maneuvor_cnt['recovery']) >= self.reset_config['max_horizon']
+            if is_balanced or exceed_max_horizon:
+                self.do_reset = True
 
-        tic = time.time()
-        self.agent.step_sensors()
-        toc = time.time()
-        time_step_sensors = toc - tic
+            # step simulation
+            action = np.array([curvature, speed])
 
-        # fetch observation
-        sensor_name = self.agent.sensors[0].name
-        events = self.agent.observations[sensor_name]
+            tic = time.time()
+            self.agent.step_dynamics(action)
+            toc = time.time()
+            time_step_dynamics = toc - tic
 
-        # preprocess observation
-        event_cam_param = self.agent.sensors[0].camera_param
-        img = events2frame(events, event_cam_param.get_height(), event_cam_param.get_width())
-        img = self.transform(img)
+            tic = time.time()
+            self.agent.step_sensors()
+            toc = time.time()
+            time_step_sensors = toc - tic
 
-        return img, label
+            # fetch observation
+            sensor_name = self.agent.sensors[0].name
+            events = self.agent.observations[sensor_name]
+
+            # preprocess observation
+            event_cam_param = self.agent.sensors[0].camera_param
+            img = events2frame(events, event_cam_param.get_height(), event_cam_param.get_width())
+            img = self.transform(img)
+
+            yield img, label
+
+    def initial_dynamics_fn(self, x, y, yaw, steering, speed):
+        return [
+            x + np.random.uniform(*self.reset_config['x_perturbation']),
+            y,
+            yaw + np.random.uniform(*self.reset_config['yaw_perturbation']),
+            steering,
+            speed,
+        ]
 
 
 class Net(nn.Module):
@@ -255,6 +264,18 @@ def test(model, device, test_loader, criterion):
     return test_loss
 
 
+# NOTE: must be a global function otherwise 
+def worker_init_fn(worker_id):
+    worker_info = torch.utils.data.get_worker_info()
+    dataset = worker_info.dataset
+    dataset.world = vista.World(dataset.trace_paths, dataset.trace_config)
+    dataset.agent = dataset.world.spawn_agent(dataset.car_config)
+    dataset.event_camera = dataset.agent.spawn_event_camera(dataset.event_cam_config)
+    dataset.do_reset = False
+    dataset.maneuvor_cnt = dict(recovery=0, lane_following=0)
+    dataset.world.reset({dataset.agent.id: dataset.initial_dynamics_fn})
+
+
 def main():
     # Parse arguments (NOTE: just a placeholder here; hardcoded argument for now)
     parser = argparse.ArgumentParser(description='Minimal example of Vista IL training')
@@ -269,7 +290,7 @@ def main():
     device = torch.device('cuda' if use_cuda else 'cpu')
 
     # Define data loader
-    data_dir = os.environ.get('DATA_DIR', '/home/tsunw/data/traces/')
+    data_dir = os.environ.get('DATA_DIR', '/home/tsunw/data/')
 
     train_transform = transforms.Compose([
         transforms.ToTensor(),
@@ -286,15 +307,16 @@ def main():
                          '20210609-155752_lexus_devens_subroad',
                          '20210609-175037_lexus_devens_outerloop_reverse',
                          '20210609-175503_lexus_devens_outerloop']
-    train_trace_paths = [os.path.join(data_dir, v) for v in train_trace_paths]
+    train_trace_paths = [os.path.join(data_dir, 'traces', v) for v in train_trace_paths]
     train_dataset = VistaDataset(train_trace_paths, train_transform, train=True)
 
     train_loader = DataLoader(train_dataset,
                               batch_size=64,
-                              shuffle=True,
+                              shuffle=False, # NOTE: IterDataset doesn't allow shuffle
                               pin_memory=True,
-                              num_workers=0, # NOTE: multi-process data loader make FFReader fail
-                              drop_last=True)
+                              num_workers=2,
+                              drop_last=True,
+                              worker_init_fn=worker_init_fn)
 
     test_transform = transforms.Compose([
         transforms.ToTensor(),
@@ -303,14 +325,15 @@ def main():
                         '20210613-172102_lexus_devens_outerloop_reverse',
                         '20210613-194157_lexus_devens_subroad',
                         '20210613-194324_lexus_devens_subroad_reverse']
-    test_trace_paths = [os.path.join(data_dir, v) for v in test_trace_paths]
+    test_trace_paths = [os.path.join(data_dir, 'traces', v) for v in test_trace_paths]
     test_dataset = VistaDataset(test_trace_paths, test_transform, train=False)
     test_loader = DataLoader(test_dataset,
                              batch_size=64,
                              shuffle=False,
                              pin_memory=True,
-                             num_workers=0,
-                             drop_last=True)
+                             num_workers=2,
+                             drop_last=True,
+                             worker_init_fn=worker_init_fn)
 
     # Define model and optimizer
     model = Net().to(device)
@@ -331,4 +354,5 @@ def main():
 
 
 if __name__ == '__main__':
+    torch.multiprocessing.set_start_method('spawn') # NOTE: for CUDA in multi-process
     main()

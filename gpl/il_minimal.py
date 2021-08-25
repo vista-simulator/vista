@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import IterableDataset, DataLoader
 from torchvision import transforms
 
 import vista
@@ -17,7 +17,7 @@ from vista.utils import logging
 logging.setLevel(logging.ERROR)
 
 
-class VistaDataset(Dataset):
+class VistaDataset(IterableDataset):
     def __init__(self, trace_paths, transform, train=False):
         trace_config = dict(
             road_width=4,
@@ -40,36 +40,41 @@ class VistaDataset(Dataset):
             use_lighting=False,
             use_synthesizer=False, # NOTE: don't do view synthesis
         )
-        self.world = vista.World(trace_paths, trace_config)
-        self.agent = self.world.spawn_agent(car_config)
-        self.camera = self.agent.spawn_camera(camera_config)
-        self.world.reset()
+
+        self.trace_paths = trace_paths
+        self.trace_config = trace_config
+        self.car_config = car_config
+        self.camera_config = camera_config
 
         self.transform = transform
         self.train = train
 
+        # NOTE: just to make len() still work in the master process; will be instantiated 
+        # independently for each worker in worker_init_fn
+        self.world = vista.World(trace_paths, trace_config)
+
     def __len__(self):
         return np.sum([tr.num_of_frames for tr in self.world.traces])
 
-    def __getitem__(self, idx):
-        tic = time.time()
+    def __iter__(self):
+        return self._simulate()
 
-        if self.agent.done:
-            self.world.reset()
-        self.agent.step_dataset(step_dynamics=False)
-        sensor_name = self.agent.sensors[0].name
-        img = self.agent.observations[sensor_name]
+    def _simulate(self):
+        while True:
+            if self.agent.done:
+                self.world.reset()
 
-        (i1, j1, i2, j2) = self.agent.sensors[0].camera_param.get_roi()
-        img = img[i1:i2, j1:j2]
+            self.agent.step_dataset(step_dynamics=False)
+            sensor_name = self.agent.sensors[0].name
+            img = self.agent.observations[sensor_name]
 
-        img = self.transform(img)
-        label = np.array([self.agent.human_curvature]).astype(np.float32)
+            (i1, j1, i2, j2) = self.agent.sensors[0].camera_param.get_roi()
+            img = img[i1:i2, j1:j2]
 
-        toc = time.time()
-        elapsed_time = toc - tic
+            img = self.transform(img)
+            label = np.array([self.agent.human_curvature]).astype(np.float32)
 
-        return img, label
+            yield img, label
 
 
 class Net(nn.Module):
@@ -162,7 +167,15 @@ def main():
     device = torch.device('cuda' if use_cuda else 'cpu')
 
     # Define data loader
-    data_dir = os.environ.get('DATA_DIR', '/home/tsunw/data/traces/')
+    data_dir = os.environ.get('DATA_DIR', '/home/tsunw/data/')
+
+    def worker_init_fn(worker_id):
+        worker_info = torch.utils.data.get_worker_info()
+        dataset = worker_info.dataset
+        dataset.world = vista.World(dataset.trace_paths, dataset.trace_config)
+        dataset.agent = dataset.world.spawn_agent(dataset.car_config)
+        dataset.camera = dataset.agent.spawn_camera(dataset.camera_config)
+        dataset.world.reset()
 
     train_transform = transforms.Compose([
         transforms.ToTensor(),
@@ -179,14 +192,15 @@ def main():
                          '20210609-155752_lexus_devens_subroad',
                          '20210609-175037_lexus_devens_outerloop_reverse',
                          '20210609-175503_lexus_devens_outerloop']
-    train_trace_paths = [os.path.join(data_dir, v) for v in train_trace_paths]
+    train_trace_paths = [os.path.join(data_dir, 'traces', v) for v in train_trace_paths]
     train_dataset = VistaDataset(train_trace_paths, train_transform, train=True)
     train_loader = DataLoader(train_dataset,
                               batch_size=64,
-                              shuffle=True,
+                              shuffle=False, # NOTE: IterDataset doesn't allow shuffle
                               pin_memory=True,
-                              num_workers=0, # NOTE: multi-process data loader make FFReader fail
-                              drop_last=True)
+                              num_workers=8,
+                              drop_last=True,
+                              worker_init_fn=worker_init_fn)
 
     test_transform = transforms.Compose([
         transforms.ToTensor(),
@@ -195,14 +209,15 @@ def main():
                         '20210613-172102_lexus_devens_outerloop_reverse',
                         '20210613-194157_lexus_devens_subroad',
                         '20210613-194324_lexus_devens_subroad_reverse']
-    test_trace_paths = [os.path.join(data_dir, v) for v in test_trace_paths]
+    test_trace_paths = [os.path.join(data_dir, 'traces', v) for v in test_trace_paths]
     test_dataset = VistaDataset(test_trace_paths, test_transform, train=False)
     test_loader = DataLoader(test_dataset,
                              batch_size=64,
                              shuffle=False,
                              pin_memory=True,
-                             num_workers=0,
-                             drop_last=True)
+                             num_workers=8,
+                             drop_last=True,
+                             worker_init_fn=worker_init_fn)
 
     # Define model and optimizer
     model = Net().to(device)
@@ -211,11 +226,11 @@ def main():
 
     # Run training
     all_test_loss = []
-    for epoch in range(1, 100 + 1):
+    for epoch in range(1, 10 + 1):
         train(args, model, device, train_loader, criterion, optimizer, epoch)
         test_loss = test(model, device, test_loader, criterion)
         all_test_loss.append(test_loss)
-        if epoch % 10 == 0:
+        if epoch % 1 == 0:
             save_dir = os.environ.get('RESULT_DIR', './ckpt/il')
             if not os.path.isdir(save_dir):
                 os.makedirs(save_dir)
