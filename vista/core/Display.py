@@ -228,15 +228,11 @@ class Display:
 
                 elif obs_name in lidars.keys():
                     if isinstance(obs, Pointcloud):
-                        obs_ = obs[::20]
+                        obs_ = obs[::20] # sub-sample the pointcloud for vis
                         ax = self._axes[ax_name]
                         ax.clear()
-                        ax.scatter(obs_.x,
-                                   obs_.y,
-                                   c=obs_.z,
-                                   s=1,
-                                   vmin=-2,
-                                   vmax=5)
+                        plot_args = {"s": 1, "vmin":-2, "vmax":5}
+                        ax.scatter(obs_.x, obs_.y, c=obs_.z, **kwargs)
                         ax.set_xlim(-50, 50)
                         ax.set_ylim(-50, 50)
                         obs_render = None
