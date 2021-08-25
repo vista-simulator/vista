@@ -13,12 +13,12 @@ from .Pointcloud import Pointcloud, Point
 
 class LidarSynthesis:
     def __init__(self,
-                 yaw_res: float=0.1,
-                 pitch_res: float=0.1,
-                 yaw_fov: Tuple[float, float]=(-180., 180.),
-                 pitch_fov: Tuple[float, float]=(-21.0, 15.0),
-                 culling_r: int=1,
-                 load_model: bool=True):
+                 yaw_res: float = 0.1,
+                 pitch_res: float = 0.1,
+                 yaw_fov: Tuple[float, float] = (-180., 180.),
+                 pitch_fov: Tuple[float, float] = (-21.0, 15.0),
+                 culling_r: int = 1,
+                 load_model: bool = True):
 
         ### Basic properties required for setting up the synthesizer including
         # the dimensionality and resolution of the image representation space
@@ -50,10 +50,10 @@ class LidarSynthesis:
                 str(path), custom_objects={"exp": tf.math.exp}, compile=False)
 
     def synthesize(
-            self,
-            trans: np.ndarray,
-            rot: np.ndarray,
-            pcd: np.ndarray,
+        self,
+        trans: np.ndarray,
+        rot: np.ndarray,
+        pcd: np.ndarray,
     ) -> Tuple[Pointcloud, np.ndarray]:
         """ Apply rigid transformation to a dense pointcloud and return new
         dense representation or sparse pointcloud. """
@@ -79,12 +79,9 @@ class LidarSynthesis:
 
         return (new_pcd, dense)
 
-
     def pcd2sparse(self,
                    pcd: Pointcloud,
-                   channels: Point=Point.DEPTH
-    ) -> np.ndarray:
-
+                   channels: Point = Point.DEPTH) -> np.ndarray:
         """ Convert from pointcloud to sparse image in polar coordinates.
         Fill image with specified features of the data (-1 = binary) """
 
@@ -110,9 +107,8 @@ class LidarSynthesis:
 
     @tf.function
     def cull_occlusions(self,
-                        sparse:Union[np.ndarray, tf.Tensor],
-                        depth_slack:float = 0.1
-    ) -> tf.Tensor:
+                        sparse: Union[np.ndarray, tf.Tensor],
+                        depth_slack: float = 0.1) -> tf.Tensor:
 
         # Coordinates where we have depth samples
         coords = tf.cast(tf.where(sparse > 0), tf.int32)
@@ -166,8 +162,7 @@ class LidarSynthesis:
 
     def cull_occlusions_np(self,
                            sparse: np.ndarray,
-                           depth_slack:float = 0.1
-    ) -> np.ndarray:
+                           depth_slack: float = 0.1) -> np.ndarray:
 
         coords = np.array(np.where(sparse > 0)).T
         depths = sparse[coords[:, 0], coords[:, 1]]
@@ -195,9 +190,7 @@ class LidarSynthesis:
 
     def sparse2dense(self,
                      sparse: np.ndarray,
-                     method:str = "linear"
-    ) -> np.ndarray:
-
+                     method: str = "linear") -> np.ndarray:
         """ Convert from sparse image representation of pointcloud to dense. """
 
         if method == "nn":
@@ -226,7 +219,6 @@ class LidarSynthesis:
             dense[np.isnan(dense)] = 0.0
         return dense
 
-
     def dense2pcd(self,
                   dense_depth: np.ndarray,
                   dense_intensity: Optional[np.ndarray] = None):
@@ -248,10 +240,8 @@ class LidarSynthesis:
         pcd = Pointcloud(points, intensity)
         return pcd
 
-    def coords2angles(self,
-                      pitch_coords: np.ndarray,
-                      yaw_coords: np.ndarary
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def coords2angles(self, pitch_coords: np.ndarray,
+                      yaw_coords: np.ndarary) -> Tuple[np.ndarray, np.ndarray]:
 
         yaw = yaw_coords * (self._fov_rad[0, 1] - self._fov_rad[0, 0]) / \
               self._dims[0, 0] + self._fov_rad[0, 0]
@@ -259,15 +249,13 @@ class LidarSynthesis:
               self._dims[1, 0] + self._fov_rad[1, 0]
         return pitch, yaw
 
-
-    def angles2rays(self, pitch: np.ndarray, yaw:np.ndarray) -> np.ndarray:
+    def angles2rays(self, pitch: np.ndarray, yaw: np.ndarray) -> np.ndarray:
         xyLen = np.cos(pitch)
         rays = np.array([ \
             xyLen * np.cos(yaw),
             xyLen * np.sin(-yaw),
             np.sin(-pitch)])
         return rays
-
 
     def _compute_sparse_inds(self, pcd: Pointcloud) -> np.ndarray:
         """ Compute the indicies on the image representation which will be

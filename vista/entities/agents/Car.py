@@ -25,7 +25,8 @@ class Car(Entity):
 
         # Car configuration
         car_config['lookahead_road'] = car_config.get('lookahead_road', False)
-        car_config['road_buffer_size'] = car_config.get('road_buffer_size', 200)
+        car_config['road_buffer_size'] = car_config.get(
+            'road_buffer_size', 200)
         self._config = car_config
 
         # Pointer to the parent vista.World object where the agent lives
@@ -102,7 +103,10 @@ class Car(Entity):
 
         return event_cam
 
-    def reset(self, trace_index: int, segment_index: int, frame_index: int,
+    def reset(self,
+              trace_index: int,
+              segment_index: int,
+              frame_index: int,
               initial_dynamics_fn: Optional[Callable] = None):
         logging.info('Car ({}) reset'.format(self.id))
 
@@ -139,7 +143,8 @@ class Car(Entity):
         self._tire_angle = curvature2tireangle(self.curvature, self.wheel_base)
 
         latlongyaw = transform.compute_relative_latlongyaw(
-            self.ego_dynamics.numpy()[:3], self.human_dynamics.numpy()[:3])
+            self.ego_dynamics.numpy()[:3],
+            self.human_dynamics.numpy()[:3])
         self._relative_state.update(*latlongyaw)
 
         # Reset for privileged information
@@ -335,8 +340,7 @@ class Car(Entity):
         get_timestamp = lambda _idx: self.trace.get_master_timestamp(
             self.segment_index, _idx, check_end=True)
         while self._road_frame_idcs[-1] < (
-                self.frame_index +
-                self._road.maxlen / 2.) and not exceed_end:
+                self.frame_index + self._road.maxlen / 2.) and not exceed_end:
             exceed_end, ts = get_timestamp(self._road_frame_idcs[-1])
             self._road_frame_idcs.append(self._road_frame_idcs[-1] + 1)
             exceed_end, next_ts = get_timestamp(self._road_frame_idcs[-1])

@@ -27,10 +27,9 @@ class Pointcloud:
 
     def transform(self,
                   R: Optional[np.ndarray] = None,
-                  trans: Optional[np.ndarray] = None
-    ) -> np.ndarray:
-
+                  trans: Optional[np.ndarray] = None):
         xyz = self.xyz
+
         if R is not None:
             assert R.shape == (3, 3), \
                    f"Rotation matrix shape is {R.shape} but should be (3, 3)"
@@ -45,9 +44,7 @@ class Pointcloud:
         new_pcd = Pointcloud(xyz, self.intensity)
         return new_pcd
 
-
-    def get(self, feature: Point) -> np.ndarray:
-
+    def get(self, feature: Point):
         feature = Point(feature)  # Cast to a Point if not already
         if feature == Point.X:
             return self.x
@@ -65,18 +62,16 @@ class Pointcloud:
         raise ValueError(f"Unrecognized Point feature {feature} to" +
                          " extract from pointcloud")
 
-
-    def num_points(self) -> int:
+    def num_points(self):
         return len(self)
 
-
-    def __getitem__(self, i) -> Pointcloud:
+    def __getitem__(self, i):
         new_pcd = Pointcloud(self.xyz[i], self.intensity[i])
         if self._dist is not None:
             new_pcd._dist = self._dist[i]
         return new_pcd
 
-    def __len__(self) -> int:
+    def __len__(self):
         return self.xyz.shape[0]
 
     @property
