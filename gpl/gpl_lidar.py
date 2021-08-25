@@ -179,24 +179,25 @@ class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
         self.extractor = nn.Sequential(
-            nn.Conv2d(3, 24, 5, 2, 2),
-            nn.BatchNorm2d(24),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(24, 36, 5, 2, 2),
-            nn.BatchNorm2d(36),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(36, 48, 3, 2, 1),
-            nn.BatchNorm2d(48),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(48, 64, 3, 1, 1),
+            nn.Conv2d(1, 64, (1, 3), 1, "VALID"),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, 3, 1, 1),
-            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 128, 1, 1, "VALID"),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 256, 1, 1, "VALID"),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 512, 1, 1, "VALID"),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 1024, 1, 1, "VALID"),
+            nn.BatchNorm2d(1024),
             nn.ReLU(inplace=True)
         )
+
         self.policy = nn.Sequential(
-            nn.Linear(1280, 64),
+            nn.Linear(1024, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(inplace=True),
             nn.Linear(64, 32),
@@ -207,8 +208,8 @@ class Net(nn.Module):
 
     def forward(self, x):
         z = self.extractor(x)
-        z = torch.mean(z, dim=2)
-        z = z.flatten(start_dim=1, end_dim=2)
+        z = torch.mean(z, dim=1)
+        z = z.flatten(start_dim=1)
         out = self.policy(z)
         return out
 
