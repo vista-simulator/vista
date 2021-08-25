@@ -19,7 +19,11 @@ logging.setLevel(logging.ERROR)
 
 
 class VistaDataset(IterableDataset):
-    def __init__(self, trace_paths, transform, train=False):
+    def __init__(self, trace_paths, transform, train=False, 
+                 buffer_size=1, snippet_size=100):
+        # NOTE: do NOT define anything that will be updated here since multiprocessing in pytorch
+        #       is doing something like memory copy instead of instantiating new copies (unless we
+        #       are using 'spawn' instead of 'fork' for start method)
         trace_config = dict(
             road_width=4,
             reset_mode='default',
@@ -50,16 +54,18 @@ class VistaDataset(IterableDataset):
         self.transform = transform
         self.train = train
 
-        self.buffer_size = 1000 # DEBUG
+        self.buffer_size = max(1, buffer_size)
+        self.snippet_size = max(1, snippet_size)
 
         # NOTE: just to make len() still work in the master process; will be instantiated 
         # independently for each worker in worker_init_fn
         self.world = vista.World(trace_paths, trace_config)
 
     def __len__(self):
-        return 6000 # DEBUG np.sum([tr.num_of_frames for tr in self.world.traces])
+        return np.sum([tr.num_of_frames for tr in self.world.traces])
 
     def __iter__(self):
+        # buffered shuffle dataset
         buf = []
         for x in self._simulate():
             if len(buf) == self.buffer_size:
@@ -81,13 +87,13 @@ class VistaDataset(IterableDataset):
             self.world.reset()
 
         # data generator from simulation
-        [self.world.reset() for _ in range(worker_info.id)] # hacky way to make different workers reset differently
+        self.snippet_i = 0
         while True:
-            if self.agent.done:
-                # self.world.reset()
-                [self.world.reset() for _ in range(worker_info.id)]
-
-            print(worker_info.id, self.agent.trace_index, self.agent.segment_index, self.agent.frame_index) # DEBUG
+            if self.agent.done or self.snippet_i >= self.snippet_size:
+                if worker_info is not None:
+                    self.world.set_seed(worker_info.id)
+                self.world.reset()
+                self.snippet_i = 0
 
             self.agent.step_dataset(step_dynamics=False)
             sensor_name = self.agent.sensors[0].name
@@ -98,6 +104,8 @@ class VistaDataset(IterableDataset):
 
             img = standardize(self.transform(img))
             label = np.array([self.agent.human_curvature]).astype(np.float32)
+
+            self.snippet_i += 1
 
             yield img, label
 
@@ -187,8 +195,6 @@ def test(model, device, test_loader, criterion):
             output = model(data)
             test_loss += 10e4 * criterion(output, target).item()
 
-        print(output.item(), target.item()) # DEBUG
-
         sample_i += len(data)
         if sample_i >= total_samples:
             break
@@ -222,6 +228,7 @@ def main():
         dataset.world = vista.World(dataset.trace_paths, dataset.trace_config)
         dataset.agent = dataset.world.spawn_agent(dataset.car_config)
         dataset.camera = dataset.agent.spawn_camera(dataset.camera_config)
+        dataset.world.set_seed(worker_id)
         dataset.world.reset()
 
     train_transform = transforms.Compose([
@@ -240,12 +247,12 @@ def main():
                          '20210609-175037_lexus_devens_outerloop_reverse',
                          '20210609-175503_lexus_devens_outerloop']
     train_trace_paths = [os.path.join(data_dir, 'traces', v) for v in train_trace_paths]
-    train_dataset = VistaDataset(train_trace_paths, train_transform, train=True)
+    train_dataset = VistaDataset(train_trace_paths, train_transform, buffer_size=1000, train=True)
     train_loader = DataLoader(train_dataset,
                               batch_size=1,
                               shuffle=False, # NOTE: IterDataset doesn't allow shuffle
                               pin_memory=True,
-                              num_workers=4,
+                              num_workers=8,
                               drop_last=True,
                               worker_init_fn=worker_init_fn)
 
@@ -262,7 +269,7 @@ def main():
                              batch_size=1,
                              shuffle=False,
                              pin_memory=True,
-                             num_workers=0,
+                             num_workers=8,
                              drop_last=True,
                              worker_init_fn=worker_init_fn)
 
