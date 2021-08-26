@@ -1,8 +1,10 @@
 """ Minimal example of using guided policy learning (GPL) for lane following. """
 import os
+import sys
 import time
 import numpy as np
 import argparse
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,7 +23,11 @@ logging.setLevel(logging.ERROR)
 
 
 class VistaDataset(IterableDataset):
-    def __init__(self, trace_paths, transform, train=False):
+    def __init__(self, trace_paths, transform, train=False,
+                 buffer_size=1, snippet_size=100):
+        # NOTE: do NOT define anything that will be updated here since multiprocessing in pytorch
+        #       is doing something like memory copy instead of instantiating new copies (unless we
+        #       are using 'spawn' instead of 'fork' for start method)
         trace_config = dict(
             road_width=4,
             reset_mode='default',
@@ -63,6 +69,9 @@ class VistaDataset(IterableDataset):
         self.transform = transform
         self.train = train
 
+        self.buffer_size = max(1, buffer_size)
+        self.snippet_size = max(1, snippet_size)
+
         self.reset_config = dict(
             x_perturbation=[-1.0, 1.0],
             yaw_perturbation=[-0.04, 0.04],
@@ -85,17 +94,38 @@ class VistaDataset(IterableDataset):
     def __len__(self):
         return np.sum([tr.num_of_frames for tr in self.world.traces])
 
-    def __len__(self):
-        return np.sum([tr.num_of_frames for tr in self.world.traces])
-
     def __iter__(self):
-        return self._simulate()
+        # buffered shuffle dataset
+        self.rng = random.Random(torch.utils.data.get_worker_info().id)
+        buf = []
+        for x in self._simulate():
+            if len(buf) == self.buffer_size:
+                idx = self.rng.randint(0, self.buffer_size - 1)
+                yield buf[idx]
+                buf[idx] = x
+            else:
+                buf.append(x)
+        self.rng.shuffle(buf)
+        while buf:
+            yield buf.pop()
 
     def _simulate(self):
+        # initialization for num_worker = 0
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:
+            self.agent = self.world.spawn_agent(self.car_config)
+            self.camera = self.agent.spawn_camera(self.camera_config)
+            self.world.reset()
+
+        # data generator from simulation
+        self.snippet_i = 0
         while True:
             # reset when trace is done or doing lane following for a while
-            if self.agent.done or self.do_reset:
+            if self.agent.done or self.do_reset or self.snippet_i >= self.snippet_size:
+                if worker_info is not None:
+                    self.world.set_seed(worker_info.id)
                 self.world.reset({self.agent.id: self.initial_dynamics_fn})
+                self.snippet_i = 0
 
                 self.do_reset = False
                 self.maneuvor_cnt['recovery'] = 0
@@ -174,7 +204,9 @@ class VistaDataset(IterableDataset):
             # preprocess observation
             event_cam_param = self.agent.sensors[0].camera_param
             img = events2frame(events, event_cam_param.get_height(), event_cam_param.get_width())
-            img = self.transform(img)
+            img = standardize(self.transform(img))
+
+            self.snippet_i += 1
 
             yield img, label
 
@@ -186,6 +218,13 @@ class VistaDataset(IterableDataset):
             steering,
             speed,
         ]
+
+
+def standardize(x):
+    # follow https://www.tensorflow.org/api_docs/python/tf/image/per_image_standardization
+    mean, stddev = x.mean(), x.std()
+    adjusted_stddev = max(stddev, 1.0/np.sqrt(np.prod(x.shape)))
+    return (x - mean) / adjusted_stddev
 
 
 class Net(nn.Module):
@@ -209,13 +248,15 @@ class Net(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.policy = nn.Sequential(
-            nn.Linear(2560, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(2560, 1000),
+            # nn.BatchNorm1d(1000),
             nn.ReLU(inplace=True),
-            nn.Linear(64, 32),
-            nn.BatchNorm1d(32),
+            nn.Dropout(p=0.3),
+            nn.Linear(1000, 100),
+            # nn.BatchNorm1d(100),
             nn.ReLU(inplace=True),
-            nn.Linear(32, 1)
+            nn.Dropout(p=0.3),
+            nn.Linear(100, 1)
         )
 
     def forward(self, x):
@@ -229,42 +270,59 @@ class Net(nn.Module):
 def train(args, model, device, train_loader, criterion, optimizer, epoch):
     model.train()
     tic = time.time()
+    sample_i = 0
+    total_samples = len(train_loader.dataset)
+    loss_buf = []
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
-        loss = criterion(output, target) / len(data)
+        loss = 10e4 * criterion(output, target) / len(data)
         loss.backward()
         optimizer.step()
-        if batch_idx % 10 == 0:
+        loss_buf.append(loss.item())
+        if batch_idx % 100 == 0:
             toc = time.time()
             elapsed_time = toc - tic
             curr_n_samples = batch_idx * len(data)
-            total_samples = len(train_loader.dataset)
             progress = 100. * batch_idx / len(train_loader)
+            avg_loss = np.mean(loss_buf)
             print(f'Training epoch {epoch} [{curr_n_samples}/{total_samples} ({progress:.2f}%)]' \
-                  + f'\t Loss: {loss.item():.6f}\t Elapsed time: {elapsed_time:.2f}')
+                  + f'\t Average Loss: {avg_loss:.6f}\t Elapsed time: {elapsed_time:.2f}')
+            sys.stdout.flush()
             tic = toc
+            loss_buf = []
+        
+        sample_i += len(data)
+        if sample_i >= total_samples:
+            break
 
 
 def test(model, device, test_loader, criterion):
     model.eval()
     test_loss = 0
+    sample_i = 0
+    total_samples = len(test_loader.dataset)
     tic = time.time()
-    with torch.no_grad():
-        for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
+    for data, target in test_loader:
+        data, target = data.to(device), target.to(device)
+        with torch.no_grad():
             output = model(data)
-            test_loss += criterion(output, target).item()
+            test_loss += 10e4 * criterion(output, target).item()
+
+        sample_i += len(data)
+        if sample_i >= total_samples:
+            break
     toc = time.time()
 
     elapsed_time = toc - tic
     test_loss /= len(test_loader.dataset)
     print(f'Test set: Average Loss: {test_loss:.6f}\t Elapsed time: {elapsed_time:.2f}')
+    sys.stdout.flush()
     return test_loss
 
 
-# NOTE: must be a global function otherwise 
+# NOTE: must be a global function otherwise cannot be handled by spawn in multiprocessing
 def worker_init_fn(worker_id):
     worker_info = torch.utils.data.get_worker_info()
     dataset = worker_info.dataset
@@ -273,6 +331,8 @@ def worker_init_fn(worker_id):
     dataset.event_camera = dataset.agent.spawn_event_camera(dataset.event_cam_config)
     dataset.do_reset = False
     dataset.maneuvor_cnt = dict(recovery=0, lane_following=0)
+    dataset.world.set_seed(worker_id)
+    dataset.rng = random.Random(worker_id)
     dataset.world.reset({dataset.agent.id: dataset.initial_dynamics_fn})
 
 
@@ -283,11 +343,18 @@ def main():
                         help='random seed (default: 1)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
+    parser.add_argument('--log-path', type=str, default=None,
+                        help='Path to log file; default None to simply print out logs')
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device('cuda' if use_cuda else 'cpu')
+
+    if args.log_path is not None:
+        log_path = os.path.abspath(os.path.expanduser(args.log_path))
+        log_f = open(log_path, 'w')
+        sys.stdout = log_f
 
     # Define data loader
     data_dir = os.environ.get('DATA_DIR', '/home/tsunw/data/')
@@ -308,13 +375,12 @@ def main():
                          '20210609-175037_lexus_devens_outerloop_reverse',
                          '20210609-175503_lexus_devens_outerloop']
     train_trace_paths = [os.path.join(data_dir, 'traces', v) for v in train_trace_paths]
-    train_dataset = VistaDataset(train_trace_paths, train_transform, train=True)
-
+    train_dataset = VistaDataset(train_trace_paths, train_transform, buffer_size=1000, train=True)
     train_loader = DataLoader(train_dataset,
-                              batch_size=64,
+                              batch_size=1,
                               shuffle=False, # NOTE: IterDataset doesn't allow shuffle
                               pin_memory=True,
-                              num_workers=2,
+                              num_workers=4,
                               drop_last=True,
                               worker_init_fn=worker_init_fn)
 
@@ -331,13 +397,13 @@ def main():
                              batch_size=64,
                              shuffle=False,
                              pin_memory=True,
-                             num_workers=2,
+                             num_workers=4,
                              drop_last=True,
                              worker_init_fn=worker_init_fn)
 
     # Define model and optimizer
     model = Net().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.0002)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)
     criterion = nn.MSELoss(reduction='sum')
 
     # Run training
@@ -351,6 +417,10 @@ def main():
             if not os.path.isdir(save_dir):
                 os.makedirs(save_dir)
             torch.save(model.state_dict(), os.path.join(save_dir, 'ep_{:03d}.ckpt'.format(epoch)))
+
+
+    if args.log_path is not None:
+        log_f.close()
 
 
 if __name__ == '__main__':

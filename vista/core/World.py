@@ -26,6 +26,9 @@ class World:
         # the same world.
         self._agents: List[Car] = []
 
+        # Random seed; will also assign the same seed to traces
+        self.set_seed(0)
+
     def spawn_agent(self, config: Dict) -> Car:
         """ Spawn an agent in this world.
 
@@ -88,10 +91,19 @@ class World:
             trace_reset_probs[i] = trace.num_of_frames
         trace_reset_probs /= np.sum(trace_reset_probs)
 
-        new_trace_index = np.random.choice(trace_reset_probs.shape[0],
+        new_trace_index = self._rng.choice(trace_reset_probs.shape[0],
                                            p=trace_reset_probs)
 
         return new_trace_index
+
+    def set_seed(self, seed) -> None:
+        self._seed = seed
+        self._rng = np.random.default_rng(self.seed)
+        [t.set_seed(seed) for t in self.traces]
+
+    @property
+    def seed(self) -> int:
+        return self._seed
 
     @property
     def traces(self) -> List[Trace]:

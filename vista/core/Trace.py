@@ -67,7 +67,7 @@ class Trace:
             segment = self._good_frames[self._multi_sensor.master_sensor][i]
             segment_reset_probs[i] = len(segment)
         segment_reset_probs /= np.sum(segment_reset_probs)
-        new_segment_index = np.random.choice(segment_reset_probs.shape[0],
+        new_segment_index = self._rng.choice(segment_reset_probs.shape[0],
                                              p=segment_reset_probs)
 
         return new_segment_index
@@ -118,7 +118,7 @@ class Trace:
                 'Unrecognized trace reset mode {}'.format(self._reset_mode))
 
         # Sample frame index
-        frame_index = np.random.choice(probs.shape[0], p=probs)
+        frame_index = self._rng.choice(probs.shape[0], p=probs)
 
         return frame_index
 
@@ -232,6 +232,14 @@ class Trace:
                                fill_value='extrapolate')
 
         return f_speed, f_curvature
+
+    def set_seed(self, seed) -> None:
+        self._seed = seed
+        self._rng = np.random.default_rng(self.seed)
+
+    @property
+    def seed(self) -> int:
+        return self._seed
 
     @property
     def trace_path(self) -> str:

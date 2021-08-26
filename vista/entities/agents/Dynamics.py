@@ -146,6 +146,10 @@ class StateDynamics:
         return self._steering
 
     @property
+    def steering_bound(self) -> List[float]:
+        return self._steering_bound
+
+    @property
     def speed(self) -> float:
         return self._speed
 
