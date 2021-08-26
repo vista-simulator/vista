@@ -4,6 +4,12 @@ import numpy as np
 from scipy import interpolate
 from typing import Tuple, Optional, Union
 import tensorflow as tf
+
+for gpu in tf.config.experimental.list_physical_devices('GPU'):
+    tf.config.experimental.set_virtual_device_configuration(
+        gpu,
+        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1200)])
+
 import warnings
 
 from vista import resources
@@ -47,6 +53,7 @@ class LidarSynthesis:
         path = rsrc_path / "Lidar/LidarFiller5.h5"
         if path.is_file() and load_model:
             logging.debug(f"Loading Lidar model from {path}")
+
             self.render_model = tf.keras.models.load_model(str(path),
                                                            custom_objects={
                                                                "exp":
