@@ -235,7 +235,7 @@ class Display:
                         ax = self._axes[ax_name]
                         ax.clear()
                         cmap = cm.nipy_spectral(range(256))
-                        cmap = colors.ListedColormap(cmap[:,2::-1])
+                        cmap = colors.ListedColormap(cmap[:, 2::-1])
                         # ax.scatter(obs_.x,
                         #            obs_.y,
                         #            c=np.log(obs_.intensity),

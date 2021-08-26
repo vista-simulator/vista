@@ -234,7 +234,7 @@ class LidarSynthesis:
 
         dist = dense[mask, 0]
         intensity = None
-        if dense.shape[-1] == 2: # intensity dimension
+        if dense.shape[-1] == 2:  # intensity dimension
             intensity = dense[mask, 1]
 
         pitch, yaw = np.where(mask)

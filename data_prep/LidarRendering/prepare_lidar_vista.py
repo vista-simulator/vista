@@ -53,17 +53,17 @@ d_depth_trans = f_out.create_dataset(name="d_depth_trans",
                                              synthesizer._dims[0], 1),
                                      dtype=np.float32)
 d_int_orig = f_out.create_dataset(name="d_int_orig",
-                                    shape=(n_total, synthesizer._dims[1],
-                                           synthesizer._dims[0], 1),
-                                    chunks=(1, synthesizer._dims[1],
-                                            synthesizer._dims[0], 1),
-                                    dtype=np.uint8)
+                                  shape=(n_total, synthesizer._dims[1],
+                                         synthesizer._dims[0], 1),
+                                  chunks=(1, synthesizer._dims[1],
+                                          synthesizer._dims[0], 1),
+                                  dtype=np.uint8)
 d_int_trans = f_out.create_dataset(name="d_int_trans",
-                                     shape=(n_total, synthesizer._dims[1],
-                                            synthesizer._dims[0], 1),
-                                     chunks=(1, synthesizer._dims[1],
-                                             synthesizer._dims[0], 1),
-                                     dtype=np.uint8)
+                                   shape=(n_total, synthesizer._dims[1],
+                                          synthesizer._dims[0], 1),
+                                   chunks=(1, synthesizer._dims[1],
+                                           synthesizer._dims[0], 1),
+                                   dtype=np.uint8)
 # d_int = f_out.create_dataset(name="d_int",
 #                              shape=(n_total, synthesizer._dims[1],
 #                                     synthesizer._dims[0], 1),
@@ -117,7 +117,7 @@ def preprocess_scan(i, cutoff=2.5):
     sparse = synthesizer.pcd2sparse(pcd,
                                     channels=(Point.DEPTH, Point.INTENSITY,
                                               Point.MASK))
-    s_depth, s_int, mask = (sparse[:,:,i] for i in range(3))
+    s_depth, s_int, mask = (sparse[:, :, i] for i in range(3))
     mask = ~np.isnan(np.expand_dims(mask, -1))
     depth = synthesizer.sparse2dense(s_depth, method="linear")
     depth = np.expand_dims(depth, -1)
@@ -128,7 +128,8 @@ def preprocess_scan(i, cutoff=2.5):
                                           channels=(Point.DEPTH,
                                                     Point.INTENSITY,
                                                     Point.MASK))
-    s_depth_trans, s_int_trans, mask_trans = (sparse_trans[:,:,i] for i in range(3))
+    s_depth_trans, s_int_trans, mask_trans = (sparse_trans[:, :, i]
+                                              for i in range(3))
     mask_trans = ~np.isnan(np.expand_dims(mask_trans, -1))
     occlusions = synthesizer.cull_occlusions_np(s_depth_trans)
     s_depth_trans[occlusions[:, 0], occlusions[:, 1]] = np.nan
@@ -146,10 +147,10 @@ def preprocess_scan(i, cutoff=2.5):
 
     cv2.imshow('hi1', mask.astype(np.float32))
     cv2.imshow('hi2', depth / 70.)
-    cv2.imshow('hi3', intensity*5)
+    cv2.imshow('hi3', intensity * 5)
     cv2.imshow('hi4', mask_trans.astype(np.float32))
     cv2.imshow('hi5', depth_trans / 70.)
-    cv2.imshow('hi6', int_trans*5)
+    cv2.imshow('hi6', int_trans * 5)
     cv2.waitKey(1)
 
     return (mask, depth, intensity, mask_trans, depth_trans, int_trans)
