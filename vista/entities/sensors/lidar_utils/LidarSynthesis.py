@@ -40,14 +40,20 @@ class LidarSynthesis:
 
         ### Rendering masks and neural network model for sparse -> dense
         rsrc_path = pkg_resources.files(resources)
-        self.avg_mask = np.load(str(rsrc_path / "Lidar/avg_mask.npy"))[:, :, 0]
+        self.avg_mask = np.load(str(rsrc_path / "Lidar/avg_mask.npy"))
 
+        self.load_model = load_model
         self.render_model = None
-        path = rsrc_path / "Lidar/LidarFiller3.h5"
+        path = rsrc_path / "Lidar/LidarFiller5.h5"
         if path.is_file() and load_model:
             logging.debug(f"Loading Lidar model from {path}")
-            self.render_model = tf.keras.models.load_model(
-                str(path), custom_objects={"exp": tf.math.exp}, compile=False)
+            self.render_model = tf.keras.models.load_model(str(path),
+                                                           custom_objects={
+                                                               "exp":
+                                                               tf.math.exp,
+                                                               "tf": tf
+                                                           },
+                                                           compile=False)
 
     def synthesize(
         self,
@@ -194,10 +200,11 @@ class LidarSynthesis:
         """ Convert from sparse image representation of pointcloud to dense. """
 
         if method == "nn":
-            sparse[np.isnan(sparse)] = 0.0
-            sparse = sparse[np.newaxis, :, :, [0]]
+            mask = ~np.isnan(sparse)
+            sparse[~mask] = 0.0
+            sparse = sparse[np.newaxis]
             # dense = self.render_model.s2d(sparse)[0, :, :, 0].numpy()
-            dense = self.render_model(sparse)[0, :, :, 0].numpy()
+            dense = self.render_model(sparse)[0].numpy()
         else:
             # mask all invalid values
             zs = np.ma.masked_invalid(sparse)
@@ -219,18 +226,16 @@ class LidarSynthesis:
             dense[np.isnan(dense)] = 0.0
         return dense
 
-    def dense2pcd(self,
-                  dense_depth: np.ndarray,
-                  dense_intensity: Optional[np.ndarray] = None):
+    def dense2pcd(self, dense: np.ndarray):
         """ Sample mask from network and render points from mask """
         # TODO: load trained masking network and feed dense through
         # For now, simply load a mask prior from training data and sample
         mask = self.avg_mask > np.random.uniform(size=(self.avg_mask.shape))
 
-        dist = dense_depth[mask]
+        dist = dense[mask, 0]
         intensity = None
-        if dense_intensity is not None:
-            intensity = dense_intensity[mask]
+        if dense.shape[-1] == 2: # intensity dimension
+            intensity = dense[mask, 1]
 
         pitch, yaw = np.where(mask)
         pitch, yaw = self.coords2angles(pitch, yaw)
@@ -240,22 +245,21 @@ class LidarSynthesis:
         pcd = Pointcloud(points, intensity)
         return pcd
 
-    def coords2angles(
-            self, pitch_coords: np.ndarray,
-            yaw_coords: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def coords2angles(self, pitch_coords: np.ndarray,
+                      yaw_coords: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
         yaw = yaw_coords * (self._fov_rad[0, 1] - self._fov_rad[0, 0]) / \
               self._dims[0, 0] + self._fov_rad[0, 0]
-        pitch = pitch_coords * (self._fov_rad[1, 1] - self._fov_rad[1, 0]) / \
-              self._dims[1, 0] + self._fov_rad[1, 0]
+        pitch = pitch_coords * (self._fov_rad[1, 0] - self._fov_rad[1, 1]) / \
+              self._dims[1, 0] + self._fov_rad[1, 1]
         return pitch, yaw
 
     def angles2rays(self, pitch: np.ndarray, yaw: np.ndarray) -> np.ndarray:
         xyLen = np.cos(pitch)
         rays = np.array([ \
             xyLen * np.cos(yaw),
-            xyLen * np.sin(-yaw),
-            np.sin(-pitch)])
+            xyLen * np.sin(yaw),
+            np.sin(pitch)])
         return rays
 
     def _compute_sparse_inds(self, pcd: Pointcloud) -> np.ndarray:
@@ -263,7 +267,7 @@ class LidarSynthesis:
         filled for a given pointcloud """
 
         # project point cloud to 2D point map
-        yaw = np.arctan2(-pcd.y, pcd.x)
+        yaw = np.arctan2(pcd.y, pcd.x)
         pitch = np.arcsin(pcd.z / pcd.dist)
         angles = np.stack((yaw, pitch))
 

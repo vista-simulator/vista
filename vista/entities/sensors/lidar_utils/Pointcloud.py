@@ -18,8 +18,8 @@ class Pointcloud:
                  intensity: Optional[np.ndarray] = None):
         super(Pointcloud, self).__init__()
 
-        self._xyz = xyz
-        self._intensity = np.zeros((xyz.shape[0], ))
+        self._xyz = np.reshape(xyz, (-1, 3))
+        self._intensity = np.zeros((self._xyz.shape[0], ))
         if intensity is not None:
             self._intensity[:] = intensity.ravel()
 

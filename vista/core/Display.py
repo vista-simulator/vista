@@ -4,7 +4,7 @@ from collections import deque
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import cm
+from matplotlib import cm, colors
 from shapely.geometry import LineString
 from descartes import PolygonPatch
 import cv2
@@ -234,8 +234,22 @@ class Display:
                         obs_ = obs[::20]  # sub-sample the pointcloud for vis
                         ax = self._axes[ax_name]
                         ax.clear()
-                        plot_args = {"s": 1, "vmin": -2, "vmax": 4}
-                        ax.scatter(obs_.x, obs_.y, c=obs_.z, **plot_args)
+                        cmap = cm.nipy_spectral(range(256))
+                        cmap = colors.ListedColormap(cmap[:,2::-1])
+                        # ax.scatter(obs_.x,
+                        #            obs_.y,
+                        #            c=np.log(obs_.intensity),
+                        #            s=1,
+                        #            vmin=1.7,
+                        #            vmax=4.3,
+                        #            cmap=cmap)
+                        ax.scatter(obs_.x,
+                                   obs_.y,
+                                   c=obs_.z,
+                                   s=1,
+                                   vmin=-2.5,
+                                   vmax=4,
+                                   cmap=cmap)
                         ax.set_xlim(-50, 50)
                         ax.set_ylim(-50, 50)
                         obs_render = None

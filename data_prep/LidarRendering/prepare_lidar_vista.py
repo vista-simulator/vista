@@ -34,7 +34,7 @@ f_intensity = f_in['intensity']
 f_timestamp = f_in['timestamp']
 n_total = f_timestamp.shape[0]
 
-f_out = h5py.File(os.path.join(args.input, "lidar_3d_vista_new.h5"), "w")
+f_out = h5py.File(os.path.join(args.input, "lidar_3d_vista_new2.h5"), "w")
 d_timestamp = f_out.create_dataset(name="timestamp", data=f_timestamp[:])
 # d_pcd = f_out.create_dataset(name="pcd",
 #                              shape=(n_total, f_xyz.shape[1], 5),
@@ -52,6 +52,18 @@ d_depth_trans = f_out.create_dataset(name="d_depth_trans",
                                      chunks=(1, synthesizer._dims[1],
                                              synthesizer._dims[0], 1),
                                      dtype=np.float32)
+d_int_orig = f_out.create_dataset(name="d_int_orig",
+                                    shape=(n_total, synthesizer._dims[1],
+                                           synthesizer._dims[0], 1),
+                                    chunks=(1, synthesizer._dims[1],
+                                            synthesizer._dims[0], 1),
+                                    dtype=np.uint8)
+d_int_trans = f_out.create_dataset(name="d_int_trans",
+                                     shape=(n_total, synthesizer._dims[1],
+                                            synthesizer._dims[0], 1),
+                                     chunks=(1, synthesizer._dims[1],
+                                             synthesizer._dims[0], 1),
+                                     dtype=np.uint8)
 # d_int = f_out.create_dataset(name="d_int",
 #                              shape=(n_total, synthesizer._dims[1],
 #                                     synthesizer._dims[0], 1),
@@ -102,30 +114,45 @@ def preprocess_scan(i, cutoff=2.5):
     # scan_trans_padded = np.zeros((scan.shape[0], 5))
     # scan_trans_padded[:scan_trans.shape[0]] = scan_trans
 
-    sparse = synthesizer.pcd2sparse(pcd, channels=(Point.DEPTH, Point.MASK))
-    s_depth, mask = sparse[:, :, 0], sparse[:, :, 1]
+    sparse = synthesizer.pcd2sparse(pcd,
+                                    channels=(Point.DEPTH, Point.INTENSITY,
+                                              Point.MASK))
+    s_depth, s_int, mask = (sparse[:,:,i] for i in range(3))
     mask = ~np.isnan(np.expand_dims(mask, -1))
     depth = synthesizer.sparse2dense(s_depth, method="linear")
     depth = np.expand_dims(depth, -1)
+    intensity = synthesizer.sparse2dense(s_int, method="linear")
+    intensity = np.expand_dims(intensity, -1).astype(np.uint8)
 
     sparse_trans = synthesizer.pcd2sparse(pcd_trans,
-                                          channels=(Point.DEPTH, Point.MASK))
-    s_depth_trans, mask_trans = sparse_trans[:, :, 0], sparse_trans[:, :, 1]
+                                          channels=(Point.DEPTH,
+                                                    Point.INTENSITY,
+                                                    Point.MASK))
+    s_depth_trans, s_int_trans, mask_trans = (sparse_trans[:,:,i] for i in range(3))
     mask_trans = ~np.isnan(np.expand_dims(mask_trans, -1))
     occlusions = synthesizer.cull_occlusions_np(s_depth_trans)
     s_depth_trans[occlusions[:, 0], occlusions[:, 1]] = np.nan
+    s_int_trans[occlusions[:, 0], occlusions[:, 1]] = np.nan
+
     depth_trans = synthesizer.sparse2dense(s_depth_trans, method="linear")
     depth_trans_ext = synthesizer.sparse2dense(s_depth_trans, method="nearest")
     depth_trans[depth_trans < cutoff] = depth_trans_ext[depth_trans < cutoff]
     depth_trans = np.expand_dims(depth_trans, -1)
 
-    # cv2.imshow('hi1', mask.astype(np.float32))
-    # cv2.imshow('hi2', depth / 70.)
-    # cv2.imshow('hi3', mask_trans.astype(np.float32))
-    # cv2.imshow('hi4', depth_trans / 70.)
-    # cv2.waitKey(1)
+    int_trans = synthesizer.sparse2dense(s_int_trans, method="linear")
+    # int_trans_ext = synthesizer.sparse2dense(s_int_trans, method="nearest")
+    # int_trans[int_trans < cutoff] = int_trans_ext[int_trans < cutoff]
+    int_trans = np.expand_dims(int_trans, -1).astype(np.uint8)
 
-    return (mask, depth, mask_trans, depth_trans)
+    cv2.imshow('hi1', mask.astype(np.float32))
+    cv2.imshow('hi2', depth / 70.)
+    cv2.imshow('hi3', intensity*5)
+    cv2.imshow('hi4', mask_trans.astype(np.float32))
+    cv2.imshow('hi5', depth_trans / 70.)
+    cv2.imshow('hi6', int_trans*5)
+    cv2.waitKey(1)
+
+    return (mask, depth, intensity, mask_trans, depth_trans, int_trans)
 
 
 print(f"Preprocessing LiDAR data with {args.jobs} parallel threads")
@@ -133,8 +160,8 @@ with tqdm(total=n_total) as pbar:
     # Split all data into chunks to process in parallel before saving
     for chunk in np.array_split(range(n_total), n_total // 200):
         results = []
-        # for i in tqdm(chunk):
-        #     results.append(preprocess_scan(i))
+        for i in tqdm(chunk):
+            results.append(preprocess_scan(i))
 
         # Process a chunk of data and save until storing
         with multiprocessing.Pool(args.jobs) as p:
@@ -143,10 +170,12 @@ with tqdm(total=n_total) as pbar:
                 pbar.update()
 
         # Save results to disk
-        mask_o, depth_o, mask_t, depth_t = zip(*results)
+        mask_o, depth_o, int_o, mask_t, depth_t, int_t = zip(*results)
         d_mask_orig[chunk] = mask_o
         d_depth_orig[chunk] = depth_o
+        d_int_orig[chunk] = int_o
         d_mask_trans[chunk] = mask_t
         d_depth_trans[chunk] = depth_t
+        d_int_trans[chunk] = int_t
 
 f_out.close()

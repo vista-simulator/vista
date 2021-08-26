@@ -17,7 +17,10 @@ class Lidar(BaseSensor):
         self._streams: Dict[str, h5py.File] = dict()
 
         # Initialize lidar novel view synthesis object
-        self._view_synthesis = LidarSynthesis()
+        if self._config.get('use_synthesizer', True):
+            self._view_synthesis = LidarSynthesis(load_model=True)
+        else:
+            self._view_synthesis = LidarSynthesis(load_model=False)
 
     def reset(self) -> None:
         logging.info(f'Lidar ({self.id}) reset')
@@ -66,15 +69,19 @@ class Lidar(BaseSensor):
         pass
 
         # TODO: Synthesis by rendering
-        # self.parent.reslative_state.update(0, 0, yaw=np.sin(timestamp))
-        lat, long, yaw = self.parent.relative_state.numpy()
-        logging.debug(f"state: {lat} {long} {yaw} \t timestamp {timestamp}")
-        trans = np.array([long, lat, 0])
-        rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
-        new_pcd, new_dense = self.view_synthesis.synthesize(trans, rot, pcd)
+        if self.view_synthesis.load_model:
+            # self.parent.reslative_state.update(0, 0, yaw=np.sin(timestamp))
+            lat, long, yaw = self.parent.relative_state.numpy()
+            logging.debug(
+                f"state: {lat} {long} {yaw} \t timestamp {timestamp}")
+            trans = np.array([long, lat, 0])
+            rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
+            new_pcd, new_dense = self.view_synthesis.synthesize(
+                trans, rot, pcd)
+        else:
+            new_pcd = pcd
 
-        logging.debug("Visualizing the rendered lidar scan")
-        return new_dense
+        return new_pcd
 
     @property
     def config(self) -> Dict:
