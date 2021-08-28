@@ -35,3 +35,7 @@ class Base:
 
     def step(self, action):
         raise NotImplementedError
+
+    @property
+    def world(self) -> World:
+        return self._world

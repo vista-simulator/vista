@@ -1,0 +1,23 @@
+### Data ###
+dataset:
+  type: il_rgb_dataset
+  trace_paths: [
+    $DATA_DIR/traces/20210527-131252_lexus_devens_center_outerloop,
+  ]
+
+  camera_config:
+    use_synthesizer: False
+
+val_dataset:
+  trace_paths: [
+    $DATA_DIR/traces/20210527-131252_lexus_devens_center_outerloop,
+  ]
+
+
+### Model ###
+model:
+  extractors:
+    camera:
+      name: convnet
+  estimator:
+    name: deterministic

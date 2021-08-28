@@ -1,0 +1,15 @@
+### Data ###
+dataset:
+  type: gpl_rgb_dataset
+
+  car_config:
+    lookahead_road: True
+
+
+### Model ###
+model:
+  extractors:
+    camera:
+      name: convnet
+  estimator:
+    name: deterministic

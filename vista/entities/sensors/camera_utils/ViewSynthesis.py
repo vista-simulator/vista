@@ -26,6 +26,8 @@ class ViewSynthesis:
         self._config = config
         self._config['depth_mode'] = self._config.get('depth_mode',
                                                       DepthModes.FIXED_PLANE)
+        if isinstance(self._config['depth_mode'], str):
+            self._config['depth_mode'] = getattr(DepthModes, self._config['depth_mode'])
         self._config['znear'] = self._config.get('znear', ZNEAR)
         self._config['zfar'] = self._config.get('zfar', ZFAR)
         self._config['use_lighting'] = self._config.get('use_lighting', True)
