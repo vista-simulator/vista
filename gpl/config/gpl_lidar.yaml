@@ -1,0 +1,32 @@
+### Data ###
+dataset:
+  type: gpl_rgb_dataset
+  trace_paths: [
+    $DATA_DIR/traces/20210726-131322_lexus_devens_center,
+    $DATA_DIR/traces/20210726-131912_lexus_devens_center_reverse,
+    $DATA_DIR/traces/20210726-154641_lexus_devens_center,
+    $DATA_DIR/traces/20210726-155941_lexus_devens_center_reverse,
+    $DATA_DIR/traces/20210726-184624_lexus_devens_center,
+    $DATA_DIR/traces/20210728-203206_lexus_devens_center_night,
+  ]
+
+  trace_config:
+    master_sensor: lidar_3d
+
+  car_config:
+    lookahead_road: True
+
+val_dataset: # default set as trainset
+  trace_paths: [
+    $DATA_DIR/traces/20210726-184956_lexus_devens_center_reverse,
+    $DATA_DIR/traces/20210728-204515_lexus_devens_center_night,
+  ]
+
+
+### Model ###
+model:
+  extractors:
+    lidar:
+      name: pointnet
+  estimator:
+    name: deterministic

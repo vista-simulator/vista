@@ -35,6 +35,9 @@ dataset:
     depth_mode: FIXED_PLANE
     use_lighting: False
 
+  lidar_config:
+    name: lidar_3d
+
   reset_config:
     x_perturbation: [-1.0, 1.0]
     yaw_perturbation: [-0.04, 0.04]

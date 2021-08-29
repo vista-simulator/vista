@@ -59,10 +59,13 @@ def main():
     utils.load_checkpoint(args.ckpt, model, load_optim=False)
 
     # Define task in vista
-    if config.dataset.type in ['il_rgb_dataset']:
+    if config.dataset.type in ['il_rgb_dataset', 'gpl_rgb_dataset']:
         utils.set_dict_value_by_str(config, 'dataset:camera_config:type', 'camera')
         utils.set_dict_value_by_str(config, 'dataset:camera_config:use_synthesizer', True)
         sensors_configs = [config.dataset.camera_config]
+    elif config.dataset.type in ['gpl_lidar_dataset']:
+        utils.set_dict_value_by_str(config, 'dataset:lidar_config:type', 'lidar')
+        sensors_configs = [config.dataset.lidar_config]
     else:
         raise NotImplementedError(f'Unrecognized dataset type {config.dataset.type}')
     env = LaneFollowing(trace_paths=args.trace_paths, 
@@ -91,7 +94,8 @@ def main():
                     v = d_utils.transform_rgb(v, sensor, False)
                     data['camera'] = v[None, ...].to(device)
                 elif isinstance(sensor, Lidar):
-                    raise NotImplementedError
+                    v = d_utils.transform_lidar(v, sensor, False)
+                    data['lidar'] = v[None, ...].to(device)
                 elif isinstance(sensor, EventCamera):
                     raise NotImplementedError
                 else:

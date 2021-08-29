@@ -3,7 +3,18 @@ import torchvision.transforms.functional as TF
 
 from vista.utils import transform
 from vista.entities.sensors.Camera import Camera
+from vista.entities.sensors.Lidar import Lidar
 from vista.entities.agents.Dynamics import tireangle2curvature
+
+
+def transform_lidar(pcd: np.ndarray, sensor: Lidar, train: bool):
+    xyz = pcd.xyz / 100.
+    intensity = np.log(pcd.intensity)
+    intensity = intensity - intensity.mean()
+    data = np.concatenate((xyz, intensity[:, np.newaxis]), axis=1)
+    data = data.astype(np.float32)
+    data = TF.to_tensor(data)
+    return data
 
 
 def transform_rgb(img: np.ndarray, sensor: Camera, train: bool):

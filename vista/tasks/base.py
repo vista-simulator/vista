@@ -26,6 +26,8 @@ class Base:
                 agent.spawn_camera(sensor_config)
             elif sensor_type == 'event_camera':
                 agent.spawn_event_camera(sensor_config)
+            elif sensor_type == 'lidar':
+                agent.spawn_lidar(sensor_config)
             else:
                 raise NotImplementedError(
                     'Unrecognized sensor type {}'.format(sensor_type))
