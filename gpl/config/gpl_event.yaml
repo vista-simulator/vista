@@ -6,6 +6,8 @@ dataset:
     lookahead_road: True
     road_buffer_size: 50
 
+mp_start_method: spawn
+
 
 ### Model ###
 model:

@@ -63,6 +63,8 @@ def main():
     utils.preprocess_config(config) # validate paths
     logger.print(config)
 
+    torch.multiprocessing.set_start_method(config.get('mp_start_method', 'fork'))
+
     # Define data loader
     dataset_mod = import_module('.' + config.dataset.type, 'datasets')
 

@@ -55,7 +55,8 @@ class VistaDataset(BufferedDataset):
                 self._snippet_i = 0
 
             # optimal control
-            if self._snippet_i % 2 == 0:
+            use_optimal_control = self._snippet_i % 2 != 0
+            if use_optimal_control:
                 curvature, speed = pure_pursuit(self._agent, self.optimal_control_config)
             else:
                 speed = self._agent.human_speed
@@ -75,14 +76,14 @@ class VistaDataset(BufferedDataset):
             data = transform_events(events, self._event_camera, self.train)
             label = np.array([curvature]).astype(np.float32)
 
-            self._snippet_i += 1
-
             # NOTE: use event data from previous step that executed non-optimal (e.g., random)
             # control to break correlation of events and ego-motion that result from the nature
             # of derivative sensors
-            if self._snippet_i % 2 == 0:
+            if use_optimal_control:
                 yield {'event_camera': self._prev_data, 'target': label}
+
             self._prev_data = data
+            self._snippet_i += 1
 
     def initial_dynamics_fn(self, x, y, yaw, steering, speed):
         return [
