@@ -101,7 +101,7 @@ def preprocess_config(config):
 
 def validate_path(path):
     """ Handle '~', '$' and relative path. """
-    valid_path = []
+    valid_path = ['/'] if path.startswith('/') else []
     for v in path.split('/'):
         if v.startswith('$'):
             v = v[1:]
