@@ -1,10 +1,13 @@
+from typing import List
 import numpy as np
 import torchvision.transforms.functional as TF
 
 from vista.utils import transform
 from vista.entities.sensors.Camera import Camera
 from vista.entities.sensors.Lidar import Lidar
+from vista.entities.sensors.EventCamera import EventCamera
 from vista.entities.agents.Dynamics import tireangle2curvature
+from vista.core.Display import events2frame
 
 
 def transform_lidar(pcd: np.ndarray, sensor: Lidar, train: bool):
@@ -33,6 +36,15 @@ def transform_rgb(img: np.ndarray, sensor: Camera, train: bool):
         img = TF.adjust_saturation(img, np.random.uniform(*saturation_range))
     img = standardize(img)
     return img
+
+
+def transform_events(events: List[np.ndarray], sensor: EventCamera, train: bool):
+    cam_h = sensor.camera_param.get_height()
+    cam_w = sensor.camera_param.get_width()
+    frame = events2frame(events, cam_h, cam_w)
+    frame = TF.to_tensor(frame)
+    frame = standardize(frame)
+    return frame
 
 
 def standardize(x):

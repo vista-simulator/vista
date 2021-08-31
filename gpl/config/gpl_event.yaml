@@ -1,6 +1,6 @@
 ### Data ###
 dataset:
-  type: gpl_rgb_dataset
+  type: gpl_event_dataset
 
   car_config:
     lookahead_road: True
@@ -10,7 +10,7 @@ dataset:
 ### Model ###
 model:
   extractors:
-    camera:
+    event_camera:
       name: convnet
   estimator:
     name: deterministic

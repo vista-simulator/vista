@@ -15,6 +15,7 @@ dataset:
 
   car_config:
     lookahead_road: True
+    road_buffer_size: 50
 
 val_dataset: # default set as trainset
   trace_paths: [
