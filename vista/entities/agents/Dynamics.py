@@ -153,6 +153,10 @@ class StateDynamics:
     def speed(self) -> float:
         return self._speed
 
+    @property
+    def speed_bound(self) -> List[float]:
+        return self._speed_bound
+
     def __repr__(self) -> str:
         return '<{}: [{}, {}, {}, {}, {}]>'.format(self.__class__.__name__,
                                                    self._x, self._y, self._yaw,

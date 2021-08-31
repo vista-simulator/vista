@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--config', type=str, default=None,
         help='Path to .yaml config file. Will overwrite default config')
     parser.add_argument('--mode', type=str, required=True,
-        choices=['optimal_control'], help='Inspect mode')
+        choices=['privileged_control'], help='Inspect mode')
     parser.add_argument('--outdir', type=str,
         default=os.environ.get('TMPDIR', '/tmp/vista/'), help='Output directory')
     parser.add_argument('--n-trials', type=int, default=10,
@@ -39,7 +39,7 @@ def main():
     dataset_iter = iter(dataset)
 
     # Initialization for different inspect mode
-    if args.mode == 'optimal_control':
+    if args.mode == 'privileged_control':
         fig, ax = plt.subplots(1, 1)
         args.outdir = utils.validate_path(args.outdir)
         if not os.path.isdir(args.outdir):
@@ -49,7 +49,7 @@ def main():
 
     # Run
     for trial_i in tqdm.tqdm(range(args.n_trials)):
-        if args.mode == 'optimal_control':
+        if args.mode == 'privileged_control':
             next(dataset_iter) # initialize some properties of dataset and sequence reset
             agent = dataset._agent
             human_traj, ego_traj = [], []
@@ -66,7 +66,10 @@ def main():
 
             ax.clear()
             ax.plot(human_traj[:,0], human_traj[:,1], c='r', linewidth=2., label='human')
-            ax.plot(ego_traj[:,0], ego_traj[:,1], c='b', label='optimal control')
+            ax.plot(ego_traj[:,0], ego_traj[:,1], c='b', label='privileged control')
+            xlim_abs_max = np.abs(ax.get_xlim()).max()
+            xlim = max(xlim_abs_max, 1.0)
+            ax.set_xlim(-xlim, xlim)
             ax.legend()
             fig.savefig(os.path.join(args.outdir, f'trial_{trial_i:02d}.jpg'))
         else:

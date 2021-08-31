@@ -2,11 +2,9 @@ from typing import List
 import numpy as np
 import torchvision.transforms.functional as TF
 
-from vista.utils import transform
 from vista.entities.sensors.Camera import Camera
 from vista.entities.sensors.Lidar import Lidar
 from vista.entities.sensors.EventCamera import EventCamera
-from vista.entities.agents.Dynamics import tireangle2curvature
 from vista.core.Display import events2frame
 
 
@@ -52,35 +50,3 @@ def standardize(x):
     mean, stddev = x.mean(), x.std()
     adjusted_stddev = max(stddev, 1.0/np.sqrt(np.prod(x.shape)))
     return (x - mean) / adjusted_stddev
-
-
-def pure_pursuit(agent, optimal_control_config):
-    lookahead_dist = optimal_control_config['lookahead_dist']
-    dt = optimal_control_config['dt']
-    Kp = optimal_control_config['Kp']
-    speed = agent.human_speed
-
-    road = agent.road
-    ego_pose = agent.ego_dynamics.numpy()[:3]
-    road_in_ego = np.array([ # TODO: vectorize this: slow if road buffer size too large
-        transform.compute_relative_latlongyaw(_v, ego_pose)
-        for _v in road
-    ])
-    road_in_ego = road_in_ego[road_in_ego[:,1] > 0] # drop road in the back
-
-    dist = np.linalg.norm(road_in_ego[:,:2], axis=1)
-    tgt_idx = np.argmin(np.abs(dist - lookahead_dist))
-    dx, dy, dyaw = road_in_ego[tgt_idx]
-
-    lat_shift = -agent.relative_state.x
-    dx += lat_shift * np.cos(dyaw)
-    dy += lat_shift * np.sin(dyaw)
-
-    arc_len = speed * dt
-    curvature = (Kp * np.arctan2(-dx, dy) * dt) / arc_len
-    curvature_bound = [
-        tireangle2curvature(_v, agent.wheel_base)
-        for _v in agent.ego_dynamics.steering_bound]
-    curvature = np.clip(curvature, *curvature_bound)
-
-    return curvature, speed

@@ -17,7 +17,7 @@ class VistaDataset(BufferedDataset):
                  trace_config: Dict[str, Any],
                  car_config: Dict[str, Any],
                  reset_config: Dict[str, Any],
-                 optimal_control_config: Dict[str, Any],
+                 privileged_control_config: Dict[str, Any],
                  lidar_config: Dict[str, Any],
                  train: Optional[bool] = False,
                  buffer_size: Optional[int] = 1,
@@ -28,10 +28,10 @@ class VistaDataset(BufferedDataset):
             train, buffer_size, snippet_size, shuffle)
 
         assert self.car_config['lookahead_road'] == True, \
-            'Require lookahead_raod = True for optimal control'
+            'Require lookahead_raod = True for privileged control'
 
         self._reset_config = reset_config
-        self._optimal_control_config = optimal_control_config
+        self._privileged_control_config = privileged_control_config
         self._lidar_config = lidar_config
 
     def _simulate(self):
@@ -53,8 +53,8 @@ class VistaDataset(BufferedDataset):
                 self._world.reset({self._agent.id: self.initial_dynamics_fn})
                 self._snippet_i = 0
 
-            # optimal control
-            curvature, speed = pure_pursuit(self._agent, self.optimal_control_config)
+            # privileged control
+            curvature, speed = pure_pursuit(self._agent, self.privileged_control_config)
 
             # step simulator
             action = np.array([curvature, speed])
@@ -81,8 +81,8 @@ class VistaDataset(BufferedDataset):
         ]
 
     @property
-    def optimal_control_config(self) -> Dict[str, Any]:
-        return self._optimal_control_config
+    def privileged_control_config(self) -> Dict[str, Any]:
+        return self._privileged_control_config
 
     @property
     def reset_config(self) -> Dict[str, Any]:

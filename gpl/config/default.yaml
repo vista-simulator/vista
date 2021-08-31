@@ -62,10 +62,11 @@ dataset:
     yaw_perturbation: [-0.04, 0.04]
     yaw_tolerance: 0.01
 
-  optimal_control_config:
-    lookahead_dist: 10
-    dt: 0.333333
-    Kp: 0.5
+  privileged_control_config:
+    type: NonLinearStateFeedback
+    lookahead_dist: 5
+    K1: 1.0
+    K2: 0.1
 
   buffer_size: 1000
   snippet_size: 100

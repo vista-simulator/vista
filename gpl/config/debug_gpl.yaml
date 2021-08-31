@@ -2,8 +2,29 @@
 dataset:
   type: gpl_rgb_dataset
 
+  # trace_paths: [$DATA_DIR/traces/20210609-122400_lexus_devens_outerloop_reverse]
+
   car_config:
     lookahead_road: True
+    road_buffer_size: 50
+
+  privileged_control_config:
+    # type: PurePursuit
+    # lookahead_dist: 5
+    # Kp: 3
+
+    # type: PID
+    # lateral:
+    #   lookahead_dist: 5
+    #   Kp: 0.05
+    #   Ki: 0.0001
+    #   Kd: 0.001
+    #   heading_err_weight: 10.
+
+    type: NonLinearStateFeedback
+    lookahead_dist: 5
+    K1: 1.0
+    K2: 0.1
 
   buffer_size: 1
 

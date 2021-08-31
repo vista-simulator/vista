@@ -18,7 +18,7 @@ class VistaDataset(BufferedDataset):
                  trace_config: Dict[str, Any],
                  car_config: Dict[str, Any],
                  reset_config: Dict[str, Any],
-                 optimal_control_config: Dict[str, Any],
+                 privileged_control_config: Dict[str, Any],
                  event_camera_config: Dict[str, Any],
                  train: Optional[bool] = False,
                  buffer_size: Optional[int] = 1,
@@ -29,10 +29,10 @@ class VistaDataset(BufferedDataset):
             train, buffer_size, snippet_size, shuffle)
 
         assert self.car_config['lookahead_road'] == True, \
-            'Require lookahead_raod = True for optimal control'
+            'Require lookahead_raod = True for privileged control'
 
         self._reset_config = reset_config
-        self._optimal_control_config = optimal_control_config
+        self._privileged_control_config = privileged_control_config
         self._event_camera_config = event_camera_config
 
     def _simulate(self):
@@ -54,10 +54,10 @@ class VistaDataset(BufferedDataset):
                 self._world.reset({self._agent.id: self.initial_dynamics_fn})
                 self._snippet_i = 0
 
-            # optimal control
-            use_optimal_control = self._snippet_i % 2 != 0
-            if use_optimal_control:
-                curvature, speed = pure_pursuit(self._agent, self.optimal_control_config)
+            # privileged control
+            use_privileged_control = self._snippet_i % 2 != 0
+            if use_privileged_control:
+                curvature, speed = pure_pursuit(self._agent, self.privileged_control_config)
             else:
                 speed = self._agent.human_speed
                 curvature_bound = [
@@ -76,10 +76,10 @@ class VistaDataset(BufferedDataset):
             data = transform_events(events, self._event_camera, self.train)
             label = np.array([curvature]).astype(np.float32)
 
-            # NOTE: use event data from previous step that executed non-optimal (e.g., random)
+            # NOTE: use event data from previous step that executed non-privileged (e.g., random)
             # control to break correlation of events and ego-motion that result from the nature
             # of derivative sensors
-            if use_optimal_control:
+            if use_privileged_control:
                 yield {'event_camera': self._prev_data, 'target': label}
 
             self._prev_data = data
@@ -95,8 +95,8 @@ class VistaDataset(BufferedDataset):
         ]
 
     @property
-    def optimal_control_config(self) -> Dict[str, Any]:
-        return self._optimal_control_config
+    def privileged_control_config(self) -> Dict[str, Any]:
+        return self._privileged_control_config
 
     @property
     def reset_config(self) -> Dict[str, Any]:

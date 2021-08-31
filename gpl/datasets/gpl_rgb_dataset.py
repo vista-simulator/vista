@@ -5,7 +5,8 @@ import torch
 
 import vista
 from .buffered_dataset import BufferedDataset
-from .utils import transform_rgb, pure_pursuit
+from .utils import transform_rgb
+from .privileged_controller import get_controller
 
 
 __all__ = ['VistaDataset', 'worker_init_fn']
@@ -17,7 +18,7 @@ class VistaDataset(BufferedDataset):
                  trace_config: Dict[str, Any],
                  car_config: Dict[str, Any],
                  reset_config: Dict[str, Any],
-                 optimal_control_config: Dict[str, Any],
+                 privileged_control_config: Dict[str, Any],
                  camera_config: Dict[str, Any],
                  train: Optional[bool] = False,
                  buffer_size: Optional[int] = 1,
@@ -28,10 +29,10 @@ class VistaDataset(BufferedDataset):
             train, buffer_size, snippet_size, shuffle)
 
         assert self.car_config['lookahead_road'] == True, \
-            'Require lookahead_raod = True for optimal control'
+            'Require lookahead_raod = True for privileged control'
 
         self._reset_config = reset_config
-        self._optimal_control_config = optimal_control_config
+        self._privileged_control_config = privileged_control_config
         self._camera_config = camera_config
 
     def _simulate(self):
@@ -41,7 +42,9 @@ class VistaDataset(BufferedDataset):
             self._world = vista.World(self.trace_paths, self.trace_config)
             self._agent = self._world.spawn_agent(self.car_config)
             self._camera = self._agent.spawn_camera(self.camera_config)
-            self._world.reset()
+            self._world.reset({self._agent.id: self.initial_dynamics_fn})
+            
+            self._privileged_controller = get_controller(self.privileged_control_config)
 
         # Data generator from simulation
         self._snippet_i = 0
@@ -53,8 +56,8 @@ class VistaDataset(BufferedDataset):
                 self._world.reset({self._agent.id: self.initial_dynamics_fn})
                 self._snippet_i = 0
 
-            # optimal control
-            curvature, speed = pure_pursuit(self._agent, self.optimal_control_config)
+            # privileged control
+            curvature, speed = self._privileged_controller(self._agent)
 
             # step simulator
             action = np.array([curvature, speed])
@@ -81,8 +84,8 @@ class VistaDataset(BufferedDataset):
         ]
 
     @property
-    def optimal_control_config(self) -> Dict[str, Any]:
-        return self._optimal_control_config
+    def privileged_control_config(self) -> Dict[str, Any]:
+        return self._privileged_control_config
 
     @property
     def reset_config(self) -> Dict[str, Any]:
@@ -102,3 +105,5 @@ def worker_init_fn(worker_id):
     dataset._world.set_seed(worker_id)
     dataset._rng = random.Random(worker_id)
     dataset._world.reset({dataset._agent.id: dataset.initial_dynamics_fn})
+
+    dataset._privileged_controller = get_controller(dataset.privileged_control_config)
