@@ -27,6 +27,8 @@ def main():
         help='Output directory that stores checkpoints and logging')
     parser.add_argument('--num-workers', type=int, default=0,
         help='Number of workers used in dataloader')
+    parser.add_argument('--val-num-workers', type=int, default=0,
+        help='Number of workers used in validation dataloader')
     parser.add_argument('--no-cuda', action='store_true', default=False,
         help='Disable gpu')
     parser.add_argument('--restore', type=str, default=None,
@@ -81,7 +83,7 @@ def main():
     val_dataset = dataset_mod.VistaDataset(**config.val_dataset, train=False)
     val_loader = DataLoader(val_dataset,
                             batch_size=config.val_dataset.batch_size,
-                            num_workers=args.num_workers,
+                            num_workers=args.val_num_workers,
                             pin_memory=True,
                             worker_init_fn=dataset_mod.worker_init_fn)
     val_batch_iter = iter(val_loader)

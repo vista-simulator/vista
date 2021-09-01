@@ -63,10 +63,13 @@ dataset:
     yaw_tolerance: 0.01
 
   privileged_control_config:
-    type: NonLinearStateFeedback
-    lookahead_dist: 5
-    K1: 1.0
-    K2: 0.1
+    type: PID
+    lateral:
+      lookahead_dist: 5
+      Kp: 0.05
+      Ki: 0.0001
+      Kd: 0.001
+      heading_err_weight: 10.
 
   buffer_size: 1000
   snippet_size: 100
