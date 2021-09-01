@@ -5,6 +5,9 @@ ckpt/
 data/
 sandbox/
 test*.png
+*.avi
+*.mp4
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

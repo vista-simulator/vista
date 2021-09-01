@@ -4,7 +4,8 @@ from collections import deque
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import cm, colors
+from matplotlib import cm, colors, patches
+
 from shapely.geometry import LineString
 from descartes import PolygonPatch
 import cv2
@@ -250,8 +251,18 @@ class Display:
                                    vmin=-2.5,
                                    vmax=4,
                                    cmap=cmap)
-                        ax.set_xlim(-50, 50)
-                        ax.set_ylim(-50, 50)
+                        l_car = self.ref_agent.length
+                        w_car = self.ref_agent.width
+                        ax.add_patch(
+                            patches.Rectangle(
+                                (-l_car / 2, -w_car / 2),
+                                l_car,
+                                w_car,
+                                fill=True  # remove background
+                            ))
+
+                        ax.set_xlim(-20, 20)
+                        ax.set_ylim(-20, 20)
                         obs_render = None
                     else:  # dense image
                         obs = np.roll(obs, -obs.shape[1] // 4, axis=1)  # shift

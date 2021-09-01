@@ -34,6 +34,9 @@ class Trace:
         self._trace_path: str = trace_path
         self._config: Dict = misc.merge_dict(trace_config, self.DEFAULT_CONFIG)
 
+        # Get function representation of state information
+        self._f_speed, self._f_curvature = self._get_states_func()
+
         # Divide trace to good segments based on video labels and timestamps
         self._multi_sensor: MultiSensor = MultiSensor(
             self._trace_path, self._config['master_sensor'])
@@ -47,9 +50,6 @@ class Trace:
             len(_v)
             for _v in self._good_frames[self._multi_sensor.master_sensor]
         ])
-
-        # Get function representation of state information
-        self._f_speed, self._f_curvature = self._get_states_func()
 
     def find_segment_reset(self) -> int:
         """ Sample a segment index based on number of frames in each segment. Segments with more
@@ -151,7 +151,9 @@ class Trace:
         else:
             return self.good_frames[master_name][segment_index][frame_index]
 
-    def _divide_to_good_segments(self) -> Dict[str, List[int]]:
+    def _divide_to_good_segments(self,
+                                 min_speed: float = 2.5,
+                                 ) -> Dict[str, List[int]]:
         """ Divide a trace into good segments based on video labels and time
             difference between consecutive frames. Note that only master
             sensor is used for the time difference check since every sensors
@@ -174,6 +176,9 @@ class Trace:
             logging.warning('No video_label.csv')
             good_labeled_timestamps = np.array(
                 self._multi_sensor.get_master_timestamps())
+
+        good_speed_inds = self.f_speed(good_labeled_timestamps) > min_speed
+        good_labeled_timestamps = good_labeled_timestamps[good_speed_inds]
 
         # Filter by end-of-trace and time difference across consecutive frames
         good_frames = {_k: [] for _k in self._multi_sensor.sensor_names}
