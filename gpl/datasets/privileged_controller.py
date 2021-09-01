@@ -138,7 +138,7 @@ class NonLinearStateFeedback(BaseController):
             dt = self._ts[1] - self._ts[0]
             self._ts.append(agent.timestamp)
 
-        lookahead_dist = self.config['lateral']['lookahead_dist']
+        lookahead_dist = self.config['lookahead_dist']
 
         road = agent.road
         ego_pose = agent.ego_dynamics.numpy()[:3]

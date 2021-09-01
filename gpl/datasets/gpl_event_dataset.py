@@ -4,9 +4,10 @@ import numpy as np
 import torch
 
 import vista
-from vista.entities.agents.Dynamics import tireangle2curvature
+from vista.entities.agents.Dynamics import tireangle2curvature, curvature2steering
 from .buffered_dataset import BufferedDataset
-from .utils import transform_events, pure_pursuit
+from .utils import transform_events
+from .privileged_controller import get_controller
 
 
 __all__ = ['VistaDataset', 'worker_init_fn']
@@ -42,7 +43,9 @@ class VistaDataset(BufferedDataset):
             self._world = vista.World(self.trace_paths, self.trace_config)
             self._agent = self._world.spawn_agent(self.car_config)
             self._event_camera = self._agent.spawn_event_camera(self.event_camera_config)
-            self._world.reset()
+            self._world.reset({self._agent.id: self.initial_dynamics_fn})
+
+            self._privileged_controller = get_controller(self.privileged_control_config)
 
         # Data generator from simulation
         self._snippet_i = 0
@@ -54,36 +57,39 @@ class VistaDataset(BufferedDataset):
                 self._world.reset({self._agent.id: self.initial_dynamics_fn})
                 self._snippet_i = 0
 
-            # privileged control
-            use_privileged_control = self._snippet_i % 2 != 0
-            if use_privileged_control:
-                curvature, speed = pure_pursuit(self._agent, self.privileged_control_config)
-            else:
-                speed = self._agent.human_speed
-                curvature_bound = [
-                    tireangle2curvature(_v, self._agent.wheel_base)
-                    for _v in self._agent.ego_dynamics.steering_bound]
-                curvature = self._rng.uniform(*curvature_bound)
+            # cache simulator state and take random action
+            speed = self._agent.human_speed
+            curvature_bound = [
+                tireangle2curvature(_v, self._agent.wheel_base)
+                for _v in self._agent.ego_dynamics.steering_bound]
+            curvature = self._rng.uniform(*curvature_bound)
 
-            # step simulator
+            cached_state = self._cache_state()
+
+            # step simulator to get events
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action)
             self._agent.step_sensors()
             sensor_name = self._event_camera.name
             events = self._agent.observations[sensor_name]
 
+            # revert dynamics and step with privileged control
+            self._revert_dynamics(action, cached_state)
+
+            curvature, speed = self._privileged_controller(self._agent)
+            action = np.array([curvature, speed])
+            self._agent.step_dynamics(action)
+
             # preprocess and produce data-label pairs
             data = transform_events(events, self._event_camera, self.train)
             label = np.array([curvature]).astype(np.float32)
 
+            self._snippet_i += 1
+
             # NOTE: use event data from previous step that executed non-privileged (e.g., random)
             # control to break correlation of events and ego-motion that result from the nature
             # of derivative sensors
-            if use_privileged_control:
-                yield {'event_camera': self._prev_data, 'target': label}
-
-            self._prev_data = data
-            self._snippet_i += 1
+            yield {'event_camera': data, 'target': label}
 
     def initial_dynamics_fn(self, x, y, yaw, steering, speed):
         return [
@@ -93,6 +99,26 @@ class VistaDataset(BufferedDataset):
             steering,
             speed,
         ]
+
+    def _cache_state(self):
+        cached_state_keys = ['ego_dynamics', 'human_dynamics', 
+            'relative_state', 'curvature', 'steering', 'tire_angle']
+        cached_state = dict()
+        for key in cached_state_keys:
+            val = getattr(self._agent, key)
+            if hasattr(val, 'numpy'):
+                val = val.numpy()
+            cached_state[key] = val
+        return cached_state
+
+    def _revert_dynamics(self, action, cached_state):
+        self._agent.step_dynamics(action, dt=-1/30.)
+        for key, val in cached_state.items():
+            attr = getattr(self._agent, key)
+            if hasattr(attr, 'numpy'):
+                attr.update(*val)
+            else:
+                setattr(self._agent, '_' + key, val)
 
     @property
     def privileged_control_config(self) -> Dict[str, Any]:
@@ -116,3 +142,5 @@ def worker_init_fn(worker_id):
     dataset._world.set_seed(worker_id)
     dataset._rng = random.Random(worker_id)
     dataset._world.reset({dataset._agent.id: dataset.initial_dynamics_fn})
+
+    dataset._privileged_controller = get_controller(dataset.privileged_control_config)

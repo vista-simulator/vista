@@ -276,7 +276,7 @@ class Car(Entity):
             else:
                 break
 
-            next_index = index + 1
+            next_index = index + 1 * int(np.sign(dt))
             exceed_end, next_ts = self.trace.get_master_timestamp(
                 self.segment_index, next_index, check_end=True)
             if exceed_end:  # trigger trace done terminatal condition

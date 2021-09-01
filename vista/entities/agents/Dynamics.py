@@ -48,7 +48,7 @@ class StateDynamics:
                  steering: Optional[float] = 0.,
                  speed: Optional[float] = 0.,
                  steering_bound: Optional[List[float]] = [-0.75, 0.75],
-                 speed_bound: Optional[List[float]] = [0., 10.],
+                 speed_bound: Optional[List[float]] = [0., 15.],
                  wheel_base: Optional[float] = 2.8) -> None:
         """ Simple continuous kinematic model of a rear-wheel driven vehicle.
             Ref: Eq.3 in https://www.autonomousrobots.nl/docs/17-schwartig-autonomy-icra.pdf
