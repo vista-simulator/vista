@@ -21,23 +21,35 @@ logging.setLevel(logging.ERROR)
 def main():
     # Parse arguments and config
     parser = argparse.ArgumentParser(description='IL/GPL in Vista')
-    parser.add_argument('--config', type=str, default=None,
+    parser.add_argument(
+        '--config',
+        type=str,
+        default=None,
         help='Path to .yaml config file. Will overwrite default config')
-    parser.add_argument('--logdir', type=str, required=True,
+    parser.add_argument(
+        '--logdir',
+        type=str,
+        required=True,
         help='Output directory that stores checkpoints and logging')
-    parser.add_argument('--num-workers', type=int, default=0,
-        help='Number of workers used in dataloader')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-        help='Disable gpu')
-    parser.add_argument('--restore', type=str, default=None,
-        help='Path to checkpoint to be restored from')
+    parser.add_argument('--num-workers',
+                        type=int,
+                        default=0,
+                        help='Number of workers used in dataloader')
+    parser.add_argument('--no-cuda',
+                        action='store_true',
+                        default=False,
+                        help='Disable gpu')
+    parser.add_argument('--restore',
+                        type=str,
+                        default=None,
+                        help='Path to checkpoint to be restored from')
     args = parser.parse_args()
 
     args.logdir = utils.validate_path(args.logdir)
     args.config = utils.validate_path(args.config)
 
-    default_config_path = os.path.join(os.path.dirname(
-        os.path.abspath(__file__)), 'config/default.yaml')
+    default_config_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), 'config/default.yaml')
     config = utils.load_yaml(default_config_path)
     utils.update_dict(config, utils.load_yaml(args.config))
 
@@ -53,17 +65,19 @@ def main():
     logger.create_group('train')
     logger.create_group('val')
 
-    shutil.copy(default_config_path, 
+    shutil.copy(
+        default_config_path,
         os.path.join(args.logdir, os.path.basename(default_config_path)))
-    shutil.copy(args.config, 
-        os.path.join(args.logdir, os.path.basename(args.config)))
+    shutil.copy(args.config,
+                os.path.join(args.logdir, os.path.basename(args.config)))
     with open(os.path.join(args.logdir, 'config.pkl'), 'wb') as f:
         pickle.dump(config, f)
 
-    utils.preprocess_config(config) # validate paths
+    utils.preprocess_config(config)  # validate paths
     logger.print(config)
 
-    torch.multiprocessing.set_start_method(config.get('mp_start_method', 'fork'))
+    torch.multiprocessing.set_start_method(
+        config.get('mp_start_method', 'fork'))
 
     # Define data loader
     dataset_mod = import_module('.' + config.dataset.type, 'datasets')
@@ -77,7 +91,8 @@ def main():
     train_batch_iter = iter(train_loader)
 
     val_dataset_config = copy.deepcopy(config.dataset)
-    config.val_dataset = utils.update_dict(val_dataset_config, config.val_dataset)
+    config.val_dataset = utils.update_dict(val_dataset_config,
+                                           config.val_dataset)
     val_dataset = dataset_mod.VistaDataset(**config.val_dataset, train=False)
     val_loader = DataLoader(val_dataset,
                             batch_size=config.val_dataset.batch_size,
@@ -85,23 +100,25 @@ def main():
                             pin_memory=True,
                             worker_init_fn=dataset_mod.worker_init_fn)
     val_batch_iter = iter(val_loader)
-    
+
     # Define model
     extractors = nn.ModuleDict()
     for modal, cfg in config.model.extractors.items():
         modal = 'camera' if modal in ['fcamera'] else modal
-        extractor_mod = import_module('.' + cfg['name'], f'models.extractors.{modal}')
+        extractor_mod = import_module('.' + cfg['name'],
+                                      f'models.extractors.{modal}')
         extractors[modal] = extractor_mod.Net()
-    
-    estimator_mod = import_module('.' + config.model.estimator.name, 'models.estimators')
+
+    estimator_mod = import_module('.' + config.model.estimator.name,
+                                  'models.estimators')
     model = estimator_mod.Net(extractors).to(device)
 
     # Define optimizer and objective function
-    optimizer = getattr(optim, config.optimizer.name)(
-        model.parameters(), **config.optimizer.cfg)
+    optimizer = getattr(optim, config.optimizer.name)(model.parameters(),
+                                                      **config.optimizer.cfg)
     objective = getattr(objectives, config.objective.name)(
         **(dict() if config.objective.cfg is None else config.objective.cfg))
-    
+
     # Restore from checkpoint
     iter_i = 0
     if args.restore:
@@ -112,9 +129,10 @@ def main():
     # Run training
     loss_buf = []
     while iter_i < config.n_iters:
-        loss = train_iter(config, device, train_batch_iter, model, objective, optimizer, logger)
+        loss = train_iter(config, device, train_batch_iter, model, objective,
+                          optimizer, logger)
         loss_buf.append(loss)
-        
+
         if iter_i % config.log_every_iters == 0:
             avg_loss = np.mean(loss_buf)
             logger.scalar('avg_loss', avg_loss, group='train')
@@ -129,14 +147,16 @@ def main():
             utils.save_checkpoint(fpath, iter_i, model, optimizer)
 
         if iter_i % config.val_every_iters == 0 and iter_i > 0:
-            avg_loss = val(config, device, val_batch_iter, model, objective, logger)
+            avg_loss = val(config, device, val_batch_iter, model, objective,
+                           logger)
             logger.scalar('avg_loss', avg_loss, group='val')
             logger.write(iter_i, group='val')
 
         iter_i += 1
 
 
-def train_iter(config, device, batch_iter, model, objective, optimizer, logger):
+def train_iter(config, device, batch_iter, model, objective, optimizer,
+               logger):
     logger.tic('train_iter', group='train')
 
     model.train()

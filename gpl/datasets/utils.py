@@ -4,11 +4,13 @@ import torchvision.transforms.functional as TF
 
 from vista.entities.sensors.Camera import Camera
 from vista.entities.sensors.Lidar import Lidar
+from vista.entities.sensors.lidar_utils import Pointcloud
 from vista.entities.sensors.EventCamera import EventCamera
 from vista.core.Display import events2frame
 
 
-def transform_lidar(pcd: np.ndarray, sensor: Lidar, train: bool):
+def transform_lidar(pcd: Pointcloud, sensor: Lidar, train: bool):
+    pcd = pcd[pcd.dist < 40.]
     xyz = pcd.xyz / 100.
     intensity = np.log(pcd.intensity)
     intensity = intensity - intensity.mean()
@@ -20,9 +22,10 @@ def transform_lidar(pcd: np.ndarray, sensor: Lidar, train: bool):
 
 def transform_rgb(img: np.ndarray, sensor: Camera, train: bool):
     (i1, j1, i2, j2) = sensor.camera_param.get_roi()
-    img = img[i1:i2, j1:j2].copy() # need copy here probably since img is not contiguous
+    # need copy here probably since img is not contiguous
+    img = img[i1:i2, j1:j2].copy()
     img = TF.to_tensor(img)
-    if train: # perform color jitter
+    if train:  # perform color jitter
         gamma_range = [0.5, 1.5]
         brightness_range = [0.5, 1.5]
         contrast_range = [0.3, 1.7]
@@ -36,7 +39,8 @@ def transform_rgb(img: np.ndarray, sensor: Camera, train: bool):
     return img
 
 
-def transform_events(events: List[np.ndarray], sensor: EventCamera, train: bool):
+def transform_events(events: List[np.ndarray], sensor: EventCamera,
+                     train: bool):
     cam_h = sensor.camera_param.get_height()
     cam_w = sensor.camera_param.get_width()
     frame = events2frame(events, cam_h, cam_w)
@@ -48,5 +52,5 @@ def transform_events(events: List[np.ndarray], sensor: EventCamera, train: bool)
 def standardize(x):
     # follow https://www.tensorflow.org/api_docs/python/tf/image/per_image_standardization
     mean, stddev = x.mean(), x.std()
-    adjusted_stddev = max(stddev, 1.0/np.sqrt(np.prod(x.shape)))
+    adjusted_stddev = max(stddev, 1.0 / np.sqrt(np.prod(x.shape)))
     return (x - mean) / adjusted_stddev

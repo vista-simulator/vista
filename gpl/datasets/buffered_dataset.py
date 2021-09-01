@@ -1,11 +1,12 @@
 from typing import List, Dict, Any, Optional
+from tqdm import tqdm
 import random
 import torch
 from torch.utils.data import IterableDataset
 
 
 class BufferedDataset(IterableDataset):
-    def __init__(self, 
+    def __init__(self,
                  trace_paths: List[str],
                  trace_config: Dict[str, Any],
                  car_config: Dict[str, Any],
@@ -29,16 +30,20 @@ class BufferedDataset(IterableDataset):
         worker_id = 0 if worker_info is None else worker_info.id
         self._rng = random.Random(worker_id)
         buf = []
+
+        pbar = tqdm(total=self.buffer_size)
         for x in self._simulate():
             if len(buf) == self.buffer_size:
                 if self.shuffle:
                     idx = self._rng.randint(0, self.buffer_size - 1)
                 else:
-                    idx = 0 # FIFO
+                    idx = 0  # FIFO
                 yield buf[idx]
                 buf[idx] = x
             else:
                 buf.append(x)
+                pbar.update(1)
+
         if self.shuffle:
             self._rng.shuffle(buf)
         while buf:
