@@ -5,7 +5,8 @@ import torch
 
 import vista
 from .buffered_dataset import BufferedDataset
-from .utils import transform_lidar, pure_pursuit
+from .utils import transform_lidar
+from .privileged_controller import get_controller
 
 
 __all__ = ['VistaDataset', 'worker_init_fn']
@@ -41,7 +42,9 @@ class VistaDataset(BufferedDataset):
             self._world = vista.World(self.trace_paths, self.trace_config)
             self._agent = self._world.spawn_agent(self.car_config)
             self._lidar = self._agent.spawn_lidar(self.lidar_config)
-            self._world.reset()
+            self._world.reset({self._agent.id: self.initial_dynamics_fn})
+
+            self._privileged_controller = get_controller(self.privileged_control_config)
 
         # Data generator from simulation
         self._snippet_i = 0
@@ -54,14 +57,14 @@ class VistaDataset(BufferedDataset):
                 self._snippet_i = 0
 
             # privileged control
-            curvature, speed = pure_pursuit(self._agent, self.privileged_control_config)
+            curvature, speed = self._privileged_controller(self._agent)
 
             # step simulator
+            sensor_name = self._camera.name
+            pcd = self._agent.observations[sensor_name] # associate action t with observation t-1
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action)
             self._agent.step_sensors()
-            sensor_name = self._camera.name
-            pcd = self._agent.observations[sensor_name]
 
             # preprocess and produce data-label pairs
             data = transform_lidar(pcd, self._camera, self.train)
@@ -102,3 +105,5 @@ def worker_init_fn(worker_id):
     dataset._world.set_seed(worker_id)
     dataset._rng = random.Random(worker_id)
     dataset._world.reset({dataset._agent.id: dataset.initial_dynamics_fn})
+
+    dataset._privileged_controller = get_controller(dataset.privileged_control_config)

@@ -46,9 +46,9 @@ class VistaDataset(BufferedDataset):
                 self._snippet_i = 0
 
             # step simulator
-            self._agent.step_dataset(step_dynamics=False)
             sensor_name = self._camera.name
-            img = self._agent.observations[sensor_name]
+            img = self._agent.observations[sensor_name] # associate action t with observation t-1
+            self._agent.step_dataset(step_dynamics=False)
 
             # preprocess and produce data-label pairs
             img = transform_rgb(img, self._camera, self.train)

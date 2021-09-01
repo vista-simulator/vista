@@ -60,11 +60,11 @@ class VistaDataset(BufferedDataset):
             curvature, speed = self._privileged_controller(self._agent)
 
             # step simulator
+            sensor_name = self._camera.name
+            img = self._agent.observations[sensor_name] # associate action t with observation t-1
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action)
             self._agent.step_sensors()
-            sensor_name = self._camera.name
-            img = self._agent.observations[sensor_name]
 
             # preprocess and produce data-label pairs
             img = transform_rgb(img, self._camera, self.train)
