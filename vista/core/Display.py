@@ -233,6 +233,8 @@ class Display:
                 elif obs_name in lidars.keys():
                     if isinstance(obs, Pointcloud):
                         obs_ = obs[::20]  # sub-sample the pointcloud for vis
+                        max_dist = 20.
+                        obs_ = obs_[obs_.dist < (max_dist * np.sqrt(2))]
                         ax = self._axes[ax_name]
                         ax.clear()
                         cmap = cm.nipy_spectral(range(256))
@@ -261,8 +263,8 @@ class Display:
                                 fill=True  # remove background
                             ))
 
-                        ax.set_xlim(-20, 20)
-                        ax.set_ylim(-20, 20)
+                        ax.set_xlim(-max_dist, max_dist)
+                        ax.set_ylim(-max_dist, max_dist)
                         obs_render = None
                     else:  # dense image
                         obs = np.roll(obs, -obs.shape[1] // 4, axis=1)  # shift
