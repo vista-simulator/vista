@@ -122,7 +122,8 @@ def main():
             loss_buf = []
 
         if iter_i % config.save_every_iters == 0 and iter_i > 0:
-            iter_str = '-'.join(re.findall('.{1,3}', f'{iter_i:07d}'[::-1])[::-1])
+            iter_str = '-'.join([_v[::-1] for _v in \
+                re.findall('.{1,3}', f'{iter_i:07d}'[::-1])[::-1]])
             fpath = os.path.join(ckpt_dir, f'iter-{iter_str}.pt')
             logger.print(f'Save checkpoint to {fpath}')
             utils.save_checkpoint(fpath, iter_i, model, optimizer)
