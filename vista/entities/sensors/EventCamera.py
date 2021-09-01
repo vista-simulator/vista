@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Dict, List
+from typing import Dict, List, Optional
 import numpy as np
 from ffio import FFReader
 import cv2
@@ -109,7 +109,8 @@ class EventCamera(BaseSensor):
         # Reset previous frame
         self._prev_frame = None
 
-    def capture(self, timestamp: float) -> np.ndarray:
+    def capture(self, timestamp: float, 
+                update_rgb_frame_only: Optional[bool] = False) -> np.ndarray:
         logging.info('Event camera ({}) capture'.format(self.id))
 
         # Get frame at the closest smaller timestamp from dataset. In event camera simulation, we 
@@ -143,97 +144,102 @@ class EventCamera(BaseSensor):
 
         # work with RGB instead of BGR; need copy otherwise fail at converting to tensor
         rendered_frame = rendered_frame[:,:,::-1].copy()
-        events = [[], []]
-        if self.prev_frame is not None:
-            with torch.no_grad():
-                out = self._interp.forward_warp(self.prev_frame, rendered_frame, 
-                                                max_sf=self.config['max_sf'],
-                                                use_max_flow=True)
-            
-            interp = [self.prev_frame] + out['interpolated']
-            if len(interp) >= 2:
-                last_interp_frame = cv2.cvtColor(interp[0], cv2.COLOR_RGB2GRAY)
-                dt = (timestamp - self.prev_timestamp) / out['sf']
-                event_timestamp = self.prev_timestamp
-                for interp_frame in interp[1:]:
-                    interp_frame = cv2.cvtColor(interp_frame, cv2.COLOR_RGB2GRAY)
-                    log_d_interp = np.log(interp_frame / 255. + 1e-8) - \
-                                   np.log(last_interp_frame / 255. + 1e-8)
-                    sample_fn = lambda mu, sig: np.clip(np.random.normal(mu, sig), 0., 1.)
-                    positive_C = sample_fn(self.config['positive_threshold'], 
-                                           self.config['sigma_positive_threshold'])
-                    negative_C = -sample_fn(-self.config['negative_threshold'],
-                                            self.config['sigma_negative_threshold'])
-                    if self.config['reproject_pixel']:
-                        # TODO: don't need to recompute this every time
-                        cam_h = self.camera_param.get_height()
-                        cam_w = self.camera_param.get_width()
-                        world_rays = self.view_synthesis._world_rays[self.base_camera_param.name]
-                        K = self.camera_param.get_K()
-                        uv = np.matmul(K, world_rays).T[:,:2][:,::-1]
 
-                        def extract_uv(_mask):
-                            _fl_mask = _mask.flatten()
-                            _uv = uv[_fl_mask]
-                            
-                            _mode = 1
-                            if _mode == 0:
-                                _uv = np.round(_uv).astype(np.int)
-                            elif _mode == 1:
-                                _uv_floor = np.floor(_uv)
-                                _uv_ceil = np.ceil(_uv)
-                                diff_floor = np.abs(_uv - _uv_floor)
-                                diff_ceil = np.abs(_uv - _uv_ceil)
+        if update_rgb_frame_only:
+            self._prev_frame = rendered_frame
+            self._prev_timestamp = timestamp
+        else:
+            events = [[], []]
+            if self.prev_frame is not None:
+                with torch.no_grad():
+                    out = self._interp.forward_warp(self.prev_frame, rendered_frame, 
+                                                    max_sf=self.config['max_sf'],
+                                                    use_max_flow=True)
+                
+                interp = [self.prev_frame] + out['interpolated']
+                if len(interp) >= 2:
+                    last_interp_frame = cv2.cvtColor(interp[0], cv2.COLOR_RGB2GRAY)
+                    dt = (timestamp - self.prev_timestamp) / out['sf']
+                    event_timestamp = self.prev_timestamp
+                    for interp_frame in interp[1:]:
+                        interp_frame = cv2.cvtColor(interp_frame, cv2.COLOR_RGB2GRAY)
+                        log_d_interp = np.log(interp_frame / 255. + 1e-8) - \
+                                    np.log(last_interp_frame / 255. + 1e-8)
+                        sample_fn = lambda mu, sig: np.clip(np.random.normal(mu, sig), 0., 1.)
+                        positive_C = sample_fn(self.config['positive_threshold'], 
+                                            self.config['sigma_positive_threshold'])
+                        negative_C = -sample_fn(-self.config['negative_threshold'],
+                                                self.config['sigma_negative_threshold'])
+                        if self.config['reproject_pixel']:
+                            # TODO: don't need to recompute this every time
+                            cam_h = self.camera_param.get_height()
+                            cam_w = self.camera_param.get_width()
+                            world_rays = self.view_synthesis._world_rays[self.base_camera_param.name]
+                            K = self.camera_param.get_K()
+                            uv = np.matmul(K, world_rays).T[:,:2][:,::-1]
 
-                                n_uv = _uv.shape[0]
-                                zeros = np.zeros((n_uv,))
-                                _uv_score = np.concatenate([
-                                    np.stack([_uv_floor[:,0], _uv_floor[:,1], zeros], axis=1),
-                                    np.stack([_uv_floor[:,0], _uv_ceil[:,1], zeros], axis=1),
-                                    np.stack([_uv_ceil[:,0], _uv_floor[:,1], zeros], axis=1),
-                                    np.stack([_uv_ceil[:,0], _uv_ceil[:,1], zeros], axis=1)], 
-                                    axis=0)
+                            def extract_uv(_mask):
+                                _fl_mask = _mask.flatten()
+                                _uv = uv[_fl_mask]
+                                
+                                _mode = 1
+                                if _mode == 0:
+                                    _uv = np.round(_uv).astype(np.int)
+                                elif _mode == 1:
+                                    _uv_floor = np.floor(_uv)
+                                    _uv_ceil = np.ceil(_uv)
+                                    diff_floor = np.abs(_uv - _uv_floor)
+                                    diff_ceil = np.abs(_uv - _uv_ceil)
 
-                                _uv_score[:n_uv,2] = diff_ceil[:,0] * diff_ceil[:,1]
-                                _uv_score[n_uv:2*n_uv,2] = diff_ceil[:,0] * diff_floor[:,1]
-                                _uv_score[2*n_uv:3*n_uv,2] = diff_floor[:,0] * diff_ceil[:,1]
-                                _uv_score[3*n_uv:,2] = diff_floor[:,0] * diff_floor[:,1]
+                                    n_uv = _uv.shape[0]
+                                    zeros = np.zeros((n_uv,))
+                                    _uv_score = np.concatenate([
+                                        np.stack([_uv_floor[:,0], _uv_floor[:,1], zeros], axis=1),
+                                        np.stack([_uv_floor[:,0], _uv_ceil[:,1], zeros], axis=1),
+                                        np.stack([_uv_ceil[:,0], _uv_floor[:,1], zeros], axis=1),
+                                        np.stack([_uv_ceil[:,0], _uv_ceil[:,1], zeros], axis=1)], 
+                                        axis=0)
 
-                                _uv = _uv_score[_uv_score[:,2]>=0.2, :2].astype(np.int)
-                            else:
-                                _uv_floor = np.floor(_uv)
-                                _uv_ceil = np.ceil(_uv)
-                                _uv = np.concatenate([
-                                    np.stack([_uv_floor[:,0], _uv_floor[:,1]], axis=1),
-                                    np.stack([_uv_floor[:,0], _uv_ceil[:,1]], axis=1),
-                                    np.stack([_uv_ceil[:,0], _uv_floor[:,1]], axis=1),
-                                    np.stack([_uv_ceil[:,0], _uv_ceil[:,1]], axis=1)], axis=0)
-                                _uv = _uv.astype(np.int)
-                            
-                            _valid_mask = (_uv[:,0] > 0) & (_uv[:,0] < cam_h) & \
-                                          (_uv[:,1] > 0) & (_uv[:,1] < cam_w)
-                            _uv = _uv[_valid_mask]
-                            return _uv
+                                    _uv_score[:n_uv,2] = diff_ceil[:,0] * diff_ceil[:,1]
+                                    _uv_score[n_uv:2*n_uv,2] = diff_ceil[:,0] * diff_floor[:,1]
+                                    _uv_score[2*n_uv:3*n_uv,2] = diff_floor[:,0] * diff_ceil[:,1]
+                                    _uv_score[3*n_uv:,2] = diff_floor[:,0] * diff_floor[:,1]
 
-                        positive_uv = extract_uv(log_d_interp >= positive_C)
-                        negative_uv = extract_uv(log_d_interp <= negative_C)
-                    else:
-                        positive_uv = np.argwhere(log_d_interp >= positive_C)
-                        negative_uv = np.argwhere(log_d_interp <= negative_C)
-                    event_timestamp += dt
-                    event_timestamp_us = (event_timestamp * 1e6).astype(np.int64)
-                    positive_events = np.concatenate([positive_uv, 
-                        np.tile([event_timestamp_us, 1], (positive_uv.shape[0], 1))], axis=1)
-                    negative_events = np.concatenate([negative_uv, 
-                        np.tile([event_timestamp_us, 1], (negative_uv.shape[0], 0))], axis=1)
-                    events[0].append(positive_events)
-                    events[1].append(negative_events)
-                    last_interp_frame = interp_frame
+                                    _uv = _uv_score[_uv_score[:,2]>=0.2, :2].astype(np.int)
+                                else:
+                                    _uv_floor = np.floor(_uv)
+                                    _uv_ceil = np.ceil(_uv)
+                                    _uv = np.concatenate([
+                                        np.stack([_uv_floor[:,0], _uv_floor[:,1]], axis=1),
+                                        np.stack([_uv_floor[:,0], _uv_ceil[:,1]], axis=1),
+                                        np.stack([_uv_ceil[:,0], _uv_floor[:,1]], axis=1),
+                                        np.stack([_uv_ceil[:,0], _uv_ceil[:,1]], axis=1)], axis=0)
+                                    _uv = _uv.astype(np.int)
+                                
+                                _valid_mask = (_uv[:,0] > 0) & (_uv[:,0] < cam_h) & \
+                                            (_uv[:,1] > 0) & (_uv[:,1] < cam_w)
+                                _uv = _uv[_valid_mask]
+                                return _uv
 
-        self._prev_frame = rendered_frame
-        self._prev_timestamp = timestamp
+                            positive_uv = extract_uv(log_d_interp >= positive_C)
+                            negative_uv = extract_uv(log_d_interp <= negative_C)
+                        else:
+                            positive_uv = np.argwhere(log_d_interp >= positive_C)
+                            negative_uv = np.argwhere(log_d_interp <= negative_C)
+                        event_timestamp += dt
+                        event_timestamp_us = (event_timestamp * 1e6).astype(np.int64)
+                        positive_events = np.concatenate([positive_uv, 
+                            np.tile([event_timestamp_us, 1], (positive_uv.shape[0], 1))], axis=1)
+                        negative_events = np.concatenate([negative_uv, 
+                            np.tile([event_timestamp_us, 1], (negative_uv.shape[0], 0))], axis=1)
+                        events[0].append(positive_events)
+                        events[1].append(negative_events)
+                        last_interp_frame = interp_frame
 
-        return events
+            self._prev_frame = rendered_frame
+            self._prev_timestamp = timestamp
+
+            return events
 
     @property
     def config(self) -> Dict:

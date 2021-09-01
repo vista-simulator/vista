@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 import random
 import numpy as np
+import copy
 import torch
 
 import vista
@@ -80,6 +81,11 @@ class VistaDataset(BufferedDataset):
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action)
 
+            # update RGB previous frame based on privileged control; this is required to generate
+            # correct events for the next branching (the rgb frame at t-1 for optical flow 
+            # between t-1 and t)
+            self._event_camera.capture(self._agent.timestamp, update_rgb_frame_only=True)
+
             # preprocess and produce data-label pairs
             data = transform_events(events, self._event_camera, self.train)
             label = np.array([curvature]).astype(np.float32)
@@ -101,17 +107,21 @@ class VistaDataset(BufferedDataset):
         ]
 
     def _cache_state(self):
-        cached_state_keys = ['ego_dynamics', 'human_dynamics', 
-            'relative_state', 'curvature', 'steering', 'tire_angle']
+        cached_state_keys = ['ego_dynamics', 'human_dynamics', 'relative_state',
+            'speed', 'curvature', 'steering', 'tire_angle', 'human_speed',
+            'human_curvature', 'human_steering', 'human_tire_angle',
+            'frame_index', 'frame_number']
         cached_state = dict()
         for key in cached_state_keys:
             val = getattr(self._agent, key)
             if hasattr(val, 'numpy'):
                 val = val.numpy()
             cached_state[key] = val
+        cached_state['road'] = copy.deepcopy(self._agent._road)
         return cached_state
 
     def _revert_dynamics(self, action, cached_state):
+        self._agent._done = False
         self._agent.step_dynamics(action, dt=-1/30.)
         for key, val in cached_state.items():
             attr = getattr(self._agent, key)

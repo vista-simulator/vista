@@ -130,7 +130,7 @@ def main():
 
     # Run training
     loss_buf = []
-    while iter_i < config.n_iters:
+    while iter_i <= config.n_iters:
         loss = train_iter(config, device, train_batch_iter, model, objective,
                           optimizer, logger)
         loss_buf.append(loss)
