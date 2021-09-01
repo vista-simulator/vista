@@ -21,20 +21,22 @@ logging.setLevel(logging.ERROR)
 def main():
     # Parse arguments and config
     parser = argparse.ArgumentParser(description='IL/GPL in Vista')
-    parser.add_argument(
-        '--config',
-        type=str,
-        default=None,
-        help='Path to .yaml config file. Will overwrite default config')
-    parser.add_argument(
-        '--logdir',
-        type=str,
-        required=True,
-        help='Output directory that stores checkpoints and logging')
+    parser.add_argument('--config',
+                        type=str,
+                        default=None,
+                        help='Path to .yaml config file. Overwrites default')
+    parser.add_argument('--logdir',
+                        type=str,
+                        required=True,
+                        help='Output directory for checkpoints and logs')
     parser.add_argument('--num-workers',
                         type=int,
                         default=0,
                         help='Number of workers used in dataloader')
+    parser.add_argument('--val-num-workers',
+                        type=int,
+                        default=0,
+                        help='Number of workers used in validation dataloader')
     parser.add_argument('--no-cuda',
                         action='store_true',
                         default=False,
@@ -96,7 +98,7 @@ def main():
     val_dataset = dataset_mod.VistaDataset(**config.val_dataset, train=False)
     val_loader = DataLoader(val_dataset,
                             batch_size=config.val_dataset.batch_size,
-                            num_workers=args.num_workers,
+                            num_workers=args.val_num_workers,
                             pin_memory=True,
                             worker_init_fn=dataset_mod.worker_init_fn)
     val_batch_iter = iter(val_loader)
