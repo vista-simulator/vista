@@ -41,6 +41,10 @@ def main():
                         action='store_true',
                         default=False,
                         help='Disable gpu')
+    parser.add_argument('--cuda-id',
+                        type=int,
+                        default=0,
+                        help='Which gpu to use to train (if using cuda)')
     parser.add_argument('--restore',
                         type=str,
                         default=None,
@@ -55,7 +59,7 @@ def main():
     config = utils.load_yaml(default_config_path)
     utils.update_dict(config, utils.load_yaml(args.config))
 
-    device = torch.device('cuda' if not args.no_cuda else 'cpu')
+    device = torch.device('cpu' if args.no_cuda else f'cuda:{args.cuda_id}')
 
     # Set up output directory
     if not os.path.isdir(args.logdir):
