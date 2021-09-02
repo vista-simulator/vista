@@ -20,11 +20,11 @@ class LaneFollowing(Base):
         observations = self._append_agent_id(agent.observations)
         return observations
 
-    def step(self, action):
+    def step(self, action, dt=1 / 30.):
         # Step agent and get observation
         agent = self._world.agents[0]
         action = np.array([action[agent.id][0], agent.human_speed])
-        agent.step_dynamics(action)
+        agent.step_dynamics(action, dt=dt)
         agent.step_sensors()
         observations = agent.observations
 
@@ -49,8 +49,8 @@ class LaneFollowing(Base):
         info['exceed_rot'] = exceed_rot
 
         # Pack output
-        observations, reward, done, info = map(self._append_agent_id, 
-                                               [observations, reward, done, info])
+        observations, reward, done, info = map(
+            self._append_agent_id, [observations, reward, done, info])
 
         return observations, reward, done, info
 

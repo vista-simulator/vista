@@ -13,7 +13,8 @@ from attrdict import AttrDict
 
 class Logger:
     def __init__(self, logdir, write_mode='w', with_tensorboard=True):
-        self._text_writer = open(os.path.join(logdir, 'results.txt'), write_mode)
+        self._text_writer = open(os.path.join(logdir, 'results.txt'),
+                                 write_mode)
         if with_tensorboard:
             self._tf_writer = SummaryWriter(logdir)
         self._logdir = logdir
@@ -35,7 +36,7 @@ class Logger:
             text.append(f't/{name}: {value:.4f}')
 
         self.print('  '.join(text))
-    
+
     def print(self, data):
         if not isinstance(data, str):
             data = pprint.pformat(data)
@@ -53,7 +54,8 @@ class Logger:
 
     def toc(self, name, group=None):
         group = 'default' if group is None else group
-        assert len(self._timer[group][name]) == 1, f'Should call tic({name}) first'
+        assert len(
+            self._timer[group][name]) == 1, f'Should call tic({name}) first'
         self._timer[group][name].append(time.time())
 
         if not name in self._accum_timer[group].keys():
@@ -73,15 +75,16 @@ class Logger:
 
 
 def save_checkpoint(fpath, n_iter, model, optimizer):
-    torch.save({
-        'n_iter': n_iter,
-        'model': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-    }, fpath)
+    torch.save(
+        {
+            'n_iter': n_iter,
+            'model': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+        }, fpath)
 
 
 def load_checkpoint(fpath, model, optimizer=None, load_optim=True):
-    ckpt = torch.load(fpath)
+    ckpt = torch.load(fpath)  #, map_location=torch.device('cpu'))
     model.load_state_dict(ckpt['model'])
     if load_optim:
         optimizer.load_state_dict(ckpt['optimizer'])
@@ -96,7 +99,8 @@ def preprocess_config(config):
         elif isinstance(v, list):
             set_dict_value_by_str(config, k, [validate_path(vv) for vv in v])
         else:
-            raise NotImplementedError(f'Unrecognized dict value {v} to be modified')
+            raise NotImplementedError(
+                f'Unrecognized dict value {v} to be modified')
 
 
 def validate_path(path):
@@ -120,14 +124,14 @@ def load_yaml(fpath):
         loader = yaml.SafeLoader
         loader.add_implicit_resolver(
             u'tag:yaml.org,2002:float',
-            re.compile(u'''^(?:
+            re.compile(
+                u'''^(?:
             [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
             |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
             |\\.[0-9_]+(?:[eE][-+][0-9]+)?
             |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
             |[-+]?\\.(?:inf|Inf|INF)
-            |\\.(?:nan|NaN|NAN))$''', re.X),
-            list(u'-+0123456789.'))
+            |\\.(?:nan|NaN|NAN))$''', re.X), list(u'-+0123456789.'))
         data = yaml.load(f, Loader=loader)
     return AttrDict(data)
 

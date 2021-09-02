@@ -7,12 +7,14 @@ dataset:
     $DATA_DIR/traces/20210726-154641_lexus_devens_center,
     $DATA_DIR/traces/20210726-155941_lexus_devens_center_reverse,
     $DATA_DIR/traces/20210726-184624_lexus_devens_center,
+    $DATA_DIR/traces/20210726-184956_lexus_devens_center_reverse,
     $DATA_DIR/traces/20210728-203206_lexus_devens_center_night,
   ]
 
   buffer_size: 1000
 
   trace_config:
+    road_width: 6
     master_sensor: lidar_3d
 
   car_config:

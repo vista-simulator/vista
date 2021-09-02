@@ -74,7 +74,7 @@ class Lidar(BaseSensor):
             lat, long, yaw = self.parent.relative_state.numpy()
             logging.debug(
                 f"state: {lat} {long} {yaw} \t timestamp {timestamp}")
-            trans = np.array([long, lat, 0])
+            trans = np.array([-long, lat, 0])
             rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
             new_pcd, new_dense = self.view_synthesis.synthesize(
                 trans, rot, pcd)
