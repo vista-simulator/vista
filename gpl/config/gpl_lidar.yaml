@@ -21,6 +21,8 @@ dataset:
     lookahead_road: True
     road_buffer_size: 50
 
+mp_start_method: spawn
+
 val_dataset: # default set as trainset
   trace_paths: [
     $DATA_DIR/traces/20210726-184956_lexus_devens_center_reverse,

@@ -8,7 +8,7 @@ import tensorflow as tf
 for gpu in tf.config.experimental.list_physical_devices('GPU'):
     tf.config.experimental.set_virtual_device_configuration(
         gpu,
-        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1500)])
+        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1300)])
 
 import warnings
 
@@ -54,13 +54,14 @@ class LidarSynthesis:
         if path.is_file() and load_model:
             logging.debug(f"Loading Lidar model from {path}")
 
-            self.render_model = tf.keras.models.load_model(str(path),
-                                                           custom_objects={
-                                                               "exp":
-                                                               tf.math.exp,
-                                                               "tf": tf
-                                                           },
-                                                           compile=False)
+            self.render_model = tf.keras.models.load_model(
+                str(path),
+                custom_objects={
+                    "exp": tf.math.exp,
+                    "tf": tf
+                },
+                compile=False,
+            )
 
     def synthesize(
         self,
@@ -135,7 +136,7 @@ class LidarSynthesis:
         samples = tf.expand_dims(coords, 1) + self.offsets  # (N, M, 2)
 
         # Collect the samples in each neighborhood
-        if tf.test.is_gpu_available():
+        if len(tf.config.list_physical_devices('GPU')) > 0:
             # gather_nd on GPU will not throw error on out-of-bounds indicies;
             # however, it returns 0.0 at these locations. So we need to set
             # these to nan manually after.
