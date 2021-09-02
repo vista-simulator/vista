@@ -66,6 +66,9 @@ def main():
     elif config.dataset.type in ['gpl_lidar_dataset']:
         utils.set_dict_value_by_str(config, 'dataset:lidar_config:type', 'lidar')
         sensors_configs = [config.dataset.lidar_config]
+    elif config.dataset.type in ['gpl_event_dataset']:
+        utils.set_dict_value_by_str(config, 'dataset:event_camera_config:type', 'event_camera')
+        sensors_configs = [config.dataset.event_camera_config]
     else:
         raise NotImplementedError(f'Unrecognized dataset type {config.dataset.type}')
     env = LaneFollowing(trace_paths=args.trace_paths, 
@@ -97,7 +100,8 @@ def main():
                     v = d_utils.transform_lidar(v, sensor, False)
                     data['lidar'] = v[None, ...].to(device)
                 elif isinstance(sensor, EventCamera):
-                    raise NotImplementedError
+                    v = d_utils.transform_events(v, sensor, False)
+                    data['event_camera'] = v[None, ...].to(device)
                 else:
                     raise NotImplementedError(f'Cannot handle sensor data {type(sensor)}')
 

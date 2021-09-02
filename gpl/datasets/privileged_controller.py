@@ -47,9 +47,9 @@ class PurePursuit(BaseController):
             transform.compute_relative_latlongyaw(_v, ego_pose)
             for _v in road
         ])
-        road_in_ego = road_in_ego[road_in_ego[:,1] > 0] # drop road in the back
 
         dist = np.linalg.norm(road_in_ego[:,:2], axis=1)
+        dist[road_in_ego[:,1] < 0] = 9999. # drop road in the back
         tgt_idx = np.argmin(np.abs(dist - lookahead_dist))
         dx, dy, dyaw = road_in_ego[tgt_idx]
 
@@ -94,9 +94,9 @@ class PID(BaseController):
             transform.compute_relative_latlongyaw(_v, ego_pose)
             for _v in road
         ])
-        road_in_ego = road_in_ego[road_in_ego[:,1] > 0] # drop road in the back
 
         dist = np.linalg.norm(road_in_ego[:,:2], axis=1)
+        dist[road_in_ego[:,1] < 0] = 9999. # drop road in the back
         tgt_idx = np.argmin(np.abs(dist - lookahead_dist))
         lat_dx, lat_dy, lat_dyaw = road_in_ego[tgt_idx]
 

@@ -1,11 +1,10 @@
 from typing import List, Dict, Any, Optional
 import random
 import numpy as np
-import copy
 import torch
 
 import vista
-from vista.entities.agents.Dynamics import tireangle2curvature, curvature2steering
+from vista.entities.agents.Dynamics import tireangle2curvature
 from .buffered_dataset import BufferedDataset
 from .utils import transform_events
 from .privileged_controller import get_controller
@@ -69,7 +68,7 @@ class VistaDataset(BufferedDataset):
 
             # step simulator to get events
             action = np.array([curvature, speed])
-            self._agent.step_dynamics(action)
+            self._agent.step_dynamics(action, update_road=False)
             self._agent.step_sensors()
             sensor_name = self._event_camera.name
             events = self._agent.observations[sensor_name]
@@ -117,7 +116,6 @@ class VistaDataset(BufferedDataset):
             if hasattr(val, 'numpy'):
                 val = val.numpy()
             cached_state[key] = val
-        cached_state['road'] = copy.deepcopy(self._agent._road)
         return cached_state
 
     def _revert_dynamics(self, action, cached_state):

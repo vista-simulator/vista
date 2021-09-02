@@ -227,7 +227,8 @@ class Car(Entity):
                 self._observations[sensor.name] = sensor.capture(
                     self.timestamp)
 
-    def step_dynamics(self, action: np.ndarray, dt: Optional[float] = 1 / 30.):
+    def step_dynamics(self, action: np.ndarray, dt: Optional[float] = 1 / 30.,
+                      update_road: Optional[bool] = True):
         assert not self.done, 'Agent status is done. Please call reset first.'
         logging.info('Car ({}) step dynamics'.format(self.id))
 
@@ -326,7 +327,7 @@ class Car(Entity):
         self._relative_state.update(*latlongyaw_closest)
 
         # Update privileged information (in global coordinates)
-        if hasattr(self, '_road'):
+        if update_road and hasattr(self, '_road'):
             self._update_road()
 
     def step_sensors(self) -> None:
