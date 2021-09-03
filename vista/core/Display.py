@@ -249,6 +249,16 @@ class Display:
                                    vmin=-2.5,
                                    vmax=4,
                                    cmap=cmap)
+
+                        # Plot the noodle (TODO generalize this to use for both image and pcd)
+                        turning_r = 1 / (self.ref_agent.curvature + 1e-8)
+                        lookaheads = np.linspace(0, 15, 10)  # meters
+                        shifts = (np.sqrt(turning_r**2 - lookaheads**2) -
+                                  abs(turning_r))
+                        shifts = -1 * np.sign(turning_r) * shifts
+                        ax.plot(lookaheads, shifts, '-b', linewidth=3)
+
+                        # Plot the car
                         l_car = self.ref_agent.length
                         w_car = self.ref_agent.width
                         ax.add_patch(
