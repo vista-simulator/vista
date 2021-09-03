@@ -15,6 +15,7 @@ from ..entities.agents.Dynamics import StateDynamics, update_with_perfect_contro
                                        curvature2tireangle
 from ..entities.agents import Car
 from ..entities.sensors import Camera, EventCamera, Lidar
+from ..entities.sensors.camera_utils import CameraParams
 from ..entities.sensors.lidar_utils import Pointcloud
 from ..utils import logging, transform, misc
 
@@ -212,19 +213,25 @@ class Display:
                 if obs_name in cameras.keys():
                     obs = plot_roi(obs.copy(),
                                    cameras[obs_name].camera_param.get_roi())
+                    sensor = cameras[obs_name]
+                    noodle = curvature2noodle(self.ref_agent.curvature,
+                                              sensor.camera_param,
+                                              mode='camera')
+                    obs = cv2.polylines(obs, [noodle], False, (255, 0, 0), 2)
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                obs[:, :, ::-1])
-                    # TODO: draw noodle for curvature visualization
 
                 elif obs_name in event_cameras.keys():
                     event_cam_param = event_cameras[obs_name].camera_param
                     frame_obs = events2frame(obs, event_cam_param.get_height(),
                                              event_cam_param.get_width())
+                    sensor = event_cameras[obs_name]
+                    noodle = curvature2noodle(self.ref_agent.curvature,
+                                              sensor.camera_param,
+                                              mode='camera')
+                    frame_obs = cv2.polylines(frame_obs, [noodle], False, (0, 0, 255), 2)
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                frame_obs[:, :, ::-1])
-                    # TODO: obs_render shape changes at the first frame
-                    logging.debug(
-                        'obs_render shape changes at the first frame')
 
                 elif obs_name in lidars.keys():
                     if isinstance(obs, Pointcloud):
@@ -250,13 +257,9 @@ class Display:
                                    vmax=4,
                                    cmap=cmap)
 
-                        # Plot the noodle (TODO generalize this to use for both image and pcd)
-                        turning_r = 1 / (self.ref_agent.curvature + 1e-8)
-                        lookaheads = np.linspace(0, 15, 10)  # meters
-                        shifts = (np.sqrt(turning_r**2 - lookaheads**2) -
-                                  abs(turning_r))
-                        shifts = -1 * np.sign(turning_r) * shifts
-                        ax.plot(lookaheads, shifts, '-b', linewidth=3)
+                        # Plot the noodle
+                        noodle = curvature2noodle(self.ref_agent.curvature, mode='lidar')
+                        ax.plot(noodle[:,0], noodle[:,1], '-b', linewidth=3)
 
                         # Plot the car
                         l_car = self.ref_agent.length
@@ -313,7 +316,61 @@ class Display:
         return self._world.agents[0]
 
 
-def plot_roi(img, roi, color=(0, 0, 255), thickness=2):
+def curvature2noodle(curvature: float,
+                     camera_param: Optional[CameraParams] = None,
+                     mode: Optional[str] = 'camera') -> np.ndarray:
+    lookaheads = np.linspace(0, 15, 10) # meters
+    if mode == 'camera':
+        assert camera_param is not None
+
+        K = camera_param.get_K()
+        normal = camera_param.get_ground_plane()[0:3]
+        normal = np.reshape(normal, [1,3])
+        d = camera_param.get_ground_plane()[3]
+        A, B, C = normal[0]
+
+        radius = 1. / (curvature + 1e-8)
+
+        z_vals = lookaheads
+        y_vals = (d - C * z_vals) / B
+        x_sq_r = radius**2 - z_vals**2 - (y_vals-d)**2
+        x_vals = np.sqrt(x_sq_r[x_sq_r > 0]) - abs(radius)
+        y_vals = y_vals[x_sq_r > 0]
+        z_vals = z_vals[x_sq_r > 0]
+
+        if radius < 0:
+            x_vals *= -1
+
+        world_coords = np.stack((x_vals, y_vals, z_vals))
+
+        theta = camera_param.get_yaw()
+        R = np.array([[np.cos(theta), 0.0, -np.sin(theta)],
+                      [0.0, 1.0, 0.0],
+                      [np.sin(theta), 0.0, np.cos(theta)]])
+        tf_world_coords = np.matmul(R, world_coords)
+        img_coords = np.matmul(K, tf_world_coords)
+        norm = np.divide(img_coords, img_coords[2]+1e-10)
+
+        valid_inds = np.multiply(norm[0] >= 0 , norm[0] < camera_param.get_width())
+        valid_inds = np.multiply(valid_inds, norm[1] >= 0)
+        valid_inds = np.multiply(valid_inds, norm[1] < camera_param.get_height())
+
+        noodle = norm[:2, valid_inds].astype(np.int32).T
+    elif mode == 'lidar':
+        turning_r = 1 / (curvature + 1e-8)
+        shifts = (np.sqrt(turning_r**2 - lookaheads**2) - abs(turning_r))
+        shifts = -1 * np.sign(turning_r) * shifts
+        noodle = np.stack([lookaheads, shifts], axis=1)
+    else:
+        raise NotImplementedError('Unrecognized mode {} in drawing noodle'.format(mode))
+
+    return noodle
+
+
+def plot_roi(img: np.ndarray,
+             roi: List[int],
+             color: Optional[List[int]] = (0, 0, 255),
+             thickness: Optional[int] = 2) -> np.ndarray:
     (i1, j1, i2, j2) = roi
     img = cv2.rectangle(img, (j1, i1), (j2, i2), color, thickness)
     return img

@@ -52,6 +52,9 @@ def main(args):
     if args.video_path:
         from skvideo.io import FFmpegWriter
         args.video_path = os.path.abspath(os.path.expanduser(args.video_path))
+        video_dir = os.path.dirname(args.video_path)
+        if not os.path.isdir(video_dir):
+            os.makedirs(video_dir)
         video_writer = FFmpegWriter(args.video_path)
 
     # Main running loop
@@ -68,13 +71,10 @@ def main(args):
             agent.step_sensors()
 
             img = display.render()
-            import cv2; cv2.imwrite('test.png', img[:,:,::-1])
-            import pdb; pdb.set_trace()
             if args.video_path:
                 video_writer.writeFrame(img)
 
             step += 1
-        import pdb ; pdb.set_trace()
 
 
 if __name__ == '__main__':
