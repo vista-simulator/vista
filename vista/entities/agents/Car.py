@@ -220,7 +220,7 @@ class Car(Entity):
             # Get image frame
             self._observations = dict()
             for sensor in self.sensors:
-                if type(sensor) not in [Camera, Lidar]:
+                if type(sensor) not in [Camera, Lidar, EventCamera]:
                     raise NotImplementedError(
                         'Sensor {} is not supported in step dynamics'.format(
                             sensor))

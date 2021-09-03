@@ -1,0 +1,26 @@
+### Data ###
+dataset:
+  type: il_event_dataset
+
+  trace_paths: [
+    $DATA_DIR/traces/20210826-134807_lexus_devens_outerloop,
+    $DATA_DIR/traces/20210826-135430_lexus_devens_outerloop_reverse,
+    $DATA_DIR/traces/20210826-190914_lexus_devens_outerloop,
+    $DATA_DIR/traces/20210826-191326_lexus_devens_outerloop_reverse,
+  ]
+
+  event_camera_config:
+    use_synthesizer: False
+
+val_dataset:
+  trace_paths: [
+    $DATA_DIR/traces/20210826-191326_lexus_devens_outerloop_reverse,
+  ]
+
+### Model ###
+model:
+  extractors:
+    event_camera:
+      name: convnet
+  estimator:
+    name: deterministic
