@@ -12,6 +12,7 @@ for gpu in tf.config.experimental.list_physical_devices('GPU'):
 
 import warnings
 
+import vista
 from vista import resources
 from vista.utils import transform, logging
 from .Pointcloud import Pointcloud, Point
@@ -45,7 +46,11 @@ class LidarSynthesis:
         self.offsets = tf.cast(tf.expand_dims(offsets, 0), tf.int32)
 
         ### Rendering masks and neural network model for sparse -> dense
-        rsrc_path = pkg_resources.files(resources)
+        try: # can only work with python 3.9
+            rsrc_path = pkg_resources.files(resources)
+        except AttributeError:
+            with pkg_resources.path(vista, 'resources') as p:
+                rsrc_path = p
         self.avg_mask = np.load(str(rsrc_path / "Lidar/avg_mask2.npy"))
 
         self.load_model = load_model
