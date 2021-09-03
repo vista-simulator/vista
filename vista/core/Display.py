@@ -228,7 +228,7 @@ class Display:
 
                 elif obs_name in lidars.keys():
                     if isinstance(obs, Pointcloud):
-                        obs_ = obs[::20]  # sub-sample the pointcloud for vis
+                        obs_ = obs[::10]  # sub-sample the pointcloud for vis
                         max_dist = 20.
                         obs_ = obs_[obs_.dist < (max_dist * np.sqrt(2))]
                         ax = self._axes[ax_name]

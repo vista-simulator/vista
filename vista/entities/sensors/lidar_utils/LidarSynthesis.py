@@ -22,7 +22,7 @@ class LidarSynthesis:
                  yaw_res: float = 0.1,
                  pitch_res: float = 0.1,
                  yaw_fov: Tuple[float, float] = (-180., 180.),
-                 pitch_fov: Tuple[float, float] = (-21.0, 12.6),
+                 pitch_fov: Tuple[float, float] = (-21.0, 19.0),
                  culling_r: int = 1,
                  load_model: bool = True):
 
@@ -46,20 +46,17 @@ class LidarSynthesis:
 
         ### Rendering masks and neural network model for sparse -> dense
         rsrc_path = pkg_resources.files(resources)
-        self.avg_mask = np.load(str(rsrc_path / "Lidar/avg_mask.npy"))
+        self.avg_mask = np.load(str(rsrc_path / "Lidar/avg_mask2.npy"))
 
         self.load_model = load_model
         self.render_model = None
-        path = rsrc_path / "Lidar/LidarFiller5.h5"
+        path = rsrc_path / "Lidar/LidarFiller6.h5"
         if path.is_file() and load_model:
             logging.debug(f"Loading Lidar model from {path}")
 
             self.render_model = tf.keras.models.load_model(
                 str(path),
-                custom_objects={
-                    "exp": tf.math.exp,
-                    "tf": tf
-                },
+                custom_objects={"tf": tf},
                 compile=False,
             )
 
@@ -90,6 +87,10 @@ class LidarSynthesis:
 
         # Sample the image to simulate active LiDAR using neural masking
         new_pcd = self.dense2pcd(dense)
+
+        # Remove points above a certain degree pitch (not enough training data)
+        pitch = np.arcsin(new_pcd.z / new_pcd.dist)
+        new_pcd = new_pcd[pitch < (14.0 / 180 * np.pi)]
 
         return (new_pcd, dense)
 
@@ -210,9 +211,10 @@ class LidarSynthesis:
         if method == "nn":
             mask = ~np.isnan(sparse)
             sparse[~mask] = 0.0
+            sparse = np.pad(sparse, ((4, 4), (4, 4), (0, 0)), mode='constant')
             sparse = sparse[np.newaxis]
             # dense = self.render_model.s2d(sparse)[0, :, :, 0].numpy()
-            dense = self.render_model(sparse)[0].numpy()
+            dense = self.render_model(sparse)[0, 4:-4, 4:-4].numpy()
         else:
             # mask all invalid values
             zs = np.ma.masked_invalid(sparse)

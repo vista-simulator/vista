@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser(
     description='Train masking network for lidar rendering.')
 parser.add_argument('-i',
                     '--input',
+                    nargs='+',
                     type=str,
                     required=True,
                     help='Path to the trace to train with')
@@ -20,19 +21,24 @@ parser.add_argument('-b', '--batch_size', type=int, default=2)
 parser.add_argument('-r', '--learning_rate', type=float, default=1e-3)
 parser.add_argument('-p', '--dropout', type=float, default=0.05)
 parser.add_argument('-l', '--num_layers', type=int, default=3)
+parser.add_argument('-a', '--padding', type=int, default=4)
 args = parser.parse_args()
 
 print("Loading data")
-f = h5py.File(os.path.join(args.input, "lidar_3d_vista_new.h5"), "r")
+x, yd, yi = ([], [], [])
 
-# only train with a small subset (debugging for speed)
-# dataset_size = f["d_depth"].shape[0]
-# data_idx = np.random.choice(f["d_depth"].shape[0], dataset_size, replace=False)
-# data_idx = np.sort(data_idx)
+for path in tqdm(args.input):
+    f = h5py.File(os.path.join(path, "lidar_3d_vista.h5"), "r")
 
-x = f['mask_trans'][:50]
-yd = f['d_depth_trans'][:50].astype(np.float32)
-yi = f['d_int_trans'][:50].astype(np.uint8)
+    size = f['mask_trans'].shape[0] # 50
+    n = max(1, int(size / (1000 / len(args.input))))
+    x.append(f['mask_trans'][:][::n])
+    yd.append(f['d_depth_trans'][:][::n].astype(np.float32))
+    yi.append(f['d_int_trans'][:][::n].astype(np.uint8))
+x = np.concatenate(x)
+yd = np.concatenate(yd)
+yi = np.concatenate(yi)
+
 train_idx = np.random.choice(x.shape[0], int(x.shape[0] * 0.8), replace=False)
 test_idx = np.setdiff1d(np.arange(x.shape[0]), train_idx, assume_unique=True)
 x_train, yd_train, yi_train, x_test, yd_test, yi_test = (x[train_idx],
@@ -48,20 +54,20 @@ optimizer = tf.keras.optimizers.Adam(args.learning_rate)
 
 _, h, w, _ = x_train.shape
 UNET = custom_unet(
-    input_shape=(h, w, 3),
+    input_shape=(h + 2 * args.padding, w + 2 * args.padding, 3),
     num_classes=2,
-    filters=16,
+    filters=10,
     num_layers=args.num_layers,
     dropout=args.dropout,
     upsample_mode="deconv",
-    # activation="swish",
+    activation="swish",
     output_activation=None)
 
 Lambda = tf.keras.layers.Lambda
 model = tf.keras.Sequential([
     Lambda(lambda x: x / tf.constant([50., 255, 1])),
     UNET,
-    Lambda(lambda y: tf.stack((tf.math.exp(y[..., 0] - tf.math.log(150.) / 2),
+    Lambda(lambda y: tf.stack((tf.math.exp(y[..., 0] - tf.math.log(50.) / 2),
                                tf.math.exp(y[..., 1] - tf.math.log(255.) / 2)),
                               axis=-1)),
     Lambda(lambda y: y * tf.constant([50., 255])),
@@ -89,15 +95,26 @@ def train_step(xx, yy):
 
 def sample(X, Yd, Yi):
     i = np.random.choice(X.shape[0], args.batch_size)
-    k = np.random.choice(X.shape[2], 1)[0]
 
     mask, yd, yi = (X[i], Yd[i], Yi[i])
     yy = np.concatenate((yd, yi), axis=3)
     xx = np.concatenate((yy, mask), axis=3)
     xx[~mask[..., 0], :] = 0.0
 
+    # Rotate
+    k = np.random.choice(X.shape[2], 1)[0]
     xx = np.roll(xx, k, axis=2).astype(np.float32)
     yy = np.roll(yy, k, axis=2).astype(np.float32)
+
+    # Reflect
+    if np.random.uniform() < 0.5:
+        xx = xx[:, :, ::-1, :]
+        yy = yy[:, :, ::-1, :]
+
+    # Pad the edges of the image dimensions (height, width)
+    pad = (args.padding, args.padding)
+    xx = np.pad(xx, ((0, 0), pad, pad, (0, 0)), mode='constant')
+    yy = np.pad(yy, ((0, 0), pad, pad, (0, 0)), mode='constant')
     return xx, yy
 
 
