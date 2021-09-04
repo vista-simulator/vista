@@ -15,7 +15,9 @@ from ...utils import logging, misc
 try:
     from metavision_core.event_io.raw_reader import RawReader
 except ImportError:
-    logging.warning('Fail to import module for event camera. Can ignore this if not using it')
+    logging.warning('Fail to import module for event camera. Remember to do ' +
+        'source <some-dir>/openeb/build/utils/scripts/setup_env.sh' +
+        'Can ignore this if not using it')
 
 
 class EventCamera(BaseSensor):

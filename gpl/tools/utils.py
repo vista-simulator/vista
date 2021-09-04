@@ -91,8 +91,8 @@ def load_checkpoint(fpath, model, optimizer=None, load_optim=True):
     return ckpt['n_iter']
 
 
-def preprocess_config(config):
-    for k in ['dataset:trace_paths', 'val_dataset:trace_paths']:
+def preprocess_config(config, extra_keys=[]):
+    for k in ['dataset:trace_paths', 'val_dataset:trace_paths'] + extra_keys:
         v = get_dict_value_by_str(config, k)
         if isinstance(v, str):
             set_dict_value_by_str(config, k, validate_path(v))
