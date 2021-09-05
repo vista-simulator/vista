@@ -59,18 +59,20 @@ class VistaDataset(BufferedDataset):
 
             # privileged control
             curvature, speed = self._privileged_controller(self._agent)
-            # print(curvature)
 
             # step simulator
             sensor_name = self._lidar.name
-            pcd = self._agent.observations[
-                sensor_name]  # associate action t with observation t-1
+            # associate action t with observation t-1
+            pcd = self._agent.observations[sensor_name]
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action)
             self._agent.step_sensors()
 
             # preprocess and produce data-label pairs
-            data = transform_lidar(pcd, self._lidar, self.train)
+            data, curvature = transform_lidar(pcd,
+                                              self._lidar,
+                                              self.train,
+                                              label=curvature)
             label = np.array([curvature]).astype(np.float32)
 
             self._snippet_i += 1

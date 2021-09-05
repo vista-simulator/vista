@@ -1,0 +1,19 @@
+test_dataset: # default set as trainset
+  type: il_lidar_dataset
+
+  trace_paths: [
+    $DATA_DIR/traces/20210726-131322_lexus_devens_center,
+  ]
+
+  lidar_camera_config:
+    use_synthesizer: False
+
+  trace_config:
+    road_width: 6
+    reset_mode: segment_start # start from 0 frame index
+
+  batch_size: 1
+  snippet_size: 999999 # make sure we loop through the entire trace
+  buffer_size: 10
+
+mp_start_method: spawn
