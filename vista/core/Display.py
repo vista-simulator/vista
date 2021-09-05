@@ -229,52 +229,34 @@ class Display:
                     noodle = curvature2noodle(self.ref_agent.curvature,
                                               sensor.camera_param,
                                               mode='camera')
-                    frame_obs = cv2.polylines(frame_obs, [noodle], False, (0, 0, 255), 2)
+                    frame_obs = cv2.polylines(frame_obs, [noodle], False,
+                                              (0, 0, 255), 2)
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                frame_obs[:, :, ::-1])
 
                 elif obs_name in lidars.keys():
                     if isinstance(obs, Pointcloud):
-                        obs_ = obs[::10]  # sub-sample the pointcloud for vis
-                        max_dist = 20.
-                        obs_ = obs_[obs_.dist < (max_dist * np.sqrt(2))]
+                        obs_render = None
                         ax = self._axes[ax_name]
                         ax.clear()
-                        cmap = cm.nipy_spectral(range(256))
-                        cmap = colors.ListedColormap(cmap[:, 2::-1])
-                        # ax.scatter(obs_.x,
-                        #            obs_.y,
-                        #            c=np.log(obs_.intensity),
-                        #            s=1,
-                        #            vmin=1.7,
-                        #            vmax=4.3,
-                        #            cmap=cmap)
-                        ax.scatter(obs_.x,
-                                   obs_.y,
-                                   c=obs_.z,
-                                   s=1,
-                                   vmin=-2.5,
-                                   vmax=4,
-                                   cmap=cmap)
+                        obs = obs[::10]  # sub-sample the pointcloud for vis
+
+                        cmap = colors.ListedColormap(
+                            cm.nipy_spectral(range(256))[:, 2::-1])
+
+                        ax = plot_pointcloud(ax,
+                                             obs,
+                                             color_by="z",
+                                             max_dist=20.,
+                                             car_dims=(self.ref_agent.length,
+                                                       self.ref_agent.width),
+                                             cmap=cmap)
 
                         # Plot the noodle
-                        noodle = curvature2noodle(self.ref_agent.curvature, mode='lidar')
-                        ax.plot(noodle[:,0], noodle[:,1], '-b', linewidth=3)
+                        noodle = curvature2noodle(self.ref_agent.curvature,
+                                                  mode='lidar')
+                        ax.plot(noodle[:, 0], noodle[:, 1], '-b', linewidth=3)
 
-                        # Plot the car
-                        l_car = self.ref_agent.length
-                        w_car = self.ref_agent.width
-                        ax.add_patch(
-                            patches.Rectangle(
-                                (-l_car / 2, -w_car / 2),
-                                l_car,
-                                w_car,
-                                fill=True  # remove background
-                            ))
-
-                        ax.set_xlim(-max_dist, max_dist)
-                        ax.set_ylim(-max_dist, max_dist)
-                        obs_render = None
                     else:  # dense image
                         obs = np.roll(obs, -obs.shape[1] // 4, axis=1)  # shift
                         obs = np.concatenate(np.split(obs, 2, axis=1),
@@ -319,13 +301,13 @@ class Display:
 def curvature2noodle(curvature: float,
                      camera_param: Optional[CameraParams] = None,
                      mode: Optional[str] = 'camera') -> np.ndarray:
-    lookaheads = np.linspace(0, 15, 10) # meters
+    lookaheads = np.linspace(0, 15, 10)  # meters
     if mode == 'camera':
         assert camera_param is not None
 
         K = camera_param.get_K()
         normal = camera_param.get_ground_plane()[0:3]
-        normal = np.reshape(normal, [1,3])
+        normal = np.reshape(normal, [1, 3])
         d = camera_param.get_ground_plane()[3]
         A, B, C = normal[0]
 
@@ -333,7 +315,7 @@ def curvature2noodle(curvature: float,
 
         z_vals = lookaheads
         y_vals = (d - C * z_vals) / B
-        x_sq_r = radius**2 - z_vals**2 - (y_vals-d)**2
+        x_sq_r = radius**2 - z_vals**2 - (y_vals - d)**2
         x_vals = np.sqrt(x_sq_r[x_sq_r > 0]) - abs(radius)
         y_vals = y_vals[x_sq_r > 0]
         z_vals = z_vals[x_sq_r > 0]
@@ -344,16 +326,17 @@ def curvature2noodle(curvature: float,
         world_coords = np.stack((x_vals, y_vals, z_vals))
 
         theta = camera_param.get_yaw()
-        R = np.array([[np.cos(theta), 0.0, -np.sin(theta)],
-                      [0.0, 1.0, 0.0],
+        R = np.array([[np.cos(theta), 0.0, -np.sin(theta)], [0.0, 1.0, 0.0],
                       [np.sin(theta), 0.0, np.cos(theta)]])
         tf_world_coords = np.matmul(R, world_coords)
         img_coords = np.matmul(K, tf_world_coords)
-        norm = np.divide(img_coords, img_coords[2]+1e-10)
+        norm = np.divide(img_coords, img_coords[2] + 1e-10)
 
-        valid_inds = np.multiply(norm[0] >= 0 , norm[0] < camera_param.get_width())
+        valid_inds = np.multiply(norm[0] >= 0,
+                                 norm[0] < camera_param.get_width())
         valid_inds = np.multiply(valid_inds, norm[1] >= 0)
-        valid_inds = np.multiply(valid_inds, norm[1] < camera_param.get_height())
+        valid_inds = np.multiply(valid_inds,
+                                 norm[1] < camera_param.get_height())
 
         noodle = norm[:2, valid_inds].astype(np.int32).T
     elif mode == 'lidar':
@@ -362,7 +345,8 @@ def curvature2noodle(curvature: float,
         shifts = -1 * np.sign(turning_r) * shifts
         noodle = np.stack([lookaheads, shifts], axis=1)
     else:
-        raise NotImplementedError('Unrecognized mode {} in drawing noodle'.format(mode))
+        raise NotImplementedError(
+            'Unrecognized mode {} in drawing noodle'.format(mode))
 
     return noodle
 
@@ -413,6 +397,46 @@ def events2frame(events: List[np.ndarray],
     else:
         raise NotImplementedError('Unknown mode {}'.format(mode))
     return frame
+
+
+def plot_pointcloud(pcd,
+                    color_by="z",
+                    max_dist=None,
+                    cmap="nipy_spectral",
+                    car_dims=None,
+                    ax=None):
+    if ax is None:
+        _, ax = plt.subplots()
+
+    if max_dist is not None:
+        pcd = pcd[pcd < (max_dist * np.sqrt(2))]
+
+    if color_by == "z":
+        c = pcd.z
+        vmin, vmax = (-2.5, 4)
+    elif color_by == "intensity":
+        c = np.log(1 + pcd.intensity)
+        vmin, vmax = (1.7, 4.3)
+    else:
+        raise ValueError(f"unsupported color {color_by}")
+
+    # Plot points
+    ax.scatter(pcd.x, pcd.y, c=c, s=1, vmin=vmin, vmax=vmax, cmap=cmap)
+
+    # Plot car
+    if car_dims is not None:
+        l_car, w_car = car_dims
+        ax.add_patch(
+            patches.Rectangle(
+                (-l_car / 2, -w_car / 2),
+                l_car,
+                w_car,
+                fill=True  # remove background
+            ))
+
+    ax.set_xlim(-max_dist, max_dist)
+    ax.set_ylim(-max_dist, max_dist)
+    return ax
 
 
 def fig2img(fig: plt.Figure) -> np.ndarray:
