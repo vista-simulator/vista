@@ -8,6 +8,7 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torchsparse.utils.collate import sparse_collate_fn
 from importlib import import_module
 from skvideo.io import FFmpegWriter
 
@@ -101,16 +102,17 @@ def main():
         if config.dataset.type in ['il_rgb_dataset', 'gpl_rgb_dataset']:
             utils.set_dict_value_by_str(config, 'dataset:camera_config:type',
                                         'camera')
-            utils.set_dict_value_by_str(config,
-                                        'dataset:camera_config:use_synthesizer',
-                                        True)
+            utils.set_dict_value_by_str(
+                config, 'dataset:camera_config:use_synthesizer', True)
             sensors_configs = [config.dataset.camera_config]
         elif config.dataset.type in ['gpl_lidar_dataset']:
             utils.set_dict_value_by_str(config, 'dataset:lidar_config:type',
                                         'lidar')
             sensors_configs = [config.dataset.lidar_config]
         elif config.dataset.type in ['gpl_event_dataset']:
-            utils.set_dict_value_by_str(config, 'dataset:event_camera_config:type', 'event_camera')
+            utils.set_dict_value_by_str(config,
+                                        'dataset:event_camera_config:type',
+                                        'event_camera')
             sensors_configs = [config.dataset.event_camera_config]
         else:
             raise NotImplementedError(
@@ -142,7 +144,9 @@ def main():
                         data['camera'] = v[None, ...].to(device)
                     elif isinstance(sensor, Lidar):
                         v = d_utils.transform_lidar(v, sensor, False)
-                        data['lidar'] = v[None, ...].to(device)
+                        zero_coords = torch.zeros(v.coords.shape[0], 1)
+                        v.coords = torch.cat([v.coords, zero_coords], 1).int()
+                        data['lidar'] = v.to(device)
                     elif isinstance(sensor, EventCamera):
                         v = d_utils.transform_events(v, sensor, False)
                         data['event_camera'] = v[None, ...].to(device)
@@ -171,17 +175,24 @@ def main():
                                                 config.test_dataset)
         utils.preprocess_config(config, ['test_dataset:trace_paths'])
 
+        # torch.multiprocessing.set_start_method(
+        #     config.get('mp_start_method', 'fork'))
+
         dataset_mod = import_module('.' + config.test_dataset.type, 'datasets')
-        test_dataset = dataset_mod.VistaDataset(**config.test_dataset, train=False)
+        test_dataset = dataset_mod.VistaDataset(**config.test_dataset,
+                                                train=False)
+        collate_fn = (sparse_collate_fn if
+                      ("lidar" in config.test_dataset.type) else None)
         test_loader = DataLoader(test_dataset,
                                  batch_size=config.test_dataset.batch_size,
                                  num_workers=args.num_workers,
                                  pin_memory=True,
-                                 worker_init_fn=dataset_mod.worker_init_fn)
+                                 worker_init_fn=dataset_mod.worker_init_fn,
+                                 collate_fn=collate_fn)
         loader_iter = iter(test_loader)
 
-        objective = getattr(objectives, config.objective.name)(
-            **(dict() if config.objective.cfg is None else config.objective.cfg))
+        objective = getattr(objectives, config.objective.name)(**(
+            dict() if config.objective.cfg is None else config.objective.cfg))
         objective.reduction = 'none'
 
         stop = False
@@ -193,13 +204,14 @@ def main():
             data = {k: v.to(device) for k, v in batch.items()}
             with torch.no_grad():
                 output = model(data)
-                loss = objective(output, target).cpu().numpy()[:,0]
+                loss = objective(output, target).cpu().numpy()[:, 0]
 
             bsize = len(target)
             i += bsize
-            if 'total_samples' not in locals().keys(): 
+            if 'total_samples' not in locals().keys():
                 # need to iterate through loader first to instantiate world object
-                total_samples = np.sum([v.num_of_frames for v in test_dataset._world.traces])
+                total_samples = np.sum(
+                    [v.num_of_frames for v in test_dataset._world.traces])
                 pbar = tqdm(total=total_samples)
             pbar.update(bsize)
             stop = i >= total_samples - 1
@@ -212,7 +224,7 @@ def main():
             'config': config,
             'test_loss': all_test_loss,
         }
-        
+
         logger = utils.Logger(args.out_dir, with_tensorboard=False)
         logger.print(config)
         logger.print('')
@@ -224,7 +236,8 @@ def main():
         with open(os.path.join(args.out_dir, 'results.pkl'), 'wb') as f:
             pickle.dump(results, f)
     else:
-        raise NotImplementedError('Unrecognized testing mode {}'.format(args.mode))
+        raise NotImplementedError('Unrecognized testing mode {}'.format(
+            args.mode))
 
 
 if __name__ == '__main__':
