@@ -91,12 +91,13 @@ def main():
     dataset_mod = import_module('.' + config.dataset.type, 'datasets')
 
     train_dataset = dataset_mod.VistaDataset(**config.dataset, train=True)
+    collate = (sparse_collate_fn if ("lidar" in config.dataset.type) else None)
     train_loader = DataLoader(train_dataset,
                               batch_size=config.dataset.batch_size,
                               num_workers=args.num_workers,
                               pin_memory=True,
                               worker_init_fn=dataset_mod.worker_init_fn,
-                              collate_fn=sparse_collate_fn)
+                              collate_fn=collate)
     train_batch_iter = iter(train_loader)
 
     val_dataset_config = copy.deepcopy(config.dataset)
@@ -108,7 +109,7 @@ def main():
                             num_workers=args.val_num_workers,
                             pin_memory=True,
                             worker_init_fn=dataset_mod.worker_init_fn,
-                            collate_fn=sparse_collate_fn)
+                            collate_fn=collate)
     val_batch_iter = iter(val_loader)
 
     # Define model
