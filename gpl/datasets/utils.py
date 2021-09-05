@@ -1,23 +1,31 @@
 from typing import List
+
 import numpy as np
 import torchvision.transforms.functional as TF
-
+from torchsparse import SparseTensor
+from torchsparse.utils.quantize import sparse_quantize
+from vista.core.Display import events2frame
 from vista.entities.sensors.Camera import Camera
+from vista.entities.sensors.EventCamera import EventCamera
 from vista.entities.sensors.Lidar import Lidar
 from vista.entities.sensors.lidar_utils import Pointcloud
-from vista.entities.sensors.EventCamera import EventCamera
-from vista.core.Display import events2frame
 
 
 def transform_lidar(pcd: Pointcloud, sensor: Lidar, train: bool):
-    pcd = pcd[pcd.dist < 40.]
-    xyz = pcd.xyz / 100.
+    # pcd = pcd[pcd.dist < 40.]
+
+    xyz = pcd.xyz
     intensity = np.log(pcd.intensity)
     intensity = intensity - intensity.mean()
-    data = np.concatenate((xyz, intensity[:, np.newaxis]), axis=1)
-    data = data.astype(np.float32)
-    data = TF.to_tensor(data)
-    return data
+
+    lidar = np.concatenate((xyz, intensity[:, np.newaxis]), axis=1)
+    lidar = lidar.astype(np.float32)
+    coords, feats = lidar[:, :3], lidar
+    coords = np.round(coords / 0.1)
+    coords -= coords.min(0, keepdims=1)
+    coords, indices = sparse_quantize(coords, return_index=True)
+    feats = feats[indices]
+    return SparseTensor(feats, coords)
 
 
 def transform_rgb(img: np.ndarray, sensor: Camera, train: bool):

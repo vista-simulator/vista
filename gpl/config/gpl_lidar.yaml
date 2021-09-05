@@ -47,6 +47,6 @@ val_total_iters: 1e2
 model:
   extractors:
     lidar:
-      name: pointnet
+      name: minkowskinet
   estimator:
     name: deterministic

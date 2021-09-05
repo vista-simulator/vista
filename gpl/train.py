@@ -1,20 +1,22 @@
-import os
-import re
 import argparse
 import copy
+import os
+import pickle
+import re
 import shutil
 from importlib import import_module
-import pickle
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-
-import tools.utils as utils
-import tools.objectives as objectives
-
+from torchsparse.utils.collate import sparse_collate_fn
 from vista.utils import logging
+
+import tools.objectives as objectives
+import tools.utils as utils
+
 logging.setLevel(logging.ERROR)
 
 
@@ -93,7 +95,8 @@ def main():
                               batch_size=config.dataset.batch_size,
                               num_workers=args.num_workers,
                               pin_memory=True,
-                              worker_init_fn=dataset_mod.worker_init_fn)
+                              worker_init_fn=dataset_mod.worker_init_fn,
+                              collate_fn=sparse_collate_fn)
     train_batch_iter = iter(train_loader)
 
     val_dataset_config = copy.deepcopy(config.dataset)
@@ -104,7 +107,8 @@ def main():
                             batch_size=config.val_dataset.batch_size,
                             num_workers=args.val_num_workers,
                             pin_memory=True,
-                            worker_init_fn=dataset_mod.worker_init_fn)
+                            worker_init_fn=dataset_mod.worker_init_fn,
+                            collate_fn=sparse_collate_fn)
     val_batch_iter = iter(val_loader)
 
     # Define model
@@ -170,6 +174,7 @@ def train_iter(config, device, batch_iter, model, objective, optimizer,
     batch = next(batch_iter)
     target = batch.pop('target').to(device)
     data = {k: v.to(device) for k, v in batch.items()}
+    print(data)
     logger.toc('data', group='train')
 
     optimizer.zero_grad()
