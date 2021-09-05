@@ -90,7 +90,7 @@ def main():
     # Define data loader
     dataset_mod = import_module('.' + config.dataset.type, 'datasets')
 
-    train_dataset = dataset_mod.VistaDataset(**config.dataset)
+    train_dataset = dataset_mod.VistaDataset(**config.dataset, train=True)
     train_loader = DataLoader(train_dataset,
                               batch_size=config.dataset.batch_size,
                               num_workers=args.num_workers,
