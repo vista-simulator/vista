@@ -174,7 +174,6 @@ def train_iter(config, device, batch_iter, model, objective, optimizer,
     batch = next(batch_iter)
     target = batch.pop('target').to(device)
     data = {k: v.to(device) for k, v in batch.items()}
-    print(data)
     logger.toc('data', group='train')
 
     optimizer.zero_grad()
