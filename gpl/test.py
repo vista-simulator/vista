@@ -164,7 +164,7 @@ def main():
 
                 if args.save_video:
                     vis_img = display.render()
-                    cv2.imshow('vis', vis_img)
+                    cv2.imshow('vis', vis_img[:,:,::-1])
                     cv2.waitKey(1)
                     video_writer.writeFrame(vis_img)
             video_writer.close()

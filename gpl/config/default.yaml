@@ -15,6 +15,13 @@ dataset:
     $DATA_DIR/traces/20210613-172102_lexus_devens_outerloop_reverse,
     $DATA_DIR/traces/20210613-194157_lexus_devens_subroad,
     $DATA_DIR/traces/20210613-194324_lexus_devens_subroad_reverse,
+
+    $DATA_DIR/traces/20210726-131322_lexus_devens_center,
+    $DATA_DIR/traces/20210726-131912_lexus_devens_center_reverse,
+    $DATA_DIR/traces/20210726-154641_lexus_devens_center,
+    $DATA_DIR/traces/20210726-155941_lexus_devens_center_reverse,
+    $DATA_DIR/traces/20210726-184624_lexus_devens_center,
+    $DATA_DIR/traces/20210726-184956_lexus_devens_center_reverse,
   ]
 
   trace_config:
@@ -60,7 +67,6 @@ dataset:
   reset_config:
     x_perturbation: [-1.0, 1.0]
     yaw_perturbation: [-0.04, 0.04]
-    yaw_tolerance: 0.01
 
   privileged_control_config:
     type: PID
