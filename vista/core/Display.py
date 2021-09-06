@@ -244,8 +244,8 @@ class Display:
                         cmap = colors.ListedColormap(
                             cm.nipy_spectral(range(256))[:, 2::-1])
 
-                        ax = plot_pointcloud(ax,
-                                             obs,
+                        ax = plot_pointcloud(obs,
+                                             ax=ax,
                                              color_by="z",
                                              max_dist=20.,
                                              car_dims=(self.ref_agent.length,
@@ -409,7 +409,7 @@ def plot_pointcloud(pcd,
         _, ax = plt.subplots()
 
     if max_dist is not None:
-        pcd = pcd[pcd < (max_dist * np.sqrt(2))]
+        pcd = pcd[pcd.dist < (max_dist * np.sqrt(2))]
 
     if color_by == "z":
         c = pcd.z
