@@ -1,6 +1,7 @@
 ### Data ###
 dataset:
   type: gpl_lidar_dataset
+  # $DATA_DIR/traces/20210726-184956_lexus_devens_center_reverse,
   trace_paths: [
     $DATA_DIR/traces/20210726-131322_lexus_devens_center,
     $DATA_DIR/traces/20210726-131912_lexus_devens_center_reverse,
@@ -11,8 +12,8 @@ dataset:
     $DATA_DIR/traces/20210728-203206_lexus_devens_center_night,
     $DATA_DIR/traces/20210728-203206_lexus_devens_center_night,
     $DATA_DIR/traces/20210728-203627_lexus_devens_center_night_reverse,
-    # $DATA_DIR/traces/20210728-204036_lexus_devens_center_nolight_reverse,
   ]
+  # $DATA_DIR/traces/20210728-204036_lexus_devens_center_nolight_reverse,
 
   buffer_size: 1000
   batch_size: 1
@@ -24,6 +25,12 @@ dataset:
   car_config:
     lookahead_road: True
     road_buffer_size: 50
+
+  reset_config:
+    x_perturbation: [-1.5, 1.5]
+    yaw_perturbation: [-0.1, 0.1]
+
+  snippet_size: 30
 
 mp_start_method: spawn
 
@@ -38,13 +45,20 @@ val_dataset: # default set as trainset
 # n_iters: 500
 n_iters: 5e5
 
+optimizer:
+  name: Adam
+  cfg:
+    lr: 0.0001
+
 ### Logging ###
-# log_every_iters: 10
-# val_every_iters: 100
-# val_total_iters: 1e2
 log_every_iters: 1e2
-val_every_iters: 5e3
-val_total_iters: 1e2
+val_every_iters: 1e3
+val_total_iters: 3e2
+# log_every_iters: 1e2
+# val_every_iters: 5e3
+# val_total_iters: 1e3
+save_every_iters: 1e3
+
 
 
 ### Model ###

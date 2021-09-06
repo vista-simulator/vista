@@ -105,9 +105,11 @@ def main():
             utils.set_dict_value_by_str(
                 config, 'dataset:camera_config:use_synthesizer', True)
             sensors_configs = [config.dataset.camera_config]
-        elif config.dataset.type in ['gpl_lidar_dataset']:
+        elif config.dataset.type in ['il_lidar_dataset', 'gpl_lidar_dataset']:
             utils.set_dict_value_by_str(config, 'dataset:lidar_config:type',
                                         'lidar')
+            utils.set_dict_value_by_str(
+                config, 'dataset:lidar_config:use_synthesizer', True)
             sensors_configs = [config.dataset.lidar_config]
         elif config.dataset.type in ['gpl_event_dataset']:
             utils.set_dict_value_by_str(config,

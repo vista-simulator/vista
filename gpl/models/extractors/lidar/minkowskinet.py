@@ -22,19 +22,19 @@ class ResBlock(nn.Module):
                         kernel_size,
                         dilation=dilation,
                         stride=stride),
-            spnn.BatchNorm(out_channels),
+            spnn.BatchNorm(out_channels, track_running_stats=False),
             spnn.ReLU(True),
             spnn.Conv3d(out_channels,
                         out_channels,
                         kernel_size,
                         dilation=dilation),
-            spnn.BatchNorm(out_channels),
+            spnn.BatchNorm(out_channels, track_running_stats=False),
         )
 
         if in_channels != out_channels or stride != 1:
             self.downsample = nn.Sequential(
                 spnn.Conv3d(in_channels, out_channels, 1, stride=stride),
-                spnn.BatchNorm(out_channels),
+                spnn.BatchNorm(out_channels, track_running_stats=False),
             )
         else:
             self.downsample = nn.Sequential()
@@ -52,7 +52,7 @@ class Net(nn.Module):
             layers.append(
                 nn.Sequential(
                     spnn.Conv3d(in_channels, out_channels, 3),
-                    spnn.BatchNorm(out_channels),
+                    spnn.BatchNorm(out_channels, track_running_stats=False),
                     spnn.ReLU(True),
                 ))
             in_channels = out_channels
@@ -60,7 +60,7 @@ class Net(nn.Module):
             layers.extend([
                 nn.Sequential(
                     spnn.Conv3d(in_channels, in_channels, 2, stride=2),
-                    spnn.BatchNorm(in_channels),
+                    spnn.BatchNorm(in_channels, track_running_stats=False),
                     spnn.ReLU(True),
                 ),
                 ResBlock(in_channels, out_channels, 3),

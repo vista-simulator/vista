@@ -8,7 +8,7 @@ import tensorflow as tf
 for gpu in tf.config.experimental.list_physical_devices('GPU'):
     tf.config.experimental.set_virtual_device_configuration(
         gpu,
-        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1200)])
+        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=500)])
 
 import warnings
 

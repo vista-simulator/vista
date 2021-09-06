@@ -65,7 +65,7 @@ class VistaDataset(BufferedDataset):
             # associate action t with observation t-1
             pcd = self._agent.observations[sensor_name]
             action = np.array([curvature, speed])
-            self._agent.step_dynamics(action)
+            self._agent.step_dynamics(action, dt=1 / 10.)
             self._agent.step_sensors()
 
             # preprocess and produce data-label pairs

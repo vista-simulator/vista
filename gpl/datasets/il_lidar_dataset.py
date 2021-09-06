@@ -6,12 +6,11 @@ import vista
 from .buffered_dataset import BufferedDataset
 from .utils import transform_lidar
 
-
 __all__ = ['VistaDataset', 'worker_init_fn']
 
 
 class VistaDataset(BufferedDataset):
-    def __init__(self, 
+    def __init__(self,
                  trace_paths: List[str],
                  trace_config: Dict[str, Any],
                  car_config: Dict[str, Any],
@@ -21,8 +20,9 @@ class VistaDataset(BufferedDataset):
                  snippet_size: Optional[int] = 100,
                  shuffle: Optional[bool] = False,
                  **kwargs):
-        super(VistaDataset, self).__init__(trace_paths, trace_config, car_config,
-            train, buffer_size, snippet_size, shuffle)
+        super(VistaDataset,
+              self).__init__(trace_paths, trace_config, car_config, train,
+                             buffer_size, snippet_size, shuffle)
 
         self._lidar_config = lidar_config
 
@@ -47,7 +47,8 @@ class VistaDataset(BufferedDataset):
 
             # step simulator
             sensor_name = self._lidar.name
-            pcd = self._agent.observations[sensor_name] # associate action t with observation t-1
+            # associate action t with observation t-1
+            pcd = self._agent.observations[sensor_name]
             self._agent.step_dataset(step_dynamics=False)
 
             # preprocess and produce data-label pairs
