@@ -4,7 +4,7 @@ import torch
 
 import vista
 from .buffered_dataset import BufferedDataset
-from .utils import transform_rgb
+from .utils import transform_rgb, RejectionSampler
 
 
 __all__ = ['VistaDataset', 'worker_init_fn']
@@ -34,6 +34,7 @@ class VistaDataset(BufferedDataset):
             self._agent = self._world.spawn_agent(self.car_config)
             self._camera = self._agent.spawn_camera(self.camera_config)
             self._world.reset()
+            self._sampler = RejectionSampler()
 
         # Data generator from simulation
         self._snippet_i = 0
@@ -49,6 +50,13 @@ class VistaDataset(BufferedDataset):
             sensor_name = self._camera.name
             img = self._agent.observations[sensor_name] # associate action t with observation t-1
             self._agent.step_dataset(step_dynamics=False)
+
+            # rejection sampling
+            val = self._agent.human_curvature
+            sampling_prob = self._sampler.get_sampling_probability(val)
+            if self._rng.uniform(0., 1.) > sampling_prob:
+                continue
+            self._sampler.add_to_history(val)
 
             # preprocess and produce data-label pairs
             img = transform_rgb(img, self._camera, self.train)
@@ -71,3 +79,4 @@ def worker_init_fn(worker_id):
     dataset._camera = dataset._agent.spawn_camera(dataset.camera_config)
     dataset._world.set_seed(worker_id)
     dataset._world.reset()
+    dataset._sampler = RejectionSampler()

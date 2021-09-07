@@ -1,5 +1,6 @@
 from typing import List
 
+from collections import defaultdict
 import numpy as np
 import torch
 import torchvision.transforms.functional as TF
@@ -10,6 +11,56 @@ from vista.entities.sensors.Camera import Camera
 from vista.entities.sensors.EventCamera import EventCamera
 from vista.entities.sensors.Lidar import Lidar
 from vista.entities.sensors.lidar_utils import Pointcloud
+
+
+class RejectionSampler:
+    def __init__(self, resolution: float = 0.1):
+        super(RejectionSampler, self).__init__()
+        self.resolution = resolution
+        self.counts = defaultdict()
+
+    def add_to_history(self, value):
+        _bin = np.floor(value / self.resolution) * self.resolution
+        if _bin not in self.counts.keys():
+            self.counts[_bin] = 0
+        self.counts[_bin] += 1
+    
+    def get_sampling_probability(self, value, alpha=0.1):
+        all_bins = self.counts.keys()
+        if len(all_bins) == 0:
+            return 1.
+        minbin, maxbin = min(all_bins), max(all_bins)
+        num_bins = int((maxbin - minbin) / self.resolution) + 1
+
+        bin_edges = np.linspace(minbin, maxbin, num_bins)
+        bin_edges = np.insert(bin_edges, 0, -float('inf'))
+        bin_edges = np.append(bin_edges, float('inf'))
+
+        count_array = np.zeros_like(bin_edges)
+        for i in range(1, len(bin_edges) - 1): # keep inf/-inf zero count
+            # handle floating point keys
+            key = [k for k in self.counts.keys() if np.allclose(k, bin_edges[i])]
+            if len(key) != 1: # skip bins w/o counts
+                continue
+            count_at_bin = self.counts[key[0]]
+            count_array[i] = count_at_bin
+
+        total_area = count_array.sum() * self.resolution
+        density = count_array * self.resolution / total_area
+
+        smoothed_density = density + alpha
+        smoothed_density = smoothed_density / smoothed_density.sum()
+
+        prob = 1 / (smoothed_density + 1e-8)
+        prob = prob / prob.sum()
+
+        # we use np.floor for adding bin
+        bin_idx = np.searchsorted(bin_edges, value, side='right') - 1
+
+        sampling_probability = prob[bin_idx]
+
+        return sampling_probability
+
 
 
 def transform_lidar(pcd: Pointcloud,
