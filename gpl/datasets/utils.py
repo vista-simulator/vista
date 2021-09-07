@@ -12,55 +12,90 @@ from vista.entities.sensors.EventCamera import EventCamera
 from vista.entities.sensors.Lidar import Lidar
 from vista.entities.sensors.lidar_utils import Pointcloud
 
+# class RejectionSampler:
+#     def __init__(self, resolution: float = 0.1):
+#         super(RejectionSampler, self).__init__()
+#         self.resolution = resolution
+#         self.counts = defaultdict()
+#
+#     def add_to_history(self, value):
+#         _bin = np.floor(value / self.resolution) * self.resolution
+#         if _bin not in self.counts.keys():
+#             self.counts[_bin] = 0
+#         self.counts[_bin] += 1
+#
+#     def get_sampling_probability(self, value, alpha=0.1, min_p=0.1):
+#         all_bins = self.counts.keys()
+#         if len(all_bins) == 0:
+#             return 1.
+#         minbin, maxbin = min(all_bins), max(all_bins)
+#         num_bins = int((maxbin - minbin) / self.resolution) + 1
+#
+#         bin_edges = np.linspace(minbin, maxbin, num_bins)
+#         bin_edges = np.insert(bin_edges, 0, -float('inf'))
+#         bin_edges = np.append(bin_edges, float('inf'))
+#
+#         count_array = np.zeros_like(bin_edges)
+#         for i in range(1, len(bin_edges) - 1): # keep inf/-inf zero count
+#             # handle floating point keys
+#             key = [k for k in self.counts.keys() if np.allclose(k, bin_edges[i])]
+#             if len(key) != 1: # skip bins w/o counts
+#                 continue
+#             count_at_bin = self.counts[key[0]]
+#             count_array[i] = count_at_bin
+#
+#         total_area = count_array.sum() * self.resolution
+#         density = count_array * self.resolution / total_area
+#
+#         smoothed_density = density + alpha
+#         smoothed_density = smoothed_density / smoothed_density.sum()
+#
+#         prob = 1 / (smoothed_density + 1e-8)
+#         prob = prob / prob.sum()
+#
+#         # we use np.floor for adding bin
+#         bin_idx = np.searchsorted(bin_edges, value, side='right') - 1
+#
+#         sampling_probability = prob[bin_idx]
+#
+#         return sampling_probability
+
 
 class RejectionSampler:
     def __init__(self, resolution: float = 0.1):
         super(RejectionSampler, self).__init__()
         self.resolution = resolution
-        self.counts = defaultdict()
+        self.samples = []
 
     def add_to_history(self, value):
-        _bin = np.floor(value / self.resolution) * self.resolution
-        if _bin not in self.counts.keys():
-            self.counts[_bin] = 0
-        self.counts[_bin] += 1
-    
-    def get_sampling_probability(self, value, alpha=0.1):
-        all_bins = self.counts.keys()
-        if len(all_bins) == 0:
-            return 1.
-        minbin, maxbin = min(all_bins), max(all_bins)
-        num_bins = int((maxbin - minbin) / self.resolution) + 1
+        self.samples.append(value) # TODO: go back to using dict to capture online histogram
 
-        bin_edges = np.linspace(minbin, maxbin, num_bins)
-        bin_edges = np.insert(bin_edges, 0, -float('inf'))
-        bin_edges = np.append(bin_edges, float('inf'))
+    def get_sampling_probability(self,
+                                 value,
+                                 smoothing_factor=0.01,
+                                 min_p=0.5):
 
-        count_array = np.zeros_like(bin_edges)
-        for i in range(1, len(bin_edges) - 1): # keep inf/-inf zero count
-            # handle floating point keys
-            key = [k for k in self.counts.keys() if np.allclose(k, bin_edges[i])]
-            if len(key) != 1: # skip bins w/o counts
-                continue
-            count_at_bin = self.counts[key[0]]
-            count_array[i] = count_at_bin
+        # Find which latent bin every data sample falls in
+        density, bins = np.histogram(self.samples, density=True, bins=50)
+        bins[0] = -float('inf')
+        bins[-1] = float('inf')
 
-        total_area = count_array.sum() * self.resolution
-        density = count_array * self.resolution / total_area
+        # smooth the density function
+        smooth_density = density / density.sum()
+        smooth_density = smooth_density + (smoothing_factor + 1e-10)
+        smooth_density /= smooth_density.sum()
 
-        smoothed_density = density + alpha
-        smoothed_density = smoothed_density / smoothed_density.sum()
+        # invert the density function and normalize
+        p = 1.0 / smooth_density
+        p = (p - p.min()) / (p.max() - p.min())
+        p = np.clip(p, p + min_p, 1)
 
-        prob = 1 / (smoothed_density + 1e-8)
-        prob = prob / prob.sum()
+        # Call the digitize function to find which bins in the latent
+        # distribution every data sample falls in to
+        bin_idx = np.digitize(value, bins)
 
-        # we use np.floor for adding bin
-        bin_idx = np.searchsorted(bin_edges, value, side='right') - 1
-
-        sampling_probability = prob[bin_idx]
-
-        return sampling_probability
-
+        prob = p[bin_idx - 1]
+        return prob
 
 
 def transform_lidar(pcd: Pointcloud,
