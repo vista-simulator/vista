@@ -73,7 +73,7 @@ class RejectionSampler:
     def get_sampling_probability(self,
                                  value,
                                  smoothing_factor=0.01,
-                                 min_p=0.5):
+                                 min_p=0.25):
 
         # Find which latent bin every data sample falls in
         density, bins = np.histogram(self.samples, density=True, bins=50)
