@@ -18,11 +18,14 @@ def main():
     parser.add_argument('--config', type=str, default=None,
         help='Path to .yaml config file. Will overwrite default config')
     parser.add_argument('--mode', type=str, required=True,
-        choices=['privileged_control', 'inspect_simulator'], help='Inspect mode')
+        choices=['privileged_control', 'inspect_simulator', 'compute_stats'],
+        help='Inspect mode')
     parser.add_argument('--outdir', type=str,
         default=os.environ.get('TMPDIR', '/tmp/vista/'), help='Output directory')
     parser.add_argument('--n-trials', type=int, default=10,
         help='Number of trials to be run')
+    parser.add_argument('--num-workers', type=int, default=0,
+        help='Number of workers for dataloader (if any)')
     args = parser.parse_args()
 
     default_config_path = os.path.join(os.path.dirname(os.path.dirname(
@@ -48,19 +51,28 @@ def main():
         fig, ax = plt.subplots(1, 1)
     elif args.mode == 'inspect_simulator':
         from skvideo.io import FFmpegWriter
-
         display_config = dict(road_buffer_size=1000)
+    elif args.mode == 'compute_stats':
+        from torch.utils.data import DataLoader
+        dataset.skip_step_sensors = True
+        loader = DataLoader(dataset,
+                            batch_size=1,
+                            num_workers=args.num_workers,
+                            pin_memory=True,
+                            worker_init_fn=dataset_mod.worker_init_fn)
+        loader_iter = iter(loader)
+        target_list = []
     else:
         raise NotImplementedError(f'Unrecognized mode {args.mode}')
 
     # Run
     for trial_i in tqdm.tqdm(range(args.n_trials)):
-        data = next(dataset_iter) # initialize some properties of dataset and sequence reset
-        agent = dataset._agent
         def _seq_reset():
             return agent.done or dataset._snippet_i >= dataset.snippet_size # TODO: hacky
 
         if args.mode == 'privileged_control':
+            data = next(dataset_iter) # initialize some properties of dataset and sequence reset
+            agent = dataset._agent
             human_traj, ego_traj = [], []            
             while not _seq_reset():
                 human_xy = agent.human_dynamics.numpy()[:2]
@@ -80,6 +92,8 @@ def main():
             ax.legend()
             fig.savefig(os.path.join(args.outdir, f'trial_{trial_i:02d}.jpg'))
         elif args.mode == 'inspect_simulator':
+            data = next(dataset_iter) # initialize some properties of dataset and sequence reset
+
             video_path = os.path.join(args.outdir, f'trial_{trial_i:02d}.mp4')
             video_writer = FFmpegWriter(video_path)
 
@@ -91,8 +105,26 @@ def main():
                 video_writer.writeFrame(img)
                 data = next(dataset_iter)
             video_writer.close()
+        elif args.mode == 'compute_stats':
+            data = next(loader_iter)
+            target_list.append(data['target'].cpu().numpy()[:,0])
         else:
             raise NotImplementedError(f'Unrecognized mode {args.mode}')
+
+    # Post processing
+    if args.mode == 'compute_stats':
+        target_list = np.hstack(target_list)
+        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+        axes[0].hist(target_list, bins=50)
+        axes[0].set_title(f'Target Count#{args.n_trials}')
+        axes[1].hist(target_list, bins=50)
+        axes[1].set_title(f'Target Count#{args.n_trials} (log-scale)')
+        axes[1].set_yscale('log')
+        out_path = os.path.join(args.outdir, 'hist_curvature.jpg')
+        fig.tight_layout()
+        fig.savefig(out_path)
+    else:
+        raise NotImplementedError(f'Unrecognized mode {args.mode}')
 
 
 if __name__ == '__main__':

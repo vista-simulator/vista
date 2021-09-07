@@ -69,7 +69,8 @@ class VistaDataset(BufferedDataset):
             # step simulator to get events
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action, update_road=False)
-            self._agent.step_sensors()
+            if not getattr(self, 'skip_step_sensors', False):
+                self._agent.step_sensors()
             sensor_name = self._event_camera.name
             events = self._agent.observations[sensor_name]
 
@@ -83,7 +84,8 @@ class VistaDataset(BufferedDataset):
             # update RGB previous frame based on privileged control; this is required to generate
             # correct events for the next branching (the rgb frame at t-1 for optical flow 
             # between t-1 and t)
-            self._event_camera.capture(self._agent.timestamp, update_rgb_frame_only=True)
+            if not getattr(self, 'skip_step_sensors', False):
+                self._event_camera.capture(self._agent.timestamp, update_rgb_frame_only=True)
 
             # preprocess and produce data-label pairs
             data = transform_events(events, self._event_camera, self.train)

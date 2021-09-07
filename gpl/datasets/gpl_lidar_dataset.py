@@ -66,7 +66,8 @@ class VistaDataset(BufferedDataset):
             pcd = self._agent.observations[sensor_name]
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action, dt=1 / 10.)
-            self._agent.step_sensors()
+            if not getattr(self, 'skip_step_sensors', False):
+                self._agent.step_sensors()
 
             # preprocess and produce data-label pairs
             data, curvature = transform_lidar(pcd,
