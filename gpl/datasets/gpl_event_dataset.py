@@ -6,7 +6,7 @@ import torch
 import vista
 from vista.entities.agents.Dynamics import tireangle2curvature
 from .buffered_dataset import BufferedDataset
-from .utils import transform_events
+from .utils import transform_events, RejectionSampler
 from .privileged_controller import get_controller
 
 
@@ -44,6 +44,7 @@ class VistaDataset(BufferedDataset):
             self._agent = self._world.spawn_agent(self.car_config)
             self._event_camera = self._agent.spawn_event_camera(self.event_camera_config)
             self._world.reset({self._agent.id: self.initial_dynamics_fn})
+            self._sampler = RejectionSampler()
 
             self._privileged_controller = get_controller(self.privileged_control_config)
 
@@ -52,22 +53,29 @@ class VistaDataset(BufferedDataset):
         while True:
             # reset simulator
             if self._agent.done or self._snippet_i >= self.snippet_size:
-                if worker_info is not None:
-                    self._world.set_seed(worker_info.id)
                 self._world.reset({self._agent.id: self.initial_dynamics_fn})
                 self._snippet_i = 0
 
+            # run privileged controller first for rejection sampling
+            curvature, speed = self._privileged_controller(self._agent)
+
+            val = curvature
+            sampling_prob = self._sampler.get_sampling_probability(val)
+            if self._rng.uniform(0., 1.) > sampling_prob: # reject
+                self._snippet_i += 1
+                continue
+            self._sampler.add_to_history(val)
+
             # cache simulator state and take random action
-            speed = self._agent.human_speed
             curvature_bound = [
                 tireangle2curvature(_v, self._agent.wheel_base)
                 for _v in self._agent.ego_dynamics.steering_bound]
-            curvature = self._rng.uniform(*curvature_bound)
+            curvature_random = self._rng.uniform(*curvature_bound)
 
             cached_state = self._cache_state()
 
-            # step simulator to get events
-            action = np.array([curvature, speed])
+            # step simulator with random action to get events
+            action = np.array([curvature_random, self._agent.human_speed])
             self._agent.step_dynamics(action, update_road=False)
             if not getattr(self, 'skip_step_sensors', False):
                 self._agent.step_sensors()
@@ -77,7 +85,6 @@ class VistaDataset(BufferedDataset):
             # revert dynamics and step with privileged control
             self._revert_dynamics(action, cached_state)
 
-            curvature, speed = self._privileged_controller(self._agent)
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action)
 
@@ -152,5 +159,6 @@ def worker_init_fn(worker_id):
     dataset._world.set_seed(worker_id)
     dataset._rng = random.Random(worker_id)
     dataset._world.reset({dataset._agent.id: dataset.initial_dynamics_fn})
+    dataset._sampler = RejectionSampler()
 
     dataset._privileged_controller = get_controller(dataset.privileged_control_config)
