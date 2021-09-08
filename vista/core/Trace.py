@@ -16,6 +16,7 @@ class Trace:
         'default': {
             'n_bins': 100,
             'smoothing_factor': 0.001,
+            'hist_power': 2.,
         },
         'segment_start': {
             'first_n_percent': 0.0,
@@ -92,13 +93,15 @@ class Trace:
             n_bins = Trace.RESET_CONFIG['default']['n_bins']
             smoothing_factor = Trace.RESET_CONFIG['default'][
                 'smoothing_factor']
+            hist_power =  Trace.RESET_CONFIG['default'][
+                'hist_power']
 
             curvatures = np.abs(self.f_curvature(timestamps))
             curvatures = np.clip(curvatures, 0, 1 / 3.)
             hist, bin_edges = np.histogram(curvatures, n_bins, density=False)
             bins = np.digitize(curvatures, bin_edges, right=True)
             hist_density = hist / float(np.sum(hist))
-            probs = 1.0 / (hist_density[bins - 1] + smoothing_factor)
+            probs = 1.0 / ((hist_density[bins - 1] + smoothing_factor) ** hist_power)
             probs /= np.sum(probs)
         elif self._config['reset_mode'] == 'uniform':  # uniform sampling
             n_timestamps = len(timestamps)

@@ -41,8 +41,6 @@ class VistaDataset(BufferedDataset):
         while True:
             # reset simulator
             if self._agent.done or self._snippet_i >= self.snippet_size:
-                if worker_info is not None:
-                    self._world.set_seed(worker_info.id)
                 self._world.reset()
                 self._snippet_i = 0
 
@@ -55,6 +53,7 @@ class VistaDataset(BufferedDataset):
             val = self._agent.human_curvature
             sampling_prob = self._sampler.get_sampling_probability(val)
             if self._rng.uniform(0., 1.) > sampling_prob:
+                self._snippet_i += 1
                 continue
             self._sampler.add_to_history(val)
 

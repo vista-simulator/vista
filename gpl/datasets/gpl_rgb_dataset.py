@@ -5,7 +5,7 @@ import torch
 
 import vista
 from .buffered_dataset import BufferedDataset
-from .utils import transform_rgb
+from .utils import transform_rgb, RejectionSampler
 from .privileged_controller import get_controller
 
 
@@ -43,6 +43,7 @@ class VistaDataset(BufferedDataset):
             self._agent = self._world.spawn_agent(self.car_config)
             self._camera = self._agent.spawn_camera(self.camera_config)
             self._world.reset({self._agent.id: self.initial_dynamics_fn})
+            self._sampler = RejectionSampler()
             
             self._privileged_controller = get_controller(self.privileged_control_config)
 
@@ -51,8 +52,6 @@ class VistaDataset(BufferedDataset):
         while True:
             # reset simulator
             if self._agent.done or self._snippet_i >= self.snippet_size:
-                if worker_info is not None:
-                    self._world.set_seed(worker_info.id)
                 self._world.reset({self._agent.id: self.initial_dynamics_fn})
                 self._snippet_i = 0
 
@@ -64,6 +63,14 @@ class VistaDataset(BufferedDataset):
             img = self._agent.observations[sensor_name] # associate action t with observation t-1
             action = np.array([curvature, speed])
             self._agent.step_dynamics(action)
+
+            val = curvature
+            sampling_prob = self._sampler.get_sampling_probability(val)
+            if self._rng.uniform(0., 1.) > sampling_prob: # reject
+                self._snippet_i += 1
+                continue
+            self._sampler.add_to_history(val)
+
             if not getattr(self, 'skip_step_sensors', False):
                 self._agent.step_sensors()
 
@@ -106,5 +113,6 @@ def worker_init_fn(worker_id):
     dataset._world.set_seed(worker_id)
     dataset._rng = random.Random(worker_id)
     dataset._world.reset({dataset._agent.id: dataset.initial_dynamics_fn})
+    dataset._sampler = RejectionSampler()
 
     dataset._privileged_controller = get_controller(dataset.privileged_control_config)

@@ -4,7 +4,7 @@ import torch
 
 import vista
 from .buffered_dataset import BufferedDataset
-from .utils import transform_lidar
+from .utils import transform_lidar, RejectionSampler
 
 __all__ = ['VistaDataset', 'worker_init_fn']
 
@@ -34,14 +34,13 @@ class VistaDataset(BufferedDataset):
             self._agent = self._world.spawn_agent(self.car_config)
             self._lidar = self._agent.spawn_lidar(self.lidar_config)
             self._world.reset()
+            self._sampler = RejectionSampler()
 
         # Data generator from simulation
         self._snippet_i = 0
         while True:
             # reset simulator
             if self._agent.done or self._snippet_i >= self.snippet_size:
-                if worker_info is not None:
-                    self._world.set_seed(worker_info.id)
                 self._world.reset()
                 self._snippet_i = 0
 
@@ -50,6 +49,14 @@ class VistaDataset(BufferedDataset):
             # associate action t with observation t-1
             pcd = self._agent.observations[sensor_name]
             self._agent.step_dataset(step_dynamics=False)
+
+            # rejection sampling
+            val = self._agent.human_curvature
+            sampling_prob = self._sampler.get_sampling_probability(val)
+            if self._rng.uniform(0., 1.) > sampling_prob:
+                self._snippet_i += 1
+                continue
+            self._sampler.add_to_history(val)
 
             # preprocess and produce data-label pairs
             data = transform_lidar(pcd, self._lidar, self.train)
@@ -72,3 +79,4 @@ def worker_init_fn(worker_id):
     dataset._lidar = dataset._agent.spawn_lidar(dataset.lidar_config)
     dataset._world.set_seed(worker_id)
     dataset._world.reset()
+    dataset._sampler = RejectionSampler()

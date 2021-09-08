@@ -123,6 +123,8 @@ def main():
         out_path = os.path.join(args.outdir, 'hist_curvature.jpg')
         fig.tight_layout()
         fig.savefig(out_path)
+    elif args.mode in ['privileged_control', 'inspect_simulator']:
+        pass
     else:
         raise NotImplementedError(f'Unrecognized mode {args.mode}')
 
