@@ -112,6 +112,6 @@ objective:
 
 ### Logging ###
 log_every_iters: 1e2
-val_every_iters: 4e3
-val_total_iters: 2e3
+val_every_iters: 8e3 #4e3
+val_total_iters: 5e2 #2e3
 save_every_iters: 8e3

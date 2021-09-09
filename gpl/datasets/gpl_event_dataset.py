@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 import random
 import numpy as np
+import copy
 import torch
 
 import vista
@@ -56,46 +57,85 @@ class VistaDataset(BufferedDataset):
                 self._world.reset({self._agent.id: self.initial_dynamics_fn})
                 self._snippet_i = 0
 
-            # cache simulator state
-            cached_state = self._cache_state()
+            use_branching = True
+            if use_branching:
+                # cache simulator state and privileged controller (in case it has state)
+                cached_state = self._cache_state()
+                cached_privileged_controller = copy.deepcopy(self._privileged_controller)
 
-            # step simulator with random action (for decoupling observation and ego-motion)
-            curvature_bound = [
-                tireangle2curvature(_v, self._agent.wheel_base)
-                for _v in self._agent.ego_dynamics.steering_bound]
-            curvature_random = self._rng.uniform(*curvature_bound)
+                # compute normally without branching the curvature to proceed trace
+                curvature_to_proceed, speed_to_proceed = self._privileged_controller(self._agent)
 
-            action = np.array([curvature_random, self._agent.human_speed])
-            self._agent.step_dynamics(action, update_road=False)
+                #### branching stars here
+                # step simulator with random action (for decoupling observation and ego-motion)
+                # NOTE: random action centered at control that proceed the trace
+                curvature_bound = [
+                    tireangle2curvature(_v, self._agent.wheel_base)
+                    for _v in self._agent.ego_dynamics.steering_bound]
+                curvature_random = curvature_to_proceed * self._rng.uniform(0.8, 1.2)
+                curvature_random = np.clip(curvature_random, *curvature_bound)
 
-            # privilege control to recover from random action, which serves as labels
-            curvature, _ = self._privileged_controller(self._agent)
+                action = np.array([curvature_random, self._agent.human_speed])
+                self._agent.step_dynamics(action, update_road=False)
 
-            val = curvature # rejection sampling over curvature label
-            sampling_prob = self._sampler.get_sampling_probability(val)
-            if self._rng.uniform(0., 1.) > sampling_prob: # reject
-                self._snippet_i += 1
-                continue
-            self._sampler.add_to_history(val)
+                # privilege control to recover from random action, which serves as labels
+                # NOTE: make a copy to avoid changing state of controller used for proceed trace
+                curvature, speed = cached_privileged_controller(self._agent)
 
-            # get events produced from random action
-            if not getattr(self, 'skip_step_sensors', False):
-                self._agent.step_sensors()
-            sensor_name = self._event_camera.name
-            events = self._agent.observations[sensor_name]
+                val = curvature # rejection sampling over curvature label
+                sampling_prob = self._sampler.get_sampling_probability(val)
+                if self._rng.uniform(0., 1.) > sampling_prob:
+                    reject_sample = True
+                else:
+                    reject_sample = False
+                    self._sampler.add_to_history(val)
 
-            # revert dynamics and step with privileged control to proceed in trace
-            self._revert_dynamics(action, cached_state)
+                # get events produced from random action
+                if not getattr(self, 'skip_step_sensors', False) and not reject_sample:
+                    self._agent.step_sensors()
+                sensor_name = self._event_camera.name
+                events = self._agent.observations[sensor_name]
 
-            curvature_to_proceed, speed_to_proceed = self._privileged_controller(self._agent)
-            action = np.array([curvature_to_proceed, speed_to_proceed])
-            self._agent.step_dynamics(action)
+                # revert dynamics
+                self._revert_dynamics(action, cached_state)
+                #### branching ends here
 
-            # update RGB previous frame based on privileged control; this is required to generate
-            # correct events for the next branching (the rgb frame at t-1 for optical flow 
-            # between t-1 and t)
-            if not getattr(self, 'skip_step_sensors', False):
-                self._event_camera.capture(self._agent.timestamp, update_rgb_frame_only=True)
+                # step with privileged control to proceed in trace
+                action = np.array([curvature_to_proceed, speed_to_proceed])
+                self._agent.step_dynamics(action)
+
+                # update RGB previous frame based on privileged control; this is required to generate
+                # correct events for the next branching (the rgb frame at t-1 for optical flow 
+                # between t-1 and t)
+                # NOTE: need to update rgb frame even for rejected sample since if the next sample
+                # is not accepted, it uses current rgb frame for generating events
+                if not getattr(self, 'skip_step_sensors', False):
+                    self._event_camera.capture(self._agent.timestamp, update_rgb_frame_only=True)
+
+                # doing continue here since we need to proceed the trace
+                if reject_sample:
+                    self._snippet_i += 1
+                    continue
+            else:
+                # privileged control
+                curvature, speed = self._privileged_controller(self._agent)
+
+                # step simulator
+                sensor_name = self._event_camera.name
+                events = self._agent.observations[sensor_name] # associate action t with observation t-1
+                action = np.array([curvature, speed])
+                self._agent.step_dynamics(action)
+
+                val = curvature
+                sampling_prob = self._sampler.get_sampling_probability(val)
+                if self._rng.uniform(0., 1.) > sampling_prob: # reject
+                    self._snippet_i += 1
+                    self._event_camera.capture(self._agent.timestamp, update_rgb_frame_only=True)
+                    continue
+                self._sampler.add_to_history(val)
+
+                if not getattr(self, 'skip_step_sensors', False):
+                    self._agent.step_sensors()
 
             # preprocess and produce data-label pairs
             data = transform_events(events, self._event_camera, self.train)

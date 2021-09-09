@@ -45,7 +45,8 @@
         <PROPERTY Name="cy" Hint="intrinsic" Value="224.97549602762447"/>
         <PROPERTY Name="fx" Hint="intrinsic" Value="551.89434037318449"/>
         <PROPERTY Name="fy" Hint="intrinsic" Value="551.93346045671683"/>
-        <PROPERTY Name="roi" Hint="region_of_interest" Value="216 176 324 486"/>
+        <!-- <PROPERTY Name="roi" Hint="region_of_interest" Value="216 176 324 486"/> -->
+        <PROPERTY Name="roi" Hint="region_of_interest" Value="216 0 480 640"/>
         <PROPERTY Name="roi_angle" Hint="angle of ROI" Value="0"/>
      </CAMERA>
 

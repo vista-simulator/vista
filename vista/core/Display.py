@@ -226,6 +226,8 @@ class Display:
                     frame_obs = events2frame(obs, event_cam_param.get_height(),
                                              event_cam_param.get_width())
                     sensor = event_cameras[obs_name]
+                    frame_obs = plot_roi(frame_obs.copy(),
+                                         sensor.camera_param.get_roi())
                     noodle = curvature2noodle(self.ref_agent.curvature,
                                               sensor.camera_param,
                                               mode='camera')
