@@ -56,36 +56,39 @@ class VistaDataset(BufferedDataset):
                 self._world.reset({self._agent.id: self.initial_dynamics_fn})
                 self._snippet_i = 0
 
-            # run privileged controller first for rejection sampling
-            curvature, speed = self._privileged_controller(self._agent)
+            # cache simulator state
+            cached_state = self._cache_state()
 
-            val = curvature
+            # step simulator with random action (for decoupling observation and ego-motion)
+            curvature_bound = [
+                tireangle2curvature(_v, self._agent.wheel_base)
+                for _v in self._agent.ego_dynamics.steering_bound]
+            curvature_random = self._rng.uniform(*curvature_bound)
+
+            action = np.array([curvature_random, self._agent.human_speed])
+            self._agent.step_dynamics(action, update_road=False)
+
+            # privilege control to recover from random action, which serves as labels
+            curvature, _ = self._privileged_controller(self._agent)
+
+            val = curvature # rejection sampling over curvature label
             sampling_prob = self._sampler.get_sampling_probability(val)
             if self._rng.uniform(0., 1.) > sampling_prob: # reject
                 self._snippet_i += 1
                 continue
             self._sampler.add_to_history(val)
 
-            # cache simulator state and take random action
-            curvature_bound = [
-                tireangle2curvature(_v, self._agent.wheel_base)
-                for _v in self._agent.ego_dynamics.steering_bound]
-            curvature_random = self._rng.uniform(*curvature_bound)
-
-            cached_state = self._cache_state()
-
-            # step simulator with random action to get events
-            action = np.array([curvature_random, self._agent.human_speed])
-            self._agent.step_dynamics(action, update_road=False)
+            # get events produced from random action
             if not getattr(self, 'skip_step_sensors', False):
                 self._agent.step_sensors()
             sensor_name = self._event_camera.name
             events = self._agent.observations[sensor_name]
 
-            # revert dynamics and step with privileged control
+            # revert dynamics and step with privileged control to proceed in trace
             self._revert_dynamics(action, cached_state)
 
-            action = np.array([curvature, speed])
+            curvature_to_proceed, speed_to_proceed = self._privileged_controller(self._agent)
+            action = np.array([curvature_to_proceed, speed_to_proceed])
             self._agent.step_dynamics(action)
 
             # update RGB previous frame based on privileged control; this is required to generate

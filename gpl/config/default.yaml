@@ -58,9 +58,9 @@ dataset:
     max_sf: 16
     use_gpu: True
     positive_threshold: 0.1
-    sigma_positive_threshold: 0.02
+    sigma_positive_threshold: 0.04
     negative_threshold: -0.1
-    sigma_negative_threshold: 0.02
+    sigma_negative_threshold: 0.04
     reproject_pixel: False
 
   reset_config:
