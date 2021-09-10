@@ -113,10 +113,15 @@ def transform_rgb(img: np.ndarray,
 def transform_events(events: List[np.ndarray],
                      sensor: EventCamera,
                      train: bool,
-                     label: float = None):
+                     label: float = None,
+                     use_roi: bool = False):
     cam_h = sensor.camera_param.get_height()
     cam_w = sensor.camera_param.get_width()
     frame = events2frame(events, cam_h, cam_w)
+    if use_roi:
+        (i1, j1, i2, j2) = sensor.camera_param.get_roi()
+        # need copy here probably since img is not contiguous
+        frame = frame[i1:i2, j1:j2].copy()
     frame = TF.to_tensor(frame)
     frame = standardize(frame)
     return frame if label is None else (frame, label)
