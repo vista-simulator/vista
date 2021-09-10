@@ -11,7 +11,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torchsparse.utils.collate import sparse_collate_fn
+try:
+    from torchsparse.utils.collate import sparse_collate_fn
+except:
+    pass
 from vista.utils import logging
 
 import tools.objectives as objectives

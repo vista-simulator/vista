@@ -8,7 +8,10 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torchsparse.utils.collate import sparse_collate_fn
+try:
+    from torchsparse.utils.collate import sparse_collate_fn
+except:
+    pass
 from importlib import import_module
 from skvideo.io import FFmpegWriter
 
@@ -44,6 +47,10 @@ def main():
                         type=int,
                         default=1,
                         help='[Simulation] Number of episodes to be tested')
+    parser.add_argument('--max-distance',
+                        type=float,
+                        default=np.inf,
+                        help='[Simulation] Maximal distance to terminate an episode')
     parser.add_argument('--trace-paths',
                         type=str,
                         nargs='+',
@@ -53,10 +60,14 @@ def main():
                         action='store_true',
                         default=False,
                         help='[Simulation] Whether to save video')
+    parser.add_argument('--save-results',
+                        action='store_true',
+                        default=False,
+                        help='[Simulation] Whether to dump step results')
     parser.add_argument('--test-config',
                         type=str,
                         default=None,
-                        help='[Passive] Configuration for testing')
+                        help='[Passive/Simulation] Configuration for testing')
     parser.add_argument('--num-workers',
                         type=int,
                         default=0,
@@ -73,7 +84,6 @@ def main():
     with open(config_path, 'rb') as f:
         config = pickle.load(f)
     utils.preprocess_config(config)
-    config['dataset']['trace_config']['road_width'] = 6
 
     device = torch.device('cuda' if not args.no_cuda else 'cpu')
 
@@ -99,6 +109,17 @@ def main():
 
     if args.mode == 'simulation':
         # Define task in vista
+        if args.test_config is not None:
+            merge_test_config(config, utils.load_yaml(args.test_config))
+
+            trace_paths = config.test_dataset.trace_paths
+            trace_config = config.test_dataset.trace_config
+            car_config = config.test_dataset.car_config
+        else:
+            trace_paths = args.trace_paths
+            trace_config = config.dataset.trace_config
+            car_config = config.dataset.car_config
+
         if config.dataset.type in ['il_rgb_dataset', 'gpl_rgb_dataset']:
             utils.set_dict_value_by_str(config, 'dataset:camera_config:type',
                                         'camera')
@@ -119,18 +140,33 @@ def main():
         else:
             raise NotImplementedError(
                 f'Unrecognized dataset type {config.dataset.type}')
-        env = LaneFollowing(trace_paths=args.trace_paths,
-                            trace_config=config.dataset.trace_config,
-                            car_config=config.dataset.car_config,
+        env = LaneFollowing(trace_paths=trace_paths,
+                            trace_config=trace_config,
+                            car_config=car_config,
                             sensors_configs=sensors_configs,
                             logging_level='ERROR')
         display = vista.Display(env.world, display_config=dict(gui_scale=2))
 
+        # Data to be logged
+        if args.save_results:
+            results = {
+                'ego_dynamics': [],
+                'human_dynamics': [],
+                'relative_state': [],
+                'curvature': [],
+                'out_of_lane': [],
+                'exceed_rot': [],
+                'distance': [],
+            }
+
         # Run testing
         agent_id = env.world.agents[0].id
         sensors = env.world.agents[0].sensors
-        for ep_i in range(args.n_episodes):
+        for ep_i in tqdm(range(args.n_episodes)):
             obs = env.reset()
+            if args.save_results:
+                for k in results.keys():
+                    results[k].append([])
             if args.save_video:
                 video_path = os.path.join(args.out_dir, f'ep-{ep_i:03d}.mp4')
                 video_writer = FFmpegWriter(video_path)
@@ -158,24 +194,39 @@ def main():
 
                 with torch.no_grad():
                     curvature = model(data)
-                    print(curvature[0, 0])
 
                 action = {agent_id: [curvature.item()]}
-                obs, rew, done, _ = env.step(action, dt=1 / 10.)
+                dt = 1 / 10. if 'lidar' in config.dataset.type else 1 / 30.
+                obs, rew, done, info = env.step(action, dt=dt)
                 done = done[agent_id]
+
+                if args.save_results:
+                    agent = env._world.agents[0]
+                    results['ego_dynamics'][-1].append(agent.ego_dynamics.numpy())
+                    results['human_dynamics'][-1].append(agent.human_dynamics.numpy())
+                    results['relative_state'][-1].append(agent.relative_state.numpy())
+                    results['curvature'][-1].append(agent.curvature)
+                    results['out_of_lane'][-1].append(info[agent_id]['out_of_lane'])
+                    results['exceed_rot'][-1].append(info[agent_id]['exceed_rot'])
+                    results['distance'][-1].append(info[agent_id]['distance'])
 
                 if args.save_video:
                     vis_img = display.render()
                     cv2.imshow('vis', vis_img[:,:,::-1])
                     cv2.waitKey(1)
                     video_writer.writeFrame(vis_img)
-            video_writer.close()
+
+                if info[agent_id]['distance'] >= args.max_distance:
+                    break
+            if args.save_video:
+                video_writer.close()
+
+        if args.save_results:
+            results['config'] = config
+            with open(os.path.join(args.out_dir, 'results_simulaton.pkl'), 'wb') as f:
+                pickle.dump(results, f)
     elif args.mode == 'passive':
-        utils.update_dict(config, utils.load_yaml(args.test_config))
-        test_dataset_config = copy.deepcopy(config.dataset)
-        config.test_dataset = utils.update_dict(test_dataset_config,
-                                                config.test_dataset)
-        utils.preprocess_config(config, ['test_dataset:trace_paths'])
+        merge_test_config(config, utils.load_yaml(args.test_config))
 
         # torch.multiprocessing.set_start_method(
         #     config.get('mp_start_method', 'fork'))
@@ -235,11 +286,19 @@ def main():
         logger.print(f'Test loss max: {all_test_loss.max()}')
         logger.print(f'Test loss min: {all_test_loss.min()}')
 
-        with open(os.path.join(args.out_dir, 'results.pkl'), 'wb') as f:
+        with open(os.path.join(args.out_dir, 'results_passive.pkl'), 'wb') as f:
             pickle.dump(results, f)
     else:
         raise NotImplementedError('Unrecognized testing mode {}'.format(
             args.mode))
+
+
+def merge_test_config(config, test_config):
+    utils.update_dict(config, test_config)
+    test_dataset_config = copy.deepcopy(config.dataset)
+    config.test_dataset = utils.update_dict(test_dataset_config,
+                                            config.test_dataset)
+    utils.preprocess_config(config, ['test_dataset:trace_paths'])
 
 
 if __name__ == '__main__':

@@ -4,8 +4,11 @@ from collections import deque
 import numpy as np
 import torch
 import torchvision.transforms.functional as TF
-from torchsparse import SparseTensor
-from torchsparse.utils.quantize import sparse_quantize
+try:
+    from torchsparse import SparseTensor
+    from torchsparse.utils.quantize import sparse_quantize
+except:
+    pass
 from vista.core.Display import events2frame
 from vista.entities.sensors.Camera import Camera
 from vista.entities.sensors.EventCamera import EventCamera

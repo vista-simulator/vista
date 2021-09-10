@@ -18,6 +18,8 @@ class LaneFollowing(Base):
         self._world.reset()
         agent = self._world.agents[0]
         observations = self._append_agent_id(agent.observations)
+        self._distance = 0
+        self._prev_xy = np.zeros((2,))
         return observations
 
     def step(self, action, dt=1 / 30.):
@@ -47,6 +49,11 @@ class LaneFollowing(Base):
         info = misc.fetch_agent_info(agent)
         info['out_of_lane'] = out_of_lane
         info['exceed_rot'] = exceed_rot
+
+        current_xy = agent.ego_dynamics.numpy()[:2]
+        self._distance += np.linalg.norm(current_xy - self._prev_xy)
+        self._prev_xy = current_xy
+        info['distance'] = self._distance
 
         # Pack output
         observations, reward, done, info = map(
