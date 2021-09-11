@@ -3,6 +3,7 @@ from tqdm import tqdm
 import numpy as np
 import utm
 import rosbag
+import pickle
 import matplotlib.pyplot as plt
 
 
@@ -38,10 +39,14 @@ def fetch_yaw(data, topic='/lexus/oxts/imu/data'):
     return yaws
 
 
-def fetch_intervention(data, topic='/lexus/ssc/module_states'):
+def fetch_intervention(data, topic='/lexus/ssc/module_states', 
+                       filter_too_close=True, min_t_diff=10.):
     intervention = []
     for t, msg in data[topic]:
         if msg.info == 'Operator Override':
+            too_close = (t - intervention[-1]) < min_t_diff if len(intervention) > 0 else False
+            if filter_too_close and too_close:
+                continue
             intervention.append(t)
     return intervention
 
@@ -95,6 +100,29 @@ def visualize_gps(gps, intervention=None, figax=None):
         intervention_xy = np.array(intervention_xy)
         ax.scatter(intervention_xy[:,0],intervention_xy[:,1], s=4, c='r', marker='o', zorder=2)
 
+        for i, xy in enumerate(intervention_xy):
+            ax.annotate(f'{i+1}', xy)
+
+    return [fig, ax]
+
+
+def load_devens_road(path):
+    with open(path, 'rb') as f:
+        loop_paths = pickle.load(f, encoding='latin1')
+
+    return loop_paths
+
+
+def plot_devens_road(loop_paths, figax=None):
+    if figax is None:
+        fig, ax = plt.subplots(1, 1)
+    else:
+        fig, ax = figax
+
+    for (loop, path) in loop_paths.items():
+        ax.plot(path[:,0], path[:,1], linewidth=0.25, color='k')
+        ax.axis('equal')
+    
     return [fig, ax]
 
 
@@ -109,7 +137,6 @@ def visualize_curvature(curvature_command, curvature_feedback, figax=None, ts_or
     cc = curvature_command[:,0] - ts_origin
     ax.plot(cf, curvature_feedback[:,1], label='Feedback', c='r', zorder=1)
     ax.plot(cc, curvature_command[:,1], label='Command', c='b', zorder=2)
-    # ax.legend()
 
     return [fig, ax]
 
@@ -130,9 +157,10 @@ def visualize_speed(speed, figax=None, ts_origin=None):
 def split_to_segments(data):
     ts = data[:,0]
     ts_diff = ts[1:] - ts[:-1]
-    gaps = np.where(ts_diff > 2.)[0]
+    gaps = np.where(ts_diff > 2.)[0] + 1
     gaps = np.insert(gaps, 0, 0)
     segments = []
     for i in range(len(gaps) - 1):
         segments.append(data[gaps[i]:gaps[i+1]])
+    segments.append(data[gaps[i+1]:])
     return segments
