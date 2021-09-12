@@ -1,0 +1,49 @@
+### Data ###
+dataset:
+  type: gpl_rgb_dataset
+
+  trace_paths: [
+    $DATA_DIR/traces/20210609-122400_lexus_devens_outerloop_reverse,
+    $DATA_DIR/traces/20210609-123703_lexus_devens_outerloop,
+    $DATA_DIR/traces/20210609-175037_lexus_devens_outerloop_reverse,
+    $DATA_DIR/traces/20210609-175503_lexus_devens_outerloop,
+  ]
+
+  car_config:
+    lookahead_road: True
+    road_buffer_size: 50
+
+  privileged_control_config:
+    type: PID
+    lateral:
+      lookahead_dist: 5
+      Kp: 0.05
+      Ki: 0.0001
+      Kd: 0.001
+      heading_err_weight: 1.
+
+val_dataset:
+  trace_paths: [
+    $DATA_DIR/traces/20210613-171636_lexus_devens_outerloop,
+    $DATA_DIR/traces/20210613-172102_lexus_devens_outerloop_reverse,
+  ]
+
+
+### Model ###
+model:
+  extractors:
+    camera:
+      name: convnet_gn
+  estimator:
+    name: deterministic
+
+
+### Training ###
+n_iters: 4e5
+
+  
+### Logging ###
+log_every_iters: 1e2
+val_every_iters: 8e3 #4e3
+val_total_iters: 5e2 #2e3
+save_every_iters: 8e3
