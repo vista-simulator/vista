@@ -154,13 +154,39 @@ def visualize_speed(speed, figax=None, ts_origin=None):
     return [fig, ax]
 
 
-def split_to_segments(data):
+def split_to_segments(data, dt=2., start_end_dt=None, intervention=None):
     ts = data[:,0]
-    ts_diff = ts[1:] - ts[:-1]
-    gaps = np.where(ts_diff > 2.)[0] + 1
-    gaps = np.insert(gaps, 0, 0)
-    segments = []
-    for i in range(len(gaps) - 1):
-        segments.append(data[gaps[i]:gaps[i+1]])
-    segments.append(data[gaps[i+1]:])
+    if intervention is not None:
+        segments = []
+        prev_idx = 0
+        if len(intervention) > 1:
+            for iv in intervention:
+                curr_idx = np.argmin(np.abs(ts - iv))
+                segments.append(data[prev_idx:curr_idx])
+                prev_idx = curr_idx
+            segments.append(data[curr_idx:])
+        else:
+            segments = [data]
+    else:
+        ts_diff = ts[1:] - ts[:-1]
+        gaps = np.where(ts_diff > dt)[0] + 1
+        gaps = np.insert(gaps, 0, 0)
+        if len(gaps) > 1:
+            segments = []
+            for i in range(len(gaps) - 1):
+                if start_end_dt is not None:
+                    seg = filter_start_end(data[gaps[i]:gaps[i+1]], start_end_dt)
+                segments.append(seg)
+            if start_end_dt is not None:
+                seg = filter_start_end(data[gaps[i+1]:], start_end_dt)
+            segments.append(seg)
+        else:
+            segments = [data]
     return segments
+
+
+def filter_start_end(data, dt=3.):
+    start = data[0,0]
+    end = data[-1,0]
+    mask = np.logical_and((data[:,0] - start > dt), (end - data[:,0] > dt))
+    return data[mask]
