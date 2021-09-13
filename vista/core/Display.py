@@ -243,21 +243,18 @@ class Display:
                         ax.clear()
                         obs = obs[::10]  # sub-sample the pointcloud for vis
 
-                        cmap = colors.ListedColormap(
-                            cm.nipy_spectral(range(256))[:, 2::-1])
-
                         ax = plot_pointcloud(obs,
                                              ax=ax,
                                              color_by="z",
                                              max_dist=20.,
                                              car_dims=(self.ref_agent.length,
                                                        self.ref_agent.width),
-                                             cmap=cmap)
+                                             cmap="nipy_spectral")
 
                         # Plot the noodle
                         noodle = curvature2noodle(self.ref_agent.curvature,
                                                   mode='lidar')
-                        ax.plot(noodle[:, 0], noodle[:, 1], '-b', linewidth=3)
+                        ax.plot(noodle[:, 0], noodle[:, 1], '-r', linewidth=3)
 
                     else:  # dense image
                         obs = np.roll(obs, -obs.shape[1] // 4, axis=1)  # shift

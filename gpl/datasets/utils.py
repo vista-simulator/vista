@@ -47,10 +47,8 @@ class RejectionSampler:
         p = (p - p.min()) / (p.max() - p.min())
         p = np.clip(p, p + min_p, 1)
 
-        # Call the digitize function to find which bins in the latent
-        # distribution every data sample falls in to
+        # Find which bin the new value sample belongs to and return that prob
         bin_idx = np.digitize(value, bins)
-
         prob = p[bin_idx - 1]
         return prob
 
