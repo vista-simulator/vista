@@ -1,0 +1,16 @@
+test_dataset:
+  type: il_rgb_dataset
+
+  trace_paths: [
+    $DATA_DIR/traces/20210909-165428_lexus_mit_rain_rgb_A
+  ]
+
+  camera_config:
+    use_synthesizer: False
+
+  trace_config:
+    road_width: 4
+    reset_mode: segment_start
+
+  batch_size: 64
+  snippet_size: 999999 # make sure we loop through the entire trace

@@ -110,11 +110,18 @@ def main():
     if args.mode == 'simulation':
         # Define task in vista
         if args.test_config is not None:
-            merge_test_config(config, utils.load_yaml(args.test_config))
+            if args.test_config == 'use_val':
+                config.val_dataset = utils.update_dict(copy.deepcopy(config.dataset),
+                                                       config.val_dataset)
+                trace_paths = config.val_dataset.trace_paths
+                trace_config = config.val_dataset.trace_config
+                car_config = config.val_dataset.car_config
+            else:
+                merge_test_config(config, utils.load_yaml(args.test_config))
 
-            trace_paths = config.test_dataset.trace_paths
-            trace_config = config.test_dataset.trace_config
-            car_config = config.test_dataset.car_config
+                trace_paths = config.test_dataset.trace_paths
+                trace_config = config.test_dataset.trace_config
+                car_config = config.test_dataset.car_config
         else:
             trace_paths = args.trace_paths
             trace_config = config.dataset.trace_config
@@ -223,7 +230,8 @@ def main():
 
         if args.save_results:
             results['config'] = config
-            with open(os.path.join(args.out_dir, 'results_simulaton.pkl'), 'wb') as f:
+            test_config_name = args.test_config.split('/')[-1].split('.')[-2]
+            with open(os.path.join(args.out_dir, f'results_simulaton_{test_config_name}.pkl'), 'wb') as f:
                 pickle.dump(results, f)
     elif args.mode == 'passive':
         merge_test_config(config, utils.load_yaml(args.test_config))
@@ -262,7 +270,9 @@ def main():
             bsize = len(target)
             i += bsize
             if 'total_samples' not in locals().keys():
-                # need to iterate through loader first to instantiate world object
+                # need to iterate through dataset (local) first to instantiate world object
+                if not hasattr(test_dataset, '_world'):
+                    next(iter(test_dataset))
                 total_samples = np.sum(
                     [v.num_of_frames for v in test_dataset._world.traces])
                 pbar = tqdm(total=total_samples)

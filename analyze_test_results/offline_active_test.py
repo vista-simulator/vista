@@ -3,7 +3,7 @@ import numpy as np
 import pickle
 import argparse
 
-import utils
+# import utils
 
 
 def main():
@@ -17,22 +17,23 @@ def main():
     args = parser.parse_args()
 
     # Load data
-    args.result_path = utils.validate_path(args.result_path)
+    # args.result_path = utils.validate_path(args.result_path)
     with open(args.result_path, 'rb') as f:
         results = pickle.load(f)
 
     # Compute stats
     dev_mean, dev_std = compute_deviation(results)
     dist_mean, dist_std = compute_distance(results)
-    crash_likelihood = compute_crash_likelihood(results, 5)
+    crash_likelihood = compute_crash_likelihood(results, 25)
     
     print('Result from: {}'.format(args.result_path))
     print('Deviation: {} ({})'.format(dev_mean, dev_std))
     print('Distance: {} ({})'.format(dist_mean, dist_std))
     print('Crash likelihood: {}'.format(crash_likelihood))
+    print('')
 
 
-def compute_crash_likelihood(results, max_dist=100):
+def compute_crash_likelihood(results, max_dist=500):
     crashes = []
     for ep_i in range(len(results['out_of_lane'])):
         idx = np.argmin(np.abs(np.array(results['distance'][ep_i]) - max_dist))
