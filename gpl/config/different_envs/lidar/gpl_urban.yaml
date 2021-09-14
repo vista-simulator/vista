@@ -19,7 +19,7 @@ dataset:
 
   reset_config:
     x_perturbation: [-1.0, 1.0]
-    yaw_perturbation: [-0.2, 0.2]
+    yaw_perturbation: [-0.1, 0.1]
 
   snippet_size: 30
 

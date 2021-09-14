@@ -1,0 +1,11 @@
+test_dataset:
+  trace_paths: [
+    $DATA_DIR/traces/20210909-165739_lexus_mit_rain_lidarevent_B,
+  ]
+
+  camera_config:
+    use_synthesizer: True
+
+  trace_config:
+    road_width: 4
+    reset_mode: uniform
