@@ -288,7 +288,8 @@ def main():
             'test_loss': all_test_loss,
         }
 
-        logger = utils.Logger(args.out_dir, with_tensorboard=False)
+        test_config_name = args.test_config.split('/')[-1].split('.')[-2]
+        logger = utils.Logger(args.out_dir, with_tensorboard=False, suffix=test_config_name)
         logger.print(config)
         logger.print('')
         logger.print(f'Test loss mean: {all_test_loss.mean()}')
@@ -296,7 +297,7 @@ def main():
         logger.print(f'Test loss max: {all_test_loss.max()}')
         logger.print(f'Test loss min: {all_test_loss.min()}')
 
-        with open(os.path.join(args.out_dir, 'results_passive.pkl'), 'wb') as f:
+        with open(os.path.join(args.out_dir, f'results_passive_{test_config_name}.pkl'), 'wb') as f:
             pickle.dump(results, f)
     else:
         raise NotImplementedError('Unrecognized testing mode {}'.format(

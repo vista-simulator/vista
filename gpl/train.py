@@ -54,6 +54,10 @@ def main():
                         type=str,
                         default=None,
                         help='Path to checkpoint to be restored from')
+    parser.add_argument('--resume',
+                        action='store_true',
+                        default=False,
+                        help='Resume from the latest checkpoint')
     args = parser.parse_args()
 
     args.logdir = utils.validate_path(args.logdir)
@@ -135,6 +139,10 @@ def main():
 
     # Restore from checkpoint
     iter_i = 0
+    if args.resume:
+        ckpt_dir = os.path.join(args.logdir, 'ckpt')
+        latest_ckpt = sorted([v for v in os.listdir(ckpt_dir) if 'iter' in v])[-1]
+        args.restore = os.path.join(ckpt_dir, latest_ckpt)
     if args.restore:
         logger.print(f'Restore from {args.restore}')
         args.restore = utils.validate_path(args.restore)

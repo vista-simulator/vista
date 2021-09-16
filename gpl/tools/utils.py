@@ -12,8 +12,8 @@ from attrdict import AttrDict
 
 
 class Logger:
-    def __init__(self, logdir, write_mode='w', with_tensorboard=True):
-        self._text_writer = open(os.path.join(logdir, 'results.txt'),
+    def __init__(self, logdir, write_mode='w', with_tensorboard=True, suffix=""):
+        self._text_writer = open(os.path.join(logdir, f'results{suffix}.txt'),
                                  write_mode)
         if with_tensorboard:
             self._tf_writer = SummaryWriter(logdir)
