@@ -28,7 +28,7 @@ class RejectionSampler:
                                  value: float,
                                  smoothing_factor: Optional[float] = 0.01,
                                  min_p: Optional[float] = 0.25,
-                                 n_bins: Optional[float] = 50):
+                                 n_bins: Optional[float] = 30):
 
         # Find which latent bin every data sample falls in
         if len(self.samples) == 0:
