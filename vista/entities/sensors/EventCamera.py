@@ -179,6 +179,9 @@ class EventCamera(BaseSensor):
                         out = self._interp.forward_warp(self.prev_frame, rendered_frame, 
                                                         max_sf=self.config['max_sf'],
                                                         use_max_flow=True)
+
+                    # TODO: only for visualization in event generation pipeline
+                    self.flow = list(map(lambda _x: _x.cpu().numpy()[0].transpose(1,2,0), out['flow']))
                     
                     interp = [self.prev_frame] + out['interpolated']
                     if len(interp) >= 2:
