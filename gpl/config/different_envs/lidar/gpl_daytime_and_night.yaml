@@ -4,7 +4,6 @@ dataset:
   trace_paths: [
     $DATA_DIR/traces/20210910-145502_lexus_mit_dry_lidarevent_ABAB,
     $DATA_DIR/traces/20210910-204917_lexus_mit_night_lidarevent_ABAB,
-
   ]
 
   buffer_size: 1000
@@ -19,8 +18,8 @@ dataset:
     road_buffer_size: 50
 
   reset_config:
-    x_perturbation: [-1.0, 1.0]
-    yaw_perturbation: [-0.2, 0.2]
+    x_perturbation: [-1., 1.]
+    yaw_perturbation: [-0.1, 0.1]
 
   snippet_size: 30
 

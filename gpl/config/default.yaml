@@ -26,7 +26,7 @@ dataset:
   trace_config:
     road_width: 4
     reset_mode: default
-    master_sensor: front_center
+    master_sensor: camera_front
 
   car_config:
     length: 5.
@@ -35,7 +35,7 @@ dataset:
     steering_ratio: 14.7
 
   camera_config:
-    name: front_center
+    name: camera_front
     rig_path: ../examples/RIG.xml
     size: [200, 320]
     depth_mode: FIXED_PLANE
@@ -47,7 +47,7 @@ dataset:
   event_camera_config:
     name: event_camera_front
     rig_path: ../examples/RIG.xml
-    base_camera_name: front_center
+    base_camera_name: camera_front
     base_size: [600, 960]
     depth_mode: FIXED_PLANE
     use_lighting: False

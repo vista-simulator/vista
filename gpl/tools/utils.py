@@ -59,7 +59,7 @@ class Logger:
         self._timer[group][name].append(time.time())
 
         if not name in self._accum_timer[group].keys():
-            self._accum_timer[group][name] = deque(maxlen=500)
+            self._accum_timer[group][name] = deque(maxlen=100)
         tic, toc = self._timer[group][name]
         self._accum_timer[group][name].append(toc - tic)
 
