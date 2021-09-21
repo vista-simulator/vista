@@ -4,10 +4,12 @@ import numpy as np
 import utm
 import rosbag
 import pickle
+import copy
 import matplotlib.pyplot as plt
+from shapely import geometry
 
 
-def read_rosbag(bag_path):
+def read_rosbag(bag_path, return_topic_info=False):
     bag = rosbag.Bag(bag_path)
     topic_info = bag.get_type_and_topic_info()[1]
     data = {k: [] for k in topic_info.keys()}
@@ -16,7 +18,10 @@ def read_rosbag(bag_path):
         data[topic].append([t.to_sec(), msg])
     bag.close()
 
-    return data
+    if return_topic_info:
+        return data, topic_info
+    else:
+        return data
 
 
 def fetch_gps(data, topic='/lexus/oxts/gps/fix'):
@@ -113,17 +118,37 @@ def load_devens_road(path):
     return loop_paths
 
 
-def plot_devens_road(loop_paths, figax=None):
+def plot_devens_road(loop_paths, figax=None, linewidth=0.25, color='k', 
+                     zorder=1, buffer=0, lns=dict()):
     if figax is None:
         fig, ax = plt.subplots(1, 1)
     else:
         fig, ax = figax
 
-    for (loop, path) in loop_paths.items():
-        ax.plot(path[:,0], path[:,1], linewidth=0.25, color='k')
-        ax.axis('equal')
+    if buffer > 0:
+        new_loop_paths = copy.deepcopy(loop_paths)
+
+        for name, path in loop_paths.items():
+            sign = -1 if "inner" in name else +1
+            poly = geometry.Polygon(path).buffer(sign * buffer)
+            new_loop_paths[name] = np.array(poly.exterior.coords.xy).T
+
+        for name, path in new_loop_paths.items():
+            ln_name = f'line:{name}'
+            if ln_name in lns.keys():
+                lns[ln_name].set_data(path[:,0], path[:,1])
+            else:
+                lns[ln_name], = ax.plot(path[:,0], path[:,1], linewidth=linewidth, color=color, zorder=zorder)
+    else:
+        for (name, path) in loop_paths.items():
+            ln_name = f'line:{name}'
+            if name in lns.keys():
+                lns[ln_name].set_data(path[:,0], path[:,1])
+            else:
+                lns[ln_name], = ax.plot(path[:,0], path[:,1], linewidth=linewidth, color=color, zorder=zorder)
+                ax.axis('equal')
     
-    return [fig, ax]
+    return [fig, ax], lns
 
 
 def visualize_curvature(curvature_command, curvature_feedback, figax=None, ts_origin=None):

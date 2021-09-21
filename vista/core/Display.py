@@ -243,13 +243,13 @@ class Display:
                         ax.clear()
                         obs = obs[::10]  # sub-sample the pointcloud for vis
 
-                        ax = plot_pointcloud(obs,
-                                             ax=ax,
-                                             color_by="z",
-                                             max_dist=20.,
-                                             car_dims=(self.ref_agent.length,
-                                                       self.ref_agent.width),
-                                             cmap="nipy_spectral")
+                        ax, scat = plot_pointcloud(obs,
+                                                   ax=ax,
+                                                   color_by="z",
+                                                   max_dist=20.,
+                                                   car_dims=(self.ref_agent.length,
+                                                             self.ref_agent.width),
+                                                   cmap="nipy_spectral")
 
                         # Plot the noodle
                         noodle = curvature2noodle(self.ref_agent.curvature,
@@ -403,7 +403,9 @@ def plot_pointcloud(pcd,
                     max_dist=None,
                     cmap="nipy_spectral",
                     car_dims=None,
-                    ax=None):
+                    ax=None,
+                    scat=None,
+                    s=1):
     if ax is None:
         _, ax = plt.subplots()
 
@@ -420,7 +422,12 @@ def plot_pointcloud(pcd,
         raise ValueError(f"unsupported color {color_by}")
 
     # Plot points
-    ax.scatter(pcd.x, pcd.y, c=c, s=1, vmin=vmin, vmax=vmax, cmap=cmap)
+    if scat is None:
+        scat = ax.scatter(pcd.x, pcd.y, c=c, s=s, vmin=vmin, vmax=vmax, cmap=cmap)
+    else:
+        scat.set_offsets(np.stack([pcd.x, pcd.y], axis=1))
+        scat.set_clim(vmin, vmax)
+        scat.set_color(getattr(plt.cm, cmap)(scat.norm(c)))
 
     # Plot car
     if car_dims is not None:
@@ -435,7 +442,7 @@ def plot_pointcloud(pcd,
 
     ax.set_xlim(-max_dist, max_dist)
     ax.set_ylim(-max_dist, max_dist)
-    return ax
+    return ax, scat
 
 
 def fig2img(fig: plt.Figure) -> np.ndarray:
