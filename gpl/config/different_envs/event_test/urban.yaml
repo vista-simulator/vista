@@ -3,9 +3,10 @@ test_dataset:
     $DATA_DIR/traces/20210910-152951_lexus_mit_dry_rgb_B,
   ]
 
-  camera_config:
+  event_camera_config:
     use_synthesizer: True
 
   trace_config:
     road_width: 4
     reset_mode: uniform
+    master_sensor: front_center

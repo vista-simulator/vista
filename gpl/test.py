@@ -139,10 +139,12 @@ def main():
             utils.set_dict_value_by_str(
                 config, 'dataset:lidar_config:use_synthesizer', True)
             sensors_configs = [config.dataset.lidar_config]
-        elif config.dataset.type in ['gpl_event_dataset']:
+        elif config.dataset.type in ['il_event_dataset', 'gpl_event_dataset']:
             utils.set_dict_value_by_str(config,
                                         'dataset:event_camera_config:type',
                                         'event_camera')
+            utils.set_dict_value_by_str(
+                config, 'dataset:event_camera_config:use_synthesizer', True)
             sensors_configs = [config.dataset.event_camera_config]
         else:
             raise NotImplementedError(
