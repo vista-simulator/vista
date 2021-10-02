@@ -136,7 +136,7 @@ def main():
         eval_config = config
 
     # Handle environment variable
-    path_keys = ['env_config:trace_paths', 'env_config:sensors_config1:rig_pathr']
+    path_keys = ['env_config:trace_paths', 'env_config:sensors_config1:rig_path']
     for k in path_keys:
         try:
             paths = misc.get_dict_value_by_str(config, k)
@@ -202,7 +202,7 @@ def test(args, agent, num_episodes, saver):
 
     env = agent.workers.local_worker().env
     if args.monitor: 
-        video_dir = '/home/tsunw/tmp/monitor' # TODO: temp
+        video_dir = '/home/gridsan/tsunw/tmp/monitor' # TODO: temp
         env = wrappers.MultiAgentMonitor(env, video_dir, video_callable=lambda x: True, force=True)
     policy_mapping_fn = agent.config["multiagent"]["policy_mapping_fn"]
     policy_map = agent.workers.local_worker().policy_map

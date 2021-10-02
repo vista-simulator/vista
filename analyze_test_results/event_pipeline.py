@@ -24,6 +24,8 @@ def main(args):
         width=2.,
         wheel_base=2.8,
         steering_ratio=17.6,
+        lookahead_road=True,
+        road_buffer_size=50,
     )
     event_cam_config = dict(
         name='event_camera_front',
@@ -53,7 +55,10 @@ def main(args):
     elif mode in ['rgb_in_event', 'flow', 'event', 'event_no_random']:
         event_cam_config['name'] = 'event_camera_front'
         event_cam_config['base_camera_name'] = 'camera_front'
-        event_cam_config['size'] = (240, 320) #(480, 640)
+        if mode == 'rgb_in_event':
+            event_cam_config['size'] = (480, 640)
+        else:
+            event_cam_config['size'] = (240, 320)
         if mode == 'event_no_random':
             event_cam_config['sigma_positive_threshold'] = 0.0
             event_cam_config['sigma_negative_threshold'] = 0.0
@@ -77,11 +82,34 @@ def main(args):
         video_dir = os.path.dirname(args.video_path)
         if not os.path.isdir(video_dir):
             os.makedirs(video_dir)
-        fps = 10 #DEBUG 30
+        fps = 30
         video_writer = FFmpegWriter(args.video_path, inputdict={'-r': str(fps)},
                                                      outputdict={'-r': str(fps),
                                                                  '-c:v': 'libx264',
                                                                  '-pix_fmt': 'yuv420p'})
+
+    sys.path.append(os.path.abspath('../gpl/datasets'))
+    from privileged_controller import get_controller
+    controller = get_controller(
+        {
+            'type': 'PurePursuit',
+            'lookahead_dist': 5,
+            'Kp': 0.5,
+
+            # 'type': 'PID',
+            # 'lateral': {
+            #     'lookahead_dist': 5,
+            #     'Kp': 0.005,
+            #     'Ki': 0.00001,
+            #     'Kd': 0.0001,
+            # },
+            # 'heading_err_weight': 1.,
+        }
+    )
+    use_controller_switch = False
+    controller_switch = 0
+    controller_step = 0
+    controller_step_sign = 1
 
     # Main running loop
     while True:
@@ -90,28 +118,54 @@ def main(args):
 
         step = 0
         while not agent.done:
-            dev = 0 # 0.01 * np.sin(step / 10.)
-            action = np.array([agent.trace.f_curvature(agent.timestamp) + dev,
-                               agent.trace.f_speed(agent.timestamp)])
-            agent.step_dynamics(action)
-            agent.step_sensors()
+            try:
+                if use_controller_switch:
+                    if controller_switch == 1:
+                        curvature, _ = controller(agent)
+                        if abs(agent.relative_state.x) < 0.05:
+                            controller_switch = 0
+                            controller_step = 0
+                            controller_step_sign *= -1
+                    else:
+                        dev = 0.003 * controller_step_sign * np.sin(controller_step / 10.)
+                        curvature = agent.trace.f_curvature(agent.timestamp) + dev
+                        controller_step += 1
+                        if abs(agent.relative_state.x) > 0.5:
+                            controller_switch = 1
+                else:
+                    curvature = agent.human_curvature
+                action = np.array([curvature,
+                                agent.trace.f_speed(agent.timestamp)])
+                agent.step_dynamics(action)
+                agent.step_sensors()
 
-            if mode in ['rgb', 'rgb_in_event']:
-                img = event_cam.prev_frame
-            elif mode == 'flow':
-                assert hasattr(event_cam, 'flow')
-                flow_imgs = list(map(lambda _x: flow2img(_x)[0], event_cam.flow))
-                img = flow_imgs[0] # only forward flow
-            elif mode in ['event', 'event_no_random']:
-                events = agent.observations['event_camera_front']
-                event_cam_param = event_cam.camera_param
-                img = events2frame(events, event_cam_param.get_height(), event_cam_param.get_width())
-            else:
-                raise NotImplementedError
-            if args.video_path:
-                video_writer.writeFrame(img)
+                if mode in ['rgb', 'rgb_in_event']:
+                    img = event_cam.prev_frame
+                elif mode == 'flow':
+                    assert hasattr(event_cam, 'flow')
+                    flow_imgs = list(map(lambda _x: flow2img(_x)[0], event_cam.flow))
+                    img = flow_imgs[0] # only forward flow
+                elif mode in ['event', 'event_no_random']:
+                    events = agent.observations['event_camera_front']
+                    event_cam_param = event_cam.camera_param
+                    img = events2frame(events, event_cam_param.get_height(), 
+                                    event_cam_param.get_width())[:,:,::-1]
+                else:
+                    raise NotImplementedError
+                if args.video_path:
+                    video_writer.writeFrame(img)
 
-            step += 1
+                # ### DEBUG
+                # print(step)
+                # if step >= 3600: #5400:
+                #     import pdb; pdb.set_trace()
+                # ### DEBUG
+
+                step += 1
+            except:
+                video_writer.close()
+                print('stop for some reason')
+                import pdb; pdb.set_trace()
 
 
 if __name__ == '__main__':

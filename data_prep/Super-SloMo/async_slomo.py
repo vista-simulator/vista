@@ -19,7 +19,11 @@ from tqdm import tqdm
 
 from video_stream import VideoStream
 from slowmo_warp import SlowMoWarp
-from utils import grab_videos, draw_arrows
+try:
+    from utils import grab_videos, draw_arrows
+except:
+    print('Fail to import grab_videos and draw_arrows')
+    pass
 
 
 def show_slowmo(last_frame, frame, flow_fw, flow_bw, interp, fps):
