@@ -93,15 +93,15 @@ class Trace:
             n_bins = Trace.RESET_CONFIG['default']['n_bins']
             smoothing_factor = Trace.RESET_CONFIG['default'][
                 'smoothing_factor']
-            hist_power =  Trace.RESET_CONFIG['default'][
-                'hist_power']
+            hist_power = Trace.RESET_CONFIG['default']['hist_power']
 
             curvatures = np.abs(self.f_curvature(timestamps))
             curvatures = np.clip(curvatures, 0, 1 / 3.)
             hist, bin_edges = np.histogram(curvatures, n_bins, density=False)
             bins = np.digitize(curvatures, bin_edges, right=True)
             hist_density = hist / float(np.sum(hist))
-            probs = 1.0 / ((hist_density[bins - 1] + smoothing_factor) ** hist_power)
+            probs = 1.0 / (
+                (hist_density[bins - 1] + smoothing_factor)**hist_power)
             probs /= np.sum(probs)
         elif self._config['reset_mode'] == 'uniform':  # uniform sampling
             n_timestamps = len(timestamps)
@@ -129,6 +129,7 @@ class Trace:
                              segment_index: int,
                              frame_index: int,
                              check_end: Optional[bool] = False) -> float:
+        """"""
         master_name = self.multi_sensor.master_sensor
         if check_end:
             exceed_end = frame_index >= len(
@@ -144,6 +145,7 @@ class Trace:
                                 segment_index: int,
                                 frame_index: int,
                                 check_end: Optional[bool] = False) -> float:
+        """"""
         master_name = self.multi_sensor.master_sensor
         if check_end:
             exceed_end = frame_index >= len(
@@ -154,9 +156,10 @@ class Trace:
         else:
             return self.good_frames[master_name][segment_index][frame_index]
 
-    def _divide_to_good_segments(self,
-                                 min_speed: float = 2.5,
-                                 ) -> Dict[str, List[int]]:
+    def _divide_to_good_segments(
+        self,
+        min_speed: float = 2.5,
+    ) -> Dict[str, List[int]]:
         """ Divide a trace into good segments based on video labels and time
             difference between consecutive frames. Note that only master
             sensor is used for the time difference check since every sensors
@@ -216,6 +219,7 @@ class Trace:
         return good_frames, good_timestamps
 
     def _get_states_func(self):
+        """"""
         # Read from dataset
         speed = np.genfromtxt(os.path.join(self._trace_path,
                                            TopicNames.speed + '.csv'),
@@ -242,52 +246,64 @@ class Trace:
         return f_speed, f_curvature
 
     def set_seed(self, seed) -> None:
+        """"""
         self._seed = seed
         self._rng = np.random.default_rng(self.seed)
 
     @property
     def seed(self) -> int:
+        """"""
         return self._seed
 
     @property
     def trace_path(self) -> str:
+        """"""
         return self._trace_path
 
     @property
     def multi_sensor(self) -> MultiSensor:
+        """"""
         return self._multi_sensor
 
     @property
     def good_frames(self) -> Dict[str, List[int]]:
+        """ hi """
         return self._good_frames
 
     @property
     def good_timestamps(self) -> Dict[str, List[int]]:
+        """"""
         return self._good_timestamps
 
     @property
     def num_of_frames(self) -> int:
+        """"""
         return self._num_of_frames
 
     @property
     def f_curvature(self) -> Callable:
+        """"""
         return self._f_curvature
 
     @property
     def f_speed(self) -> Callable:
+        """"""
         return self._f_speed
 
     @property
     def reset_mode(self) -> str:
+        """"""
         return self._reset_mode
 
     @reset_mode.setter
     def reset_mode(self, reset_mode):
+        """"""
         assert isinstance(reset_mode, str)
         self._reset_mode = reset_mode
 
     @property
     def road_width(self) -> float:
+        """"""
         return self._config['road_width']
 
     def __repr__(self) -> str:

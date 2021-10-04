@@ -243,13 +243,14 @@ class Display:
                         ax.clear()
                         obs = obs[::10]  # sub-sample the pointcloud for vis
 
-                        ax, scat = plot_pointcloud(obs,
-                                                   ax=ax,
-                                                   color_by="z",
-                                                   max_dist=20.,
-                                                   car_dims=(self.ref_agent.length,
-                                                             self.ref_agent.width),
-                                                   cmap="nipy_spectral")
+                        ax, scat = plot_pointcloud(
+                            obs,
+                            ax=ax,
+                            color_by="z",
+                            max_dist=20.,
+                            car_dims=(self.ref_agent.length,
+                                      self.ref_agent.width),
+                            cmap="nipy_spectral")
 
                         # Plot the noodle
                         noodle = curvature2noodle(self.ref_agent.curvature,
@@ -423,7 +424,13 @@ def plot_pointcloud(pcd,
 
     # Plot points
     if scat is None:
-        scat = ax.scatter(pcd.x, pcd.y, c=c, s=s, vmin=vmin, vmax=vmax, cmap=cmap)
+        scat = ax.scatter(pcd.x,
+                          pcd.y,
+                          c=c,
+                          s=s,
+                          vmin=vmin,
+                          vmax=vmax,
+                          cmap=cmap)
     else:
         scat.set_offsets(np.stack([pcd.x, pcd.y], axis=1))
         scat.set_clim(vmin, vmax)

@@ -8,6 +8,10 @@ test*.png
 *.avi
 *.mp4
 
+# Docs
+docs/source/_static/
+docs/source/_templates/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

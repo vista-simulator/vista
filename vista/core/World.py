@@ -7,6 +7,17 @@ from ..utils import logging
 
 
 class World:
+    """ This class specifies the :class:`World` where all entities in VISTA lives in. 
+    The :class:`World` is built upon one or multiple traces pre-collected from the 
+    real world. [TODO]
+
+    Example usage::
+
+        >>> world = vista.World(trace_paths, trace_config)
+        >>> agent = world.spawn_agent(agent_config)
+        >>> world.reset()
+
+    """
     def __init__(
         self, trace_paths: List[str],
         trace_config: Optional[Dict] = dict()) -> None:
@@ -15,6 +26,9 @@ class World:
         Args:
             trace_paths (List(str)): a list of paths to traces
             trace_config (Dict): configuration of traces
+
+        Returns:
+            None
         """
         # A list of traces that define the world
         self._traces: List[Trace] = [
@@ -33,10 +47,11 @@ class World:
         """ Spawn an agent in this world.
 
         Args:
-            config (Dict): configuration of the agent
+            config (Dict): Configuration of the agent.
 
         Returns:
-            Car: the agent being spawned
+            Car: the agent being spawned.
+
         """
         agent = Car(world=self, car_config=config)
         logging.info('Spawn an agent ({})'.format(agent.id))
@@ -44,7 +59,16 @@ class World:
 
         return agent
 
-    def reset(self, initial_dynamics_fn: Optional[Dict[str, Callable]] = dict()) -> None:
+    def reset(
+        self, initial_dynamics_fn: Optional[Dict[str,
+                                                 Callable]] = dict()) -> None:
+        """ Reset the world. This includes (1) sample a new anchor point from the real-world
+        dataset to be simulated from and (2) reset states for all agents.
+
+        Args:
+            initial_dynamics_fn (Dict[str, Callable]): 
+                A dict mapping agent names to a function that initialize agents poses.
+        """
         logging.info('World reset')
 
         # Sample a new trace and a new location at the sampled trace
@@ -59,20 +83,17 @@ class World:
     def sample_new_location(self) -> Tuple[int, int, int]:
         """ Sample a pointer to the dataset for simulation.
 
-        Args:
-            None
-
         Returns:
-            int: trace index
-            int: segment index
-            int: frame index (note that this is the index of Trace.good_frames
-                 instead of element)
+            Return a tuple (`int_a`, `int_b`, `int_c`), where `int_a` is trace
+            index, `int_b` is segment index, and `int_c` is frame index.
+    
         """
         new_trace_index = self.sample_new_trace_index()
         trace = self.traces[new_trace_index]
 
         new_segment_index = trace.find_segment_reset()
 
+        # note that this is the index of Trace.good_frames instead of element
         new_frame_index = trace.find_frame_reset(new_segment_index)
 
         return new_trace_index, new_segment_index, new_frame_index
@@ -80,11 +101,8 @@ class World:
     def sample_new_trace_index(self) -> int:
         """ Sample a new trace index based on number of frames in a trace.
 
-        Args:
-            None
-
         Returns:
-            int: an index for which trace to be simulated from
+            int: an index to specify which trace to be simulated from.
         """
         trace_reset_probs = np.zeros(len(self.traces))
         for i, trace in enumerate(self.traces):
@@ -97,20 +115,28 @@ class World:
         return new_trace_index
 
     def set_seed(self, seed) -> None:
+        """ Set random seed.
+
+        Args:
+            seed (int): random seed.
+        """
         self._seed = seed
         self._rng = np.random.default_rng(self.seed)
         [t.set_seed(seed) for t in self.traces]
 
     @property
     def seed(self) -> int:
+        """ Current random seed. """
         return self._seed
 
     @property
     def traces(self) -> List[Trace]:
+        """ Current trace to simulate the :class:`World`. """
         return self._traces
 
     @property
     def agents(self) -> List[Car]:
+        """ All agents that live in the :class:`World`. """
         return self._agents
 
     def __repr__(self) -> str:

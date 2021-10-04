@@ -2,6 +2,8 @@ import uuid
 
 
 class Entity:
+    """ Base class
+    """
     def __init__(self):
         # Identifier for this Entity. Unique given during creation.
         self._id = uuid.uuid4().hex[:6]
@@ -11,12 +13,12 @@ class Entity:
 
     @property
     def id(self):
-        """ Get the identifier of this entity. """
+        """ The identifier of this entity. """
         return self._id
 
     @property
     def parent(self):
-        """ Get the parent of this entity. """
+        """ The parent of this entity. """
         return self._parent
 
     @parent.setter
