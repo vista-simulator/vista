@@ -1,5 +1,5 @@
 import os
-from typing import Optional, List, Any, Dict, Callable
+from typing import Optional, List, Any, Dict, Callable, Union, Tuple
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -8,6 +8,26 @@ from ..utils import logging, misc
 
 
 class Trace:
+    """ This is a helper class for handling a trace in the dataset. It allows straightforward
+    access to any pointer in the trace. A trace is separated into several segments based on
+    timestamps (split to segments if the difference of two consecutive timestamps is larger than
+    a value). Each segment contains frames that can be accessed through specifying frame index.
+    Note that frame index used in VISTA is not necessarily the same as frame number in the dataset.
+    Overall, we use ``segment_index``, ``frame_index``, ``frame_number``, ``timestamp`` in this
+    class and there are several functions for conversion among them.
+    The :class:`Trace` also performs filtering including,
+
+        * Filter frames based on annotation label (`video_label.csv`) if there is any.
+        * Filter by end-of-trace and time difference across consecutive frames.
+
+    This class also handles sampling of pointer to the trace, i.e., sampling segment and frame
+    index.
+
+    Args:
+        trace_path (str): Path to a trace.
+        trace_config (dict): Configuration of the trace object.
+
+    """
     DEFAULT_LABELS = [
         'day|night', 'dry|rain|snow',
         'local|residential|highway|unpaved|indoor', 'stable', '.*', '.*'
@@ -54,13 +74,11 @@ class Trace:
 
     def find_segment_reset(self) -> int:
         """ Sample a segment index based on number of frames in each segment. Segments with more
-            frames will be sampled with a higher probability.
-
-        Args:
-            None
+        frames will be sampled with a higher probability.
 
         Returns:
-            int: index to a segment
+            int: Index of a segment.
+
         """
         segment_reset_probs = np.zeros(
             len(self._good_frames[self._multi_sensor.master_sensor]))
@@ -77,13 +95,14 @@ class Trace:
         """ Sample a frame index in a segment.
 
         Args:
-            segment_index (int): index of the segment to be sampled from
+            segment_index (int): Index of the segment to be sampled from.
 
         Returns:
-            int: frame index
+            int: Frame index.
 
         Raises:
-            NotImplementedError: for invalid reset mode
+            NotImplementedError: Unrecognized trace reset mode.
+
         """
         # Compute sample probability
         timestamps = self.good_timestamps[
@@ -125,11 +144,26 @@ class Trace:
 
         return frame_index
 
-    def get_master_timestamp(self,
-                             segment_index: int,
-                             frame_index: int,
-                             check_end: Optional[bool] = False) -> float:
-        """"""
+    def get_master_timestamp(
+            self,
+            segment_index: int,
+            frame_index: int,
+            check_end: Optional[bool] = False
+    ) -> Union[float, Tuple[bool, float]]:
+        """ Get timestamp from the master sensor.
+
+        Args:
+            segment_index (int): Segment index.
+            frame_index (int): Frame index.
+            check_end (bool): Whether to check if the given segment and frame index
+                              exceed the end of the trace; default to False.
+
+        Returns:
+            Return a tuple (``bool_a``, ``float_a``), where ``bool_a`` is whether the given segment 
+            and frame index exceed the end of the trace and ``float_a`` is timestamp; otherwise 
+            timestamp (float).
+
+        """
         master_name = self.multi_sensor.master_sensor
         if check_end:
             exceed_end = frame_index >= len(
@@ -141,11 +175,25 @@ class Trace:
             return self.good_timestamps[master_name][segment_index][
                 frame_index]
 
-    def get_master_frame_number(self,
-                                segment_index: int,
-                                frame_index: int,
-                                check_end: Optional[bool] = False) -> float:
-        """"""
+    def get_master_frame_number(
+            self,
+            segment_index: int,
+            frame_index: int,
+            check_end: Optional[bool] = False) -> Union[int, Tuple[bool, int]]:
+        """ Get frame number from the master sensor.
+
+        Args:
+            segment_index (int): Segment index.
+            frame_index (int): Frame index.
+            check_end (bool): Whether to check if the given segment and frame index
+                              exceed the end of the trace; default to False.
+
+        Returns:
+            Return a tuple (``bool_a``, ``int_a``), where ``bool_a`` is whether the given segment 
+            and frame index exceed the end of the trace and ``int_a`` is frame number; otherwise 
+            frame number (int).
+
+        """
         master_name = self.multi_sensor.master_sensor
         if check_end:
             exceed_end = frame_index >= len(
@@ -160,20 +208,18 @@ class Trace:
         self,
         min_speed: float = 2.5,
     ) -> Dict[str, List[int]]:
-        """ Divide a trace into good segments based on video labels and time
-            difference between consecutive frames. Note that only master
-            sensor is used for the time difference check since every sensors
-            may have triggering frequencies.
-
-        Args:
-            None
+        """ Divide a trace into good segments based on video labels and time difference between 
+        consecutive frames. Note that only master sensor is used for the time difference check 
+        since every sensors may have triggering frequencies.
 
         Returns:
-            dict: good frames for all sensors. Key is sensor name and value
-                  is a list with each element as frame indices of a good
-                  segment, i.e., a good frame number =
-                  dict[sensor_name][which_good_segment][i]
-            dict: timestamps of good frames
+            Return a tuple (``dict_a``, ``dict_b``), where
+            ``dict_a``: good frames for all sensors. Key is sensor name and value
+                        is a list with each element as frame indices of a good
+                        segment, i.e., a good frame number = 
+                        dict[sensor_name][which_good_segment][i].
+            ``dict_b``: timestamps of good frames.
+
         """
         # Filter by video labels
         _, good_labeled_timestamps = self._labels.find_good_labeled_frames(
@@ -219,14 +265,19 @@ class Trace:
         return good_frames, good_timestamps
 
     def _get_states_func(self):
-        """"""
+        """ Read speed and IMU data from the dataset and perform 1D interpolation to convert 
+        discrete data points to continuous functions. Curvature is computed as yaw rate (from 
+        IMU) divided by speed.
+
+        Returns:
+            Return a tuple (``func_a``, ``func_b``), where ``func_a`` is 1D interpolation
+            function for speed and ``func_b`` is 1D interpolation for curvature.
+
+        """
         # Read from dataset
         speed = np.genfromtxt(os.path.join(self._trace_path,
                                            TopicNames.speed + '.csv'),
                               delimiter=',')
-        odometry = np.genfromtxt(os.path.join(self._trace_path,
-                                              TopicNames.odometry + '.csv'),
-                                 delimiter=',')
         imu = np.genfromtxt(os.path.join(self._trace_path,
                                          TopicNames.imu + '.csv'),
                             delimiter=',')
@@ -246,64 +297,71 @@ class Trace:
         return f_speed, f_curvature
 
     def set_seed(self, seed) -> None:
-        """"""
+        """ Set random seed.
+
+        Args:
+            seed (int): Random seed.
+
+        """
         self._seed = seed
         self._rng = np.random.default_rng(self.seed)
 
     @property
     def seed(self) -> int:
-        """"""
+        """ Random seed for sampling pointer in :meth:`find_segment_reset` 
+            and :meth:`find_frame_reset`. """
         return self._seed
 
     @property
     def trace_path(self) -> str:
-        """"""
+        """ Path to the directory that contains all data of this trace. """
         return self._trace_path
 
     @property
     def multi_sensor(self) -> MultiSensor:
-        """"""
+        """ MultiSensor object. Please check the definition of this class. """
         return self._multi_sensor
 
     @property
     def good_frames(self) -> Dict[str, List[int]]:
-        """ hi """
+        """ A dictionary of good frame numbers, where keys are sensor names and 
+            values are lists of frame numbers (int). """
         return self._good_frames
 
     @property
-    def good_timestamps(self) -> Dict[str, List[int]]:
-        """"""
+    def good_timestamps(self) -> Dict[str, List[float]]:
+        """ A dictionary of good timestamps, where keys are sensor names and 
+            values are a list of timestamps (float). """
         return self._good_timestamps
 
     @property
     def num_of_frames(self) -> int:
-        """"""
+        """ Number of good frames. """
         return self._num_of_frames
 
     @property
     def f_curvature(self) -> Callable:
-        """"""
+        """ A 1D interpolation function for curvature of the ego-car. """
         return self._f_curvature
 
     @property
     def f_speed(self) -> Callable:
-        """"""
+        """ A 1D interpolation function for speed of the ego-car. """
         return self._f_speed
 
     @property
     def reset_mode(self) -> str:
-        """"""
+        """ Trace reset mode. """
         return self._reset_mode
 
     @reset_mode.setter
     def reset_mode(self, reset_mode):
-        """"""
         assert isinstance(reset_mode, str)
         self._reset_mode = reset_mode
 
     @property
     def road_width(self) -> float:
-        """"""
+        """ Road width. """
         return self._config['road_width']
 
     def __repr__(self) -> str:

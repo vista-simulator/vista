@@ -7,9 +7,16 @@ from ..utils import logging
 
 
 class World:
-    """ This class specifies the :class:`World` where all entities in VISTA lives in. 
-    The :class:`World` is built upon one or multiple traces pre-collected from the 
-    real world. [TODO]
+    """ This class specifies the :class:`World` where all entities (i.e., agents and sensors) 
+    in VISTA lives in. The is built upon one or multiple traces pre-collected from the real world. 
+    Users can spawn agents (:class:`Car`) in the :class:`World`, where all agents will be visible 
+    while rendering sensory measurement. At reset, the :class:`World` randomly sample an pointer
+    in the dataset (conceptually retrieving a frame within a trace) as the initial condition for
+    the simulation.
+
+    Args:
+        trace_paths (List(str)): A list of paths to traces
+        trace_config (Dict): Configuration of traces
 
     Example usage::
 
@@ -21,15 +28,6 @@ class World:
     def __init__(
         self, trace_paths: List[str],
         trace_config: Optional[Dict] = dict()) -> None:
-        """ Instantiate a World object.
-
-        Args:
-            trace_paths (List(str)): a list of paths to traces
-            trace_config (Dict): configuration of traces
-
-        Returns:
-            None
-        """
         # A list of traces that define the world
         self._traces: List[Trace] = [
             Trace(trace_path, trace_config) for trace_path in trace_paths
@@ -50,7 +48,7 @@ class World:
             config (Dict): Configuration of the agent.
 
         Returns:
-            Car: the agent being spawned.
+            Car: The agent being spawned.
 
         """
         agent = Car(world=self, car_config=config)
@@ -68,6 +66,7 @@ class World:
         Args:
             initial_dynamics_fn (Dict[str, Callable]): 
                 A dict mapping agent names to a function that initialize agents poses.
+
         """
         logging.info('World reset')
 
@@ -83,10 +82,10 @@ class World:
     def sample_new_location(self) -> Tuple[int, int, int]:
         """ Sample a pointer to the dataset for simulation.
 
-        Returns:
-            Return a tuple (`int_a`, `int_b`, `int_c`), where `int_a` is trace
-            index, `int_b` is segment index, and `int_c` is frame index.
-    
+        Returns: 
+            Return a tuple (``int_a``, ``int_b``, ``int_c``), where ``int_a`` is trace index,
+            ``int_b`` is segment index, and ``int_c`` is frame index.
+
         """
         new_trace_index = self.sample_new_trace_index()
         trace = self.traces[new_trace_index]
@@ -102,7 +101,8 @@ class World:
         """ Sample a new trace index based on number of frames in a trace.
 
         Returns:
-            int: an index to specify which trace to be simulated from.
+            int: An index to specify which trace to be simulated from.
+
         """
         trace_reset_probs = np.zeros(len(self.traces))
         for i, trace in enumerate(self.traces):
@@ -118,7 +118,8 @@ class World:
         """ Set random seed.
 
         Args:
-            seed (int): random seed.
+            seed (int): Random seed.
+
         """
         self._seed = seed
         self._rng = np.random.default_rng(self.seed)
@@ -126,12 +127,12 @@ class World:
 
     @property
     def seed(self) -> int:
-        """ Current random seed. """
+        """ Random seed for sampling pointer to the dataset during :meth:`reset`. """
         return self._seed
 
     @property
     def traces(self) -> List[Trace]:
-        """ Current trace to simulate the :class:`World`. """
+        """ All trace attached to the :class:`World`. """
         return self._traces
 
     @property
