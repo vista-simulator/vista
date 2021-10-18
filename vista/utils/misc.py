@@ -13,7 +13,19 @@ Vec = Union[List, Tuple, np.ndarray]
 
 def agent2poly(agent: Car,
                ref_dynamics: Optional[StateDynamics] = None) -> Box:
-    """ Convert Agent object to polygon w.r.t. a reference dynamics. """
+    """ Convert Agent object to polygon w.r.t. a reference dynamics.
+
+    Args:
+        agent (Car): An agent with valid dynamics (pose and vehicle state).
+        ref_dynamics (StateDynamics):
+            A reference dynamics for computing the polygon representation
+            of the agent. Default set to None that uses human dynamics of
+            the agent.
+
+    Returns:
+        Box: A polygon.
+
+    """
     ref_dynamics = agent.human_dynamics if ref_dynamics is None else ref_dynamics
     rel_pose = transform.compute_relative_latlongyaw(
         agent.ego_dynamics.numpy()[:3],

@@ -107,7 +107,8 @@ class Car(Entity):
               trace_index: int,
               segment_index: int,
               frame_index: int,
-              initial_dynamics_fn: Optional[Callable] = None):
+              initial_dynamics_fn: Optional[Callable] = None,
+              step_sensors: Optional[bool] = True):
         logging.info('Car ({}) reset'.format(self.id))
 
         # Update pointers to dataset
@@ -150,7 +151,7 @@ class Car(Entity):
         # Reset for privileged information
         if hasattr(self, '_road'):
             self._road.clear()
-            self._road.append(self.human_dynamics.numpy()[:3])
+            self._road.append(self.human_dynamics.numpy())
             self._road_dynamics = self.human_dynamics.copy()
             self._road_frame_idcs.clear()
             self._road_frame_idcs.append(self.frame_index)
@@ -175,7 +176,8 @@ class Car(Entity):
             sensor.reset()
 
         # Update observation
-        self.step_sensors()
+        if step_sensors:
+            self.step_sensors()
 
     def step_dataset(self, step_dynamics=True):
         logging.info('Car ({}) step based on dataset'.format(self.id))
@@ -227,7 +229,9 @@ class Car(Entity):
                 self._observations[sensor.name] = sensor.capture(
                     self.timestamp)
 
-    def step_dynamics(self, action: np.ndarray, dt: Optional[float] = 1 / 30.,
+    def step_dynamics(self,
+                      action: np.ndarray,
+                      dt: Optional[float] = 1 / 30.,
                       update_road: Optional[bool] = True):
         assert not self.done, 'Agent status is done. Please call reset first.'
         logging.info('Car ({}) step dynamics'.format(self.id))
@@ -353,7 +357,7 @@ class Car(Entity):
             ]
             update_with_perfect_controller(state, next_ts - ts,
                                            self._road_dynamics)
-            self._road.append(self._road_dynamics.numpy()[:3])
+            self._road.append(self._road_dynamics.numpy())
 
     @property
     def trace(self) -> Trace:
