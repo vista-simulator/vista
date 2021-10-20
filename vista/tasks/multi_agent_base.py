@@ -6,6 +6,7 @@ from shapely import affinity
 from .. import World
 from ..entities.agents.Car import Car
 from ..entities.agents.Dynamics import StateDynamics
+from ..entities.sensors.MeshLib import MeshLib
 from ..utils import logging, misc, transform
 
 
@@ -45,6 +46,8 @@ def default_reward_fn(task, agent_id):
 class MultiAgentBase:
     """ TODO """
     DEFAULT_CONFIG = {
+        'n_agents': 1,
+        'mesh_dir': None,
         'overlap_threshold': 0.05,
         'max_resample_tries': 10,
         'init_dist_range': [5., 10.],
@@ -57,12 +60,13 @@ class MultiAgentBase:
     def __init__(self,
                  trace_paths: List[str],
                  trace_config: Dict,
-                 n_agents: int,
                  car_configs: List[Dict],
                  sensors_configs: List[List[Dict]],
                  task_config: Optional[Dict] = dict(),
                  logging_level: Optional[str] = 'WARNING'):
         logging.setLevel(getattr(logging, logging_level))
+        self._config = misc.merge_dict(task_config, self.DEFAULT_CONFIG)
+        n_agents = self.config['n_agents']
         assert len(
             car_configs
         ) == n_agents, 'Number of car config is not consistent with number of agents'
@@ -72,7 +76,6 @@ class MultiAgentBase:
         assert car_configs[0][
             'lookahead_road'], '\'lookahead_road\' in the first car config should be set to True'
 
-        self._config = misc.merge_dict(task_config, self.DEFAULT_CONFIG)
         self._world: World = World(trace_paths, trace_config)
         for i in range(n_agents):
             agent = self._world.spawn_agent(car_configs[i])
@@ -83,6 +86,11 @@ class MultiAgentBase:
                 else:
                     raise NotImplementedError(
                         f'Unrecognized sensor type {sensor_type}')
+
+        if n_agents > 1:
+            assert self.config[
+                'mesh_dir'] is not None, 'Specify mesh_dir if n_agents > 1'
+            self._meshlib = MeshLib(self.config['mesh_dir'])
 
         self.set_seed(0)
 
@@ -119,11 +127,11 @@ class MultiAgentBase:
 
         # Reset mesh library
         if len(self.world.agents) > 1:
-            pass  # DEBUG
-            #self._reset_meshlib()
+            self._reset_meshlib()
 
         # Get observation
-        observations = self._get_observations()
+        self._sensor_capture()
+        observations = {_a.id: _a.observations for _a in self.world.agents}
 
         return observations
 
@@ -151,7 +159,8 @@ class MultiAgentBase:
             agent.step_dynamics(action)
 
         # Get agents' sensory measurement
-        observations = self._get_observations()
+        self._sensor_capture()
+        observations = {_a.id: _a.observations for _a in self.world.agents}
 
         # Check terminal conditions
         dones = dict()
@@ -205,14 +214,37 @@ class MultiAgentBase:
         agent.step_dynamics(tgt_pose[-2:], dt=1e-8)
 
     def _reset_meshlib(self):
-        raise NotImplementedError
+        self._meshlib.reset(self.config['n_agents'])
 
-    def _get_observations(self):
-        observations = dict()
+        # Assign car width and length based on mesh size
+        for i, agent in enumerate(self.world.agents):
+            agent._width = self._meshlib.agents_meshes_dim[i][0]
+            agent._length = self._meshlib.agents_meshes_dim[i][1]
+
+    def _sensor_capture(self) -> None:
+        # Update mesh of virtual agents
+        if self.config['n_agents'] > 1:
+            for agent in self.world.agents:
+                if len(agent.sensors) == 0:
+                    continue
+
+                for i, other_agent in enumerate(self.world.agents):
+                    if other_agent.id == agent.id:
+                        continue
+                    # compute relative pose to the ego agent
+                    latlongyaw = transform.compute_relative_latlongyaw(
+                        other_agent.ego_dynamics.numpy()[:3],
+                        agent.human_dynamics.numpy()[:3])
+                    # add to sensor
+                    scene_object = self._meshlib.agents_meshes[i]
+                    name = f'agent_{i}'
+                    for sensor in agent.sensors:
+                        sensor.update_scene_object(name, scene_object,
+                                                   latlongyaw)
+
+        # Step sensors
         for agent in self.world.agents:
             agent.step_sensors()
-            observations[agent.id] = agent.observations
-        return observations
 
     @property
     def config(self) -> Dict:

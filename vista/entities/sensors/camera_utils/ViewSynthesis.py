@@ -19,7 +19,9 @@ class DepthModes(Enum):
 
 
 class ViewSynthesis:
-    def __init__(self, camera_param: CameraParams, config: Dict, 
+    def __init__(self,
+                 camera_param: CameraParams,
+                 config: Dict,
                  init_with_bg_mesh: Optional[bool] = True) -> None:
         # Parse configuration
         self._camera_param = camera_param
@@ -27,7 +29,8 @@ class ViewSynthesis:
         self._config['depth_mode'] = self._config.get('depth_mode',
                                                       DepthModes.FIXED_PLANE)
         if isinstance(self._config['depth_mode'], str):
-            self._config['depth_mode'] = getattr(DepthModes, self._config['depth_mode'])
+            self._config['depth_mode'] = getattr(DepthModes,
+                                                 self._config['depth_mode'])
         self._config['znear'] = self._config.get('znear', ZNEAR)
         self._config['zfar'] = self._config.get('zfar', ZFAR)
         self._config['use_lighting'] = self._config.get('use_lighting', True)
@@ -45,12 +48,13 @@ class ViewSynthesis:
         # Camera for rendering
         cam_w = camera_param.get_width()
         cam_h = camera_param.get_height()
-        camera = pyrender.IntrinsicsCamera(fx=self._camera_param._fx,
-                                           fy=self._camera_param._fy,
-                                           cx=cam_w / 2., # NOTE: assume calibrated camera
-                                           cy=cam_h / 2.,
-                                           znear=self._config['znear'],
-                                           zfar=self._config['zfar'])
+        camera = pyrender.IntrinsicsCamera(
+            fx=self._camera_param._fx,
+            fy=self._camera_param._fy,
+            cx=cam_w / 2.,  # NOTE: assume calibrated camera
+            cy=cam_h / 2.,
+            znear=self._config['znear'],
+            zfar=self._config['zfar'])
         self._camera_node = pyrender.Node(
             name='camera',
             camera=camera,
@@ -66,6 +70,11 @@ class ViewSynthesis:
         if init_with_bg_mesh:
             self.add_bg_mesh(self._camera_param)
 
+        # Scene for non-background objects and object nodes
+        self._object_scene = pyrender.Scene(ambient_light=[1., 1., 1.],
+                                            bg_color=[0, 0, 0])
+        self._object_nodes = dict()
+
     def synthesize(
         self,
         trans: np.ndarray,
@@ -77,7 +86,8 @@ class ViewSynthesis:
         for name, img in imgs.items():
             # Need this otherwise will cause memory leak
             if os.environ.get('PYOPENGL_PLATFORM', None) != 'egl':
-                self._bg_node[name].mesh = copy.deepcopy(self._bg_node[name].mesh)
+                self._bg_node[name].mesh = copy.deepcopy(
+                    self._bg_node[name].mesh)
 
             # Refresh meshes in renderer; otherwise mesh vertex/color won't update
             mesh = self._bg_node[name].mesh
@@ -109,14 +119,48 @@ class ViewSynthesis:
         self._camera_node.matrix = transform.vec2mat(trans, rot)
 
         # Render background
-        color_bg, depth_bg = self._renderer.render(
+        color_bg, _ = self._renderer.render(
             self._scene, flags=pyrender.constants.RenderFlags.FLAT)
 
-        # TODO: add meshes for virtual agent
-        logging.debug('Only using background image for rendering')
-        color, depth = color_bg, depth_bg
+        # Render scene object
+        self._object_scene.clear()
+
+        light = pyrender.DirectionalLight([255, 255, 255], 10)
+        self._object_scene.add(light)
+
+        self._object_scene.add_node(self._camera_node)
+
+        for name, object_node in self._object_nodes.items():
+            self._object_scene.add_node(object_node)
+
+        color_objects, depth_objects = self._renderer.render(
+            self._object_scene)
+        color_objects = color_objects[:, :, ::
+                                      -1]  # TODO: not sure why we need this
+
+        # Overlay
+        mask = (depth_objects != 0.).astype(np.uint8)[:, :, None]
+
+        if mask.sum() != 0:  # recoloring
+            color_bg_mean = color_bg.mean(0).mean(0)
+            color_objects_mean = (color_objects *
+                                  mask).sum(0).sum(0) / mask.sum()
+            color_objects = color_objects + (color_bg_mean -
+                                             color_objects_mean) * 0.5
+            color_objects = np.clip(color_objects, 0, 255).astype(np.uint8)
+        else:  # agent out-of-view
+            pass
+
+        color = (1 - mask) * color_bg + mask * color_objects
 
         return color, depth
+
+    def update_object_node(self, name: str, mesh: pyrender.Mesh,
+                           trans: np.ndarray, quat: np.ndarray) -> None:
+        self._object_nodes[name] = pyrender.Node(name=name,
+                                                 mesh=mesh,
+                                                 translation=trans,
+                                                 rotation=quat)
 
     def add_bg_mesh(self, camera_param: CameraParams) -> None:
         # Projection and re-projection parameters
@@ -196,3 +240,7 @@ class ViewSynthesis:
     @property
     def bg_mesh_names(self) -> List[str]:
         return self._bg_node.keys()
+
+    @property
+    def object_nodes(self) -> List[pyrender.Node]:
+        return self._object_nodes

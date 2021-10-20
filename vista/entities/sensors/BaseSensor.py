@@ -16,6 +16,10 @@ class BaseSensor(Entity):
     def capture(self, timestamp: float) -> Any:
         raise NotImplementedError
 
+    def update_scene_object(self, name: str, scene_object: Any,
+                            pose: Any) -> None:
+        raise NotImplementedError
+
     @property
     def name(self) -> str:
         return self._name

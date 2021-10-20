@@ -35,16 +35,19 @@ def main(args):
             use_lighting=False,
         )
     ]
+    task_config = dict(n_agents=2,
+                       mesh_dir=args.mesh_dir,
+                       init_dist_range=[6., 6.],
+                       init_lat_noise_range=[0., 0.])
     display_config = dict(road_buffer_size=1000, )
-    n_agents = 2
 
     ego_car_config = copy.deepcopy(car_config)
     ego_car_config['lookahead_road'] = True
     env = MultiAgentBase(trace_paths=args.trace_paths,
                          trace_config=trace_config,
-                         n_agents=n_agents,
                          car_configs=[ego_car_config, car_config],
                          sensors_configs=[sensors_config, []],
+                         task_config=task_config,
                          logging_level='DEBUG')
     display = vista.Display(env.world, display_config=display_config)
 
@@ -82,6 +85,10 @@ if __name__ == '__main__':
                         nargs='+',
                         required=True,
                         help='Path to the traces to use for simulation')
+    parser.add_argument('--mesh-dir',
+                        type=str,
+                        default=None,
+                        help='Directory of meshes for virtual agents')
     args = parser.parse_args()
 
     main(args)

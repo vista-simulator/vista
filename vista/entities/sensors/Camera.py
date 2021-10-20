@@ -1,6 +1,6 @@
 import os
 import glob
-from typing import Dict, List
+from typing import Dict, List, Any
 import numpy as np
 import h5py
 from ffio import FFReader
@@ -8,7 +8,7 @@ from ffio import FFReader
 from .camera_utils import CameraParams, ViewSynthesis
 from .BaseSensor import BaseSensor
 from ..Entity import Entity
-from ...utils import logging, misc
+from ...utils import logging, misc, transform
 
 
 class Camera(BaseSensor):
@@ -42,7 +42,8 @@ class Camera(BaseSensor):
             stream.close()
 
         for flow_stream in [
-                _vv for _v in self.flow_streams.values() for _vv in _v.values()
+                _vv for _v in self.flow_streams.values()
+                for _vv in _v.values()
         ]:
             flow_stream.close()
 
@@ -81,9 +82,11 @@ class Camera(BaseSensor):
                             camera_name + '_flow_{}.mp4'.format(flow_name))
                         flow_stream = FFReader(flow_path, verbose=False)
                         flow_frame_num = frame_num  # flow for (frame_num, frame_num + 1)
-                        flow_seek_sec = flow_stream.frame_to_secs(flow_frame_num)
+                        flow_seek_sec = flow_stream.frame_to_secs(
+                            flow_frame_num)
                         flow_stream.seek(flow_seek_sec)
-                        self._flow_streams[camera_name][flow_name] = flow_stream
+                        self._flow_streams[camera_name][
+                            flow_name] = flow_stream
                 else:
                     logging.warning('No flow data')
         else:  # use shared streams from the main camera
@@ -107,7 +110,8 @@ class Camera(BaseSensor):
             for camera_name in self.streams.keys():
                 if camera_name not in self.view_synthesis.bg_mesh_names:
                     if camera_name in parent_sensor_dict.keys():
-                        camera_param = parent_sensor_dict[camera_name].camera_param
+                        camera_param = parent_sensor_dict[
+                            camera_name].camera_param
                     else:
                         camera_param = CameraParams(camera_name,
                                                     self._config['rig_path'])
@@ -120,8 +124,10 @@ class Camera(BaseSensor):
         # Get frame at the closest smaller timestamp from dataset
         multi_sensor = self.parent.trace.multi_sensor
         if self.name == multi_sensor.main_camera:
-            fetch_smaller = self.flow_streams != dict() # only when using optical flow
-            all_frame_nums = multi_sensor.get_frames_from_times([timestamp], fetch_smaller)
+            fetch_smaller = self.flow_streams != dict(
+            )  # only when using optical flow
+            all_frame_nums = multi_sensor.get_frames_from_times([timestamp],
+                                                                fetch_smaller)
             for camera_name in multi_sensor.camera_names:
                 # rgb camera stream
                 stream = self.streams[camera_name]
@@ -156,11 +162,13 @@ class Camera(BaseSensor):
                 frame = frames[camera_name]
 
                 flow = dict()
-                for flow_name, flow_minmax in self.flow_meta[camera_name].items():
+                for flow_name, flow_minmax in self.flow_meta[
+                        camera_name].items():
                     flow_stream = self.flow_streams[camera_name][flow_name]
                     flow[flow_name] = misc.img2flow(
                         flow_stream.image.copy(),
-                        flow_minmax[int(flow_stream.frame_num)], frame.shape[:2])
+                        flow_minmax[int(flow_stream.frame_num)],
+                        frame.shape[:2])
 
                 frame_num = int(self.streams[camera_name].frame_num)
                 curr_ref_ts = multi_sensor.get_time_from_frame_num(
@@ -168,25 +176,33 @@ class Camera(BaseSensor):
                 next_ref_ts = multi_sensor.get_time_from_frame_num(
                     camera_name, frame_num + 1)
 
-                logging.warning('Stream frame number exceed 1 non-intentionally')
+                logging.warning(
+                    'Stream frame number exceed 1 non-intentionally')
                 self.streams[camera_name].read(
                 )  # NOTE: stream frame number exceed 1 here
                 next_frame = self.streams[camera_name].image.copy()
                 frames[camera_name] = misc.biinterp(frame, next_frame,
                                                     flow['forward'],
-                                                    flow['backward'], timestamp,
-                                                    curr_ref_ts, next_ref_ts)
+                                                    flow['backward'],
+                                                    timestamp, curr_ref_ts,
+                                                    next_ref_ts)
 
         # Synthesis by rendering
         if self.view_synthesis is not None:
-            lat, long, yaw = self.parent.relative_state.numpy()
-            trans = np.array([lat, 0., -long])
-            rot = np.array([0., yaw, 0.])
-            rendered_frame, _ = self.view_synthesis.synthesize(trans, rot, frames)
+            latlongyaw = self.parent.relative_state.numpy()
+            trans, rot = transform.latlongyaw2vec(latlongyaw)
+            rendered_frame, _ = self.view_synthesis.synthesize(
+                trans, rot, frames)
         else:
             rendered_frame = frames[self.name]
 
         return rendered_frame
+
+    def update_scene_object(self, name: str, scene_object: Any,
+                            pose: Any) -> None:
+        trans, rotvec = transform.latlongyaw2vec(pose)
+        quat = transform.euler2quat(rotvec)
+        self.view_synthesis.update_object_node(name, scene_object, trans, quat)
 
     @property
     def config(self) -> Dict:
