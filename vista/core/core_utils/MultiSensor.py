@@ -9,6 +9,20 @@ from ...utils import logging
 
 
 class MultiSensor:
+    """ This class handles synchronization across multiple sensors in a trace. It basically
+    reads timestamps files associated with every sensors existing in the trace and construct
+    several helper functions for conversion between an unified timestamp used in the simulator
+    and timestamp (or frame number, etc) of different sensors.
+
+    Args:
+        trace_dir (str): Directory to a trace.
+        master_sensor (str): Name of the master sensor.
+
+    Raises:
+        AssertionError: (1) The name of the master sensor not included in a predefined
+        set of topic names specified in  (2) No timestamp data for the master sensor.
+
+    """
     def __init__(
             self,
             trace_dir: str,
@@ -46,18 +60,18 @@ class MultiSensor:
 
         self._sensor_names: List[str] = list(self._sensor_frame_to_time.keys())
         assert master_sensor in self.sensor_names, \
-            'No timestamp data for the master sensor {}'.format(master_sensor)
+            f'No timestamp data for the master sensor {master_sensor}'
 
     def get_time_from_frame_num(self, sensor: str, frame_num: int) -> float:
         """ Compute the timestamp associated to a frame in a video return
         None if we dont have information about that frame.
 
         Args:
-            sensor (str): sensor name
-            frame_num (int): frame number
+            sensor (str): Sensor name.
+            frame_num (int): Frame number.
 
         Returns:
-            float: timestamp associated with the given sensor and frame number
+            float: Timestamp associated with the given sensor and frame number.
         """
         return self._sensor_frame_to_time[sensor].get(frame_num, None)
 
@@ -71,11 +85,11 @@ class MultiSensor:
         (smaller) timestamps.
 
         Args:
-            timestamps (list): a list of timestamps
-            fetch_smaller (bool): whether to fetch the closes AND smaller timestamps
+            timestamps (list): A list of timestamps.
+            fetch_smaller (bool): Whether to fetch the closes and smaller timestamps.
 
         Returns:
-            dict: corresponding frame numbers for all sensors
+            dict: Corresponding frame numbers for all sensors.
         """
         frames = dict()
         timestamps = np.array(timestamps)
@@ -103,44 +117,62 @@ class MultiSensor:
         return frames
 
     def get_master_timestamps(self) -> List[float]:
+        """ Get all timestamps of the main sensor.
+
+        Returns:
+            list: A list of timestamp.
+        """
         # using values() works since it's an ordered dict
         timestamps = list(
             self._sensor_frame_to_time[self._master_sensor].values())
         return timestamps
 
     def set_main_sensor(self, sensor_type: str, sensor_name: str) -> None:
+        """ Set main sensor based on sensor's type and name.
+
+        Args:
+            sensor_type (str): Type of the sensor to be set (camera, lidar, or event camera).
+            sensor_name (str): Name of the sensor to be set.
+        """
         assert sensor_type in ['camera', 'lidar', 'event_camera']
         setattr(self, '_main_{}'.format(sensor_type), sensor_name)
 
     @property
     def sensor_names(self) -> List[str]:
+        """ A list of all sensors' names. """
         return self._sensor_names
 
     @property
     def camera_names(self) -> List[str]:
+        """ A list of RGB cameras' names. """
         logging.debug('Hacky way to include RGB camera with name front_center')
         return [
             _x for _x in self._sensor_names
-            if 'camera' in _x or 'front_center' == _x
+            if 'camera' in _x or _x == 'front_center'
         ]
 
     @property
     def main_camera(self) -> str:
+        """ The main RGB camera object. """
         return self._main_camera if hasattr(self, '_main_camera') else None
 
     @property
     def lidar_names(self) -> List[str]:
+        """ A list of LiDARs' names. """
         return [_x for _x in self._sensor_names if 'lidar' in _x]
 
     @property
     def main_lidar(self) -> str:
+        """ The main LiDAR object """
         return self._main_lidar if hasattr(self, '_main_lidar') else None
 
     @property
     def main_event_camera(self) -> str:
+        """ The main event camera object. """
         return self._main_event_camera if hasattr(
             self, '_main_event_camera') else None
 
     @property
     def master_sensor(self) -> str:
+        """ The name of the master sensor. """
         return self._master_sensor

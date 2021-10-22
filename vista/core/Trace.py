@@ -137,7 +137,7 @@ class Trace:
             probs /= np.sum(probs)
         else:
             raise NotImplementedError(
-                'Unrecognized trace reset mode {}'.format(self._reset_mode))
+                f'Unrecognized trace reset mode {self._reset_mode}')
 
         # Sample frame index
         frame_index = self._rng.choice(probs.shape[0], p=probs)
@@ -159,8 +159,8 @@ class Trace:
                               exceed the end of the trace; default to False.
 
         Returns:
-            Return a tuple (``bool_a``, ``float_a``), where ``bool_a`` is whether the given segment 
-            and frame index exceed the end of the trace and ``float_a`` is timestamp; otherwise 
+            Return a tuple (``bool_a``, ``float_a``), where ``bool_a`` is whether the given segment
+            and frame index exceed the end of the trace and ``float_a`` is timestamp; otherwise
             timestamp (float).
 
         """
@@ -189,8 +189,8 @@ class Trace:
                               exceed the end of the trace; default to False.
 
         Returns:
-            Return a tuple (``bool_a``, ``int_a``), where ``bool_a`` is whether the given segment 
-            and frame index exceed the end of the trace and ``int_a`` is frame number; otherwise 
+            Return a tuple (``bool_a``, ``int_a``), where ``bool_a`` is whether the given segment
+            and frame index exceed the end of the trace and ``int_a`` is frame number; otherwise
             frame number (int).
 
         """
@@ -208,15 +208,15 @@ class Trace:
         self,
         min_speed: float = 2.5,
     ) -> Dict[str, List[int]]:
-        """ Divide a trace into good segments based on video labels and time difference between 
-        consecutive frames. Note that only master sensor is used for the time difference check 
+        """ Divide a trace into good segments based on video labels and time difference between
+        consecutive frames. Note that only master sensor is used for the time difference check
         since every sensors may have triggering frequencies.
 
         Returns:
             Return a tuple (``dict_a``, ``dict_b``), where
             ``dict_a``: good frames for all sensors. Key is sensor name and value
                         is a list with each element as frame indices of a good
-                        segment, i.e., a good frame number = 
+                        segment, i.e., a good frame number =
                         dict[sensor_name][which_good_segment][i].
             ``dict_b``: timestamps of good frames.
 
@@ -265,8 +265,8 @@ class Trace:
         return good_frames, good_timestamps
 
     def _get_states_func(self):
-        """ Read speed and IMU data from the dataset and perform 1D interpolation to convert 
-        discrete data points to continuous functions. Curvature is computed as yaw rate (from 
+        """ Read speed and IMU data from the dataset and perform 1D interpolation to convert
+        discrete data points to continuous functions. Curvature is computed as yaw rate (from
         IMU) divided by speed.
 
         Returns:
@@ -308,7 +308,7 @@ class Trace:
 
     @property
     def seed(self) -> int:
-        """ Random seed for sampling pointer in :meth:`find_segment_reset` 
+        """ Random seed for sampling pointer in :meth:`find_segment_reset`
             and :meth:`find_frame_reset`. """
         return self._seed
 
@@ -324,13 +324,13 @@ class Trace:
 
     @property
     def good_frames(self) -> Dict[str, List[int]]:
-        """ A dictionary of good frame numbers, where keys are sensor names and 
+        """ A dictionary of good frame numbers, where keys are sensor names and
             values are lists of frame numbers (int). """
         return self._good_frames
 
     @property
     def good_timestamps(self) -> Dict[str, List[float]]:
-        """ A dictionary of good timestamps, where keys are sensor names and 
+        """ A dictionary of good timestamps, where keys are sensor names and
             values are a list of timestamps (float). """
         return self._good_timestamps
 

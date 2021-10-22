@@ -1,4 +1,6 @@
 class TopicNames:
+    """ This class specifies (ROS) topic names of each sensors.
+    """
     camera_front = 'camera_front'
     camera_wing_left = 'camera_wing_left'
     camera_wing_right = 'camera_wing_right'

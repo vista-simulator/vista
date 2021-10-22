@@ -6,6 +6,20 @@ import numpy as np
 
 
 class LabelSearch(object):
+    """ This class handles annotations of the collected traces and filter out
+    frames that are not good based on several fields including ``time of day``,
+    ``weather``, ``road type``, ``maneuver``, ``direction``, ``tag``. Please
+    check data annotation process for more details on each field.
+
+    Args:
+        time_of_day (str): Time of day to be considered as good frames.
+        weather (str): Weather condition to be considered as good frames.
+        road_type (str): Road type to be considered as good frames.
+        maneuver (str): Human maneuver to be considered as good frames.
+        direction (str): Direction to be considered as good frames.
+        tag (str): Other tags to be considered as good frames.
+
+    """
     FIELDS = [
         'timestamp', 'time_of_day', 'weather', 'road_type', 'maneuver',
         'direction', 'tag'
@@ -29,8 +43,8 @@ class LabelSearch(object):
             trace_path (str): path to a trace
 
         Returns:
-            np.ndarray: a boolean mask of good frames
-            np.ndarray: timestamps of all good frames
+            Return a tuple (``arr_1``, ``arr_2``), where ``arr_1`` is a boolean
+            mask of good frames, and `arr_2` is timestamps of all good frames.
         """
         fpath = os.path.join(trace_path, 'video_labels.csv')
         has_video_label = os.path.exists(fpath)

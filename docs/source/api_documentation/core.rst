@@ -11,19 +11,18 @@ Core
     :members:
     :inherited-members:
 
-..
-    .. autoclass:: vista.core.Display.Display
-        :members:
-        :inherited-members:
+.. autoclass:: vista.core.Display.Display
+    :members:
+    :inherited-members:
 
-    .. autoclass:: vista.core.core_utils.MultiSensor
-        :members:
-        :inherited-members:
+.. autoclass:: vista.core.core_utils.MultiSensor
+    :members:
+    :inherited-members:
 
-    .. autoclass:: vista.core.core_utils.LabelSearch
-        :members:
-        :inherited-members:
+.. autoclass:: vista.core.core_utils.LabelSearch
+    :members:
+    :inherited-members:
 
-    .. autoclass:: vista.core.core_utils.TopicNames
-        :members:
-        :inherited-members:
+.. autoclass:: vista.core.core_utils.TopicNames
+    :members:
+    :inherited-members:

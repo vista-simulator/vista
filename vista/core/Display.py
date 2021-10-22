@@ -21,6 +21,31 @@ from ..utils import logging, transform, misc
 
 
 class Display:
+    """ This is a visualizer of VISTA simulator. It renders an image that contains visualization
+    of all sensors from all agents and a top-down view that depicts road and all cars in the scene
+    within a predefined range based on the state of the simulator (:class:`World`).
+
+    Args:
+        world (vista.core.World): World to be visualized.
+        fps (int): Frame per second.
+        display_config (Dict): Configuration for the display (visualization).
+
+    Raises:
+        AssertionError: Grid spec is inconsistent with maximal number of sensors across agents.
+
+    Example usage::
+
+        >>> display_config = {
+            'road_buffer_size': 200,
+            'birdseye_map_size': (30, 20), # size of bev map in vertical and horizontal directions
+            'gs_bev_w': 2, # grid spec width for the birdseye view block
+            'gs_agent_w': 4, # grid spec width for an agent's block
+            'gs_h': 6, # grid spec height
+            'gui_scale': 1.0, # a global scale that determines the size of the figure
+        }
+        >>> display = Display(world, )
+
+    """
     DEFAULT_DISPLAY_CONFIG = {
         'road_buffer_size': 200,
         'birdseye_map_size': (30, 20),
@@ -144,6 +169,10 @@ class Display:
         self._fig.tight_layout()
 
     def reset(self) -> None:
+        """ Reset the visualizer. This should be called every time after
+        :class:`World` reset. It basically reset the cache of road data
+        used in the top-down view visualization.
+        """
         # Reset road deque
         self._road.clear()
         self._road.append(self.ref_agent.human_dynamics.numpy()[:3])
@@ -152,6 +181,16 @@ class Display:
         self._road_frame_idcs.append(self.ref_agent.frame_index)
 
     def render(self):
+        """ Render an image that visualizes the simulator. This includes visualization
+        of all sensors of every agent and a top-down view that depicts the road and all
+        cars in the scene within a certain range. Note that it render visualization based
+        on the current status of the world and should be called every time when there is
+        any update to the simulator.
+
+        Returns:
+            np.ndarray: An image of visualization for the simulator.
+
+        """
         # Update road (in global coordinate)
         exceed_end = False
         while self._road_frame_idcs[-1] < (
@@ -295,12 +334,30 @@ class Display:
 
     @property
     def ref_agent(self) -> Car:
+        """ Agent as a reference to compute poses of objects (e.g., cars, road)
+            in visualization. """
         return self._world.agents[0]
 
 
 def curvature2noodle(curvature: float,
                      camera_param: Optional[CameraParams] = None,
                      mode: Optional[str] = 'camera') -> np.ndarray:
+    """ Construct a curly line (noodle) based on the curvature for visualizing
+    steering control command.
+
+    Args:
+        curvature (float): Curvature (steering angle control command).
+        camera_param (vista.entities.sensors.camera_utils.CameraParams): Camera parameters; used if
+        mode is set to camera.
+        mode (str): Sensor type for the visualization.
+
+    Returns:
+        np.ndarray: A curly line that visualizes the given curvature.
+
+    Raises:
+        NotImplementedError: Unrecognized mode to draw the noodle.
+
+    """
     lookaheads = np.linspace(0, 15, 10)  # meters
     if mode == 'camera':
         assert camera_param is not None
@@ -355,6 +412,18 @@ def plot_roi(img: np.ndarray,
              roi: List[int],
              color: Optional[List[int]] = (0, 0, 255),
              thickness: Optional[int] = 2) -> np.ndarray:
+    """ Plot a bounding box that shows ROI on an image.
+
+    Args:
+        img (np.ndarray): An image to be plotted.
+        roi (List[int]): Region of interest.
+        color (List[int]): Color of the bounding box.
+        thickness (int): Thickness of the bounding box.
+
+    Returns:
+        np.ndarray: An image with the ROI bounding box.
+
+    """
     (i1, j1, i2, j2) = roi
     img = cv2.rectangle(img, (j1, i1), (j2, i2), color, thickness)
     return img
@@ -366,6 +435,21 @@ def events2frame(events: List[np.ndarray],
                  positive_color: Optional[List] = [255, 255, 255],
                  negative_color: Optional[List] = [212, 188, 114],
                  mode: Optional[int] = 2) -> np.ndarray:
+    """ Convert event data to frame representation.
+
+    Args:
+        events (List[np.ndarray]): A list with entries as a collection of positive and
+                                   negative events.
+        cam_h (int): Height of the frame representation.
+        cam_w (int): Width of the frame representation.
+        positive_color (List): Color of positive events.
+        negative_color (List): Color of negative events.
+        mode (int): Mode for colorization.
+
+    Returns:
+        np.ndarray: Frame representation of event data.
+
+    """
     if mode == 0:
         frame = np.zeros((cam_h, cam_w, 3), dtype=np.uint8)
         for color, p_events in zip([positive_color, negative_color], events):
@@ -407,6 +491,7 @@ def plot_pointcloud(pcd,
                     ax=None,
                     scat=None,
                     s=1):
+    """ Convert pointcloud to an image for visualization. """
     if ax is None:
         _, ax = plt.subplots()
 
@@ -453,6 +538,7 @@ def plot_pointcloud(pcd,
 
 
 def fig2img(fig: plt.Figure) -> np.ndarray:
+    """ Convert a matplotlib figure to a numpy array. """
     fig.canvas.draw()
     buf = fig.canvas.buffer_rgba()
     img = np.asarray(buf)[:, :, :3]
@@ -461,6 +547,7 @@ def fig2img(fig: plt.Figure) -> np.ndarray:
 
 def fit_img_to_ax(fig: plt.Figure, ax: plt.Axes,
                   img: np.ndarray) -> np.ndarray:
+    """ Fit an image to an axis in a matplotlib figure. """
     bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
     w, h = bbox.width, bbox.height
     img_h, img_w = img.shape[:2]

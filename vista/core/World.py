@@ -64,7 +64,7 @@ class World:
         dataset to be simulated from and (2) reset states for all agents.
 
         Args:
-            initial_dynamics_fn (Dict[str, Callable]): 
+            initial_dynamics_fn (Dict[str, Callable]):
                 A dict mapping agent names to a function that initialize agents poses.
 
         """
@@ -82,7 +82,7 @@ class World:
     def sample_new_location(self) -> Tuple[int, int, int]:
         """ Sample a pointer to the dataset for simulation.
 
-        Returns: 
+        Returns:
             Return a tuple (``int_a``, ``int_b``, ``int_c``), where ``int_a`` is trace index,
             ``int_b`` is segment index, and ``int_c`` is frame index.
 
