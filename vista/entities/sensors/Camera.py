@@ -22,15 +22,22 @@ class Camera(BaseSensor):
         super(Camera, self).__init__(attach_to, config)
 
         self._config['rig_path'] = os.path.expanduser(self._config['rig_path'])
-        self._camera_param: CameraParams = CameraParams(
-            self.name, self._config['rig_path'])
-        self._camera_param.resize(*self._config['size'])
+        self._camera_params: Dict[str, CameraParams] = {
+            'sensor':
+            CameraParams(self.name, self.config['rig_path']),
+            'synthesis':
+            CameraParams(self.name,
+                         self.config['rig_path'],
+                         for_synthesizer=True)
+        }
+        for _cp in self._camera_params.values():
+            _cp.resize(*self.config['size'])
         self._streams: Dict[str, FFReader] = dict()
         self._flow_streams: Dict[str, List[FFReader]] = dict()
         self._flow_meta: Dict[str, h5py.File] = dict()
         if self._config.get('use_synthesizer', True):
             self._view_synthesis: ViewSynthesis = ViewSynthesis(
-                self._camera_param, self._config)
+                self._camera_params['synthesis'], self._config)
         else:
             self._view_synthesis = None
 
@@ -55,8 +62,8 @@ class Camera(BaseSensor):
                 # get video stream
                 video_path = os.path.join(self.parent.trace.trace_path,
                                           camera_name + '.avi')
-                cam_h, cam_w = self.camera_param.get_height(
-                ), self.camera_param.get_width()
+                cam_h, cam_w = self._camera_params['sensor'].get_height(
+                ), self._camera_params['sensor'].get_width()
                 stream = FFReader(video_path,
                                   custom_size=(cam_h, cam_w),
                                   verbose=False)
@@ -111,10 +118,11 @@ class Camera(BaseSensor):
                 if camera_name not in self.view_synthesis.bg_mesh_names:
                     if camera_name in parent_sensor_dict.keys():
                         camera_param = parent_sensor_dict[
-                            camera_name].camera_param
+                            camera_name]._camera_params['sensors']
                     else:
                         camera_param = CameraParams(camera_name,
-                                                    self._config['rig_path'])
+                                                    self._config['rig_path'],
+                                                    for_synthesizer=True)
                         camera_param.resize(*self._config['size'])
                     self.view_synthesis.add_bg_mesh(camera_param)
 
@@ -210,7 +218,7 @@ class Camera(BaseSensor):
 
     @property
     def camera_param(self) -> CameraParams:
-        return self._camera_param
+        return self._camera_params['synthesis']
 
     @property
     def streams(self) -> Dict[str, FFReader]:

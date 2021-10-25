@@ -19,22 +19,26 @@ def ignore_case(tree):
 
 class CameraParams(object):
     """ Object to store camera calibration information. """
-    def __init__(self, name, rig_path):
+    def __init__(self, name, rig_path, for_synthesizer=False):
         """ Initialize the camera object
         Args:
-            name (str): name of the camera identifier to initialize. Must be
+            name (str): Name of the camera identifier to initialize. Must be
                         a valid TopicName and present inside the RIG.xml file.
-            rig_path (str): path to RIG.xml that specifies camera parameters.
+            rig_path (str): Path to RIG.xml that specifies camera parameters.
+            for_synthesizer (bool): Whether to read from xml for sensors or synthesizers.
 
         Attributes:
-            name (str): name of the camera.
+            name (str): Name of the camera.
 
         Raises:
             ValueError: if `name` is not found in the rig file.
+
         """
         tree = ET.parse(rig_path)
         root = ignore_case(tree.getroot())
-        xml_cameras = root.findall('sensors/camera')
+        xml_cameras = root.findall(
+            'sensors/camera') if not for_synthesizer else root.findall(
+                'synthesis/camera')
         names = [cam.get('name') for cam in xml_cameras]
         cameras = dict(zip(names, xml_cameras))
 
