@@ -72,7 +72,8 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run VISTA for CBF')
+    parser = argparse.ArgumentParser(
+        description='Create fake publisher for Vista')
     parser.add_argument('--bag-path',
                         type=str,
                         required=True,
