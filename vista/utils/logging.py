@@ -1,5 +1,6 @@
 """ Logging utilities of the simulator. """
 import os
+from typing import Union
 import inspect
 import logging
 from functools import partial
@@ -12,6 +13,20 @@ logging.CRITICAL = logging.CRITICAL
 
 
 class CustomFormatter(logging.Formatter):
+    """ A custom logger class inherited from python logging module. It basically
+    define a custom formatting as ``<time>::<level>::<module>::<msg>`` with colored
+    text (``DEBUG``: cyan, ``INFO``: regular, ``WARNING``: yellow, ``ERROR``: bold red,
+    ``CRITICAL``: underlined bold red). Otherwise, it can be used as if using regular
+    python logging.
+
+    Example Usage::
+
+        >>> from vista.utils import logging
+        >>> logging.setLevel(logging.ERROR)
+        >>> logging.debug('This is a debug message.')
+        >>> logging.warning('This is a warning message.')
+
+    """
     PURPLE = '\033[95m'
     RED = "\033[0;31m"
     BOLD_RED = "\033[1;31m"
@@ -46,7 +61,14 @@ ch.setFormatter(CustomFormatter())
 logger.addHandler(ch)
 
 
-def setLevel(level):
+def setLevel(level: Union[str, int]) -> None:
+    """ Set the logging level of this handler. Check CustomFormatter
+    for example usage.
+
+    Args:
+        level (str or int): Logging level.
+
+    """
     logger.setLevel(level)
 
 

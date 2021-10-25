@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Union, List, Tuple
+from typing import Optional, Dict, Union, List, Tuple, Any
 import numpy as np
 import cv2
 from shapely.geometry import box as Box
@@ -23,7 +23,7 @@ def agent2poly(agent: Car,
             the agent.
 
     Returns:
-        Box: A polygon.
+        Box: A polygon that describes the agent.
 
     """
     ref_dynamics = agent.human_dynamics if ref_dynamics is None else ref_dynamics
@@ -37,12 +37,29 @@ def agent2poly(agent: Car,
 
 
 def merge_dict(dict1: Dict, dict2: Dict) -> Dict:
-    """ Merge two dict, where dict1 has higher priority. """
+    """ Merge two dict, where dict1 has higher priority.
+
+    Args:
+        dict1 (Dict): The first dictionary.
+        dict2 (Dict): The second dictionary.
+
+    Returns:
+        Dict: The merged dictionary.
+
+    """
     return dict(list(dict2.items()) + list(dict1.items()))
 
 
-def fetch_agent_info(agent: Car):
-    """ Get info from agent class. """
+def fetch_agent_info(agent: Car) -> Dict[str, Any]:
+    """ Get info from agent class.
+
+    Args:
+        agent (Car): The agent to be extracted information from.
+
+    Returns:
+        Dict: A dictionary contains various information of the agent.
+
+    """
     info = dict(
         trace_path=agent.trace.trace_path,
         relative_state=agent.relative_state.numpy(),
@@ -73,7 +90,21 @@ def fetch_agent_info(agent: Car):
 def img2flow(img: np.ndarray,
              mag_minmax: Vec,
              flow_size: Optional[Vec] = None) -> np.ndarray:
-    """ Convert HSV-encoded flow image to optical flow. """
+    """ Convert HSV-encoded flow image to optical flow.
+
+    Args:
+        img (np.ndarray): An image with channel order BGR.
+        mag_minmax (Vec): The minmum and maximum when normalizing the
+                          flow magnitude to [0,1].
+        flow_size (Vec): Size of the output flow array. If set, resize
+                         the image before converting to flow; default
+                         to ``None``.
+
+    Returns:
+        np.ndarray:
+            A HxWx2 array with the two channels as magnitude and the angle of the flow.
+
+    """
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)  # assume image is BGR
     if flow_size is not None:
         hsv = cv2.resize(hsv, flow_size[::-1])
@@ -85,7 +116,21 @@ def img2flow(img: np.ndarray,
 
 def biinterp(I0: np.ndarray, I1: np.ndarray, F_0_1: np.ndarray,
              F_1_0: np.ndarray, ts: float, t0: float, t1: float) -> np.ndarray:
-    """ Interpolate frame with bidirectional flow. """
+    """ Interpolate frame with bidirectional flow.
+
+    Args:
+        I0 (np.ndarray): A RGB image at time `t0`.
+        I1 (np.ndarray): A RGB image at time `t1`.
+        F_0_1 (np.ndarray): The flow from time `t0` to `t1`.
+        F_1_0 (np.ndarray): The flow from time `t1` to `t0`.
+        ts (float): The timestamp to be interpolated to.
+        t0 (float): The timestamp of `I0`.
+        t1 (float): The timestamp of `I1`.
+
+    Returns:
+        np.ndarray: An interpolated RGB image at time `ts`.
+
+    """
     t = (ts - t0) / (t1 - t0)
     temp = -t * (1 - t)
     fCoeff = [temp, t * t, (1 - t) * (1 - t), temp]
@@ -103,7 +148,17 @@ def biinterp(I0: np.ndarray, I1: np.ndarray, F_0_1: np.ndarray,
 def flow_backwarp(img: np.ndarray,
                   flow: np.ndarray,
                   use_pytorch: Optional[bool] = False) -> np.ndarray:
-    """ Warp image based on optical flow. """
+    """ Warp image based on optical flow.
+
+    Args:
+        img (np.ndarray): An image to be warped.
+        flow (np.ndarray): Optical flow to warp the image.
+        use_pytorch (bool): Whether to use pytorch for warping; default to ``False``.
+
+    Returns:
+        np.ndarray: A warped image.
+
+    """
     H, W = img.shape[:2]
     gridX, gridY = np.meshgrid(np.arange(W), np.arange(H))
 
