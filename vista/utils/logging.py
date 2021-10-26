@@ -9,7 +9,7 @@ DEBUG = logging.DEBUG
 INFO = logging.INFO
 WARNING = logging.WARNING
 ERROR = logging.ERROR
-logging.CRITICAL = logging.CRITICAL
+CRITICAL = logging.CRITICAL
 
 
 class CustomFormatter(logging.Formatter):

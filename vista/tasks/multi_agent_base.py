@@ -10,7 +10,7 @@ from ..entities.sensors.MeshLib import MeshLib
 from ..utils import logging, misc, transform
 
 
-def default_terminal_condition(task, agent_id):
+def default_terminal_condition(task, agent_id, **kwargs):
     """ An example definition of terminal condition. """
 
     agent = [_a for _a in task.world.agents if _a.id == agent_id][0]
@@ -18,6 +18,10 @@ def default_terminal_condition(task, agent_id):
     def _check_out_of_lane():
         road_half_width = agent.trace.road_width / 2.
         return np.abs(agent.relative_state.x) > road_half_width
+
+    def _check_exceed_max_rot():
+        maximal_rotation = np.pi / 10.
+        return np.abs(agent.relative_state.theta) > maximal_rotation
 
     def _check_crash():
         other_agents = [_a for _a in task.world.agents if _a.id != agent_id]
@@ -30,21 +34,57 @@ def default_terminal_condition(task, agent_id):
         return crashed
 
     out_of_lane = _check_out_of_lane()
+    exceed_max_rot = _check_exceed_max_rot()
     crashed = _check_crash()
+    done = out_of_lane or exceed_max_rot or crashed or agent.done
+    other_info = {
+        'done': done,
+        'out_of_lane': out_of_lane,
+        'exceed_max_rot': exceed_max_rot,
+        'crashed': crashed,
+    }
 
-    return out_of_lane or crashed or agent.done
+    return done, other_info
 
 
-def default_reward_fn(task, agent_id):
+def default_reward_fn(task, agent_id, **kwargs):
     """ An example definition of reward function. """
-    done = default_terminal_condition(task, agent_id)
-    reward = -1 if done else 0  # simply encourage survival
+    reward = -1 if kwargs['done'] else 0  # simply encourage survival
 
-    return reward
+    return reward, {}
 
 
 class MultiAgentBase:
-    """ TODO """
+    """ This class builds a simple environment with multiple cars in the scene, which
+    involves randomly initializing ado cars in the front of the ego car, checking collision
+    between cars, handling meshes for all virtual agents, and determining terminal condition.
+
+    Args:
+        trace_paths (List[str]): A list of trace paths.
+        trace_config (Dict): Configuration of the trace.
+        car_configs (List[Dict]): Configuration of ``every`` cars.
+        sensors_configs (List[Dict]): Configuration of sensors on ``every`` cars.
+        task_config (Dict): Configuration of the task. An example (default) is,
+
+            >>> DEFAULT_CONFIG = {
+                    'n_agents': 1,
+                    'mesh_dir': None,
+                    'overlap_threshold': 0.05,
+                    'max_resample_tries': 10,
+                    'init_dist_range': [5., 10.],
+                    'init_lat_noise_range': [-1., 1.],
+                    'init_yaw_noise_range': [-0.0, 0.0],
+                    'reward_fn': default_reward_fn,
+                    'terminal_condition': default_terminal_condition
+                }
+
+            Note that both ``reward_fn`` and ``terminal_condition`` have function signature
+            as ``f(task, agent_id, **kwargs) -> (value, dict)``. For more details, please check
+            the source code.
+        logging_level (str): Logging level (``DEBUG``, ``INFO``, ``WARNING``,
+                             ``ERROR``, ``CRITICAL``); default set to ``WARNING``.
+
+    """
     DEFAULT_CONFIG = {
         'n_agents': 1,
         'mesh_dir': None,
@@ -95,7 +135,16 @@ class MultiAgentBase:
         self.set_seed(0)
 
     def reset(self) -> Dict:
-        """ TODO """
+        """ Reset the environment. This involves regular world reset, randomly
+        initializing ado agent in the front of the ego agent, and resetting
+        the mesh library for all virtual agents.
+
+        Returns:
+            Dict: A dictionary with keys as agent IDs and values as observation
+            for each agent, which is also a dictionary with keys as sensor IDs
+            and values as sensory measurements.
+
+        """
         # Reset world; all agents are initialized at the same pointer to the trace
         new_trace_index, new_segment_index, new_frame_index = \
             self.world.sample_new_location()
@@ -135,16 +184,16 @@ class MultiAgentBase:
 
         return observations
 
-    def step(self, actions):
+    def step(self, actions, dt=1 / 30.):
         """ Step the environment. This includes updating agents' states, synthesizing
         agents' observations, checking terminal conditions, and computing rewards.
-        TODO: probably want to separate an environment from a RL environment.
 
         Args:
             actions (Dict[str, np.ndarray]):
                 A dictionary with keys as agent IDs and values as actions
                 to be executed to interact with the environment and other
                 agents.
+            dt (float): Elapsed time in second; default set to 1/30.
 
         Returns:
             Return a tuple (``dict_a``, ``dict_b``, ``dict_c``, ``dict_d``),
@@ -156,7 +205,7 @@ class MultiAgentBase:
         # Update agents' dynamics (state)
         for agent in self.world.agents:
             action = actions[agent.id]
-            agent.step_dynamics(action)
+            agent.step_dynamics(action, dt=dt)
 
         # Get agents' sensory measurement
         self._sensor_capture()
@@ -164,15 +213,18 @@ class MultiAgentBase:
 
         # Check terminal conditions
         dones = dict()
+        infos_from_terminal_condition = dict()
         terminal_condition = self.config['terminal_condition']
         for agent in self.world.agents:
-            dones[agent.id] = terminal_condition(self, agent.id)
+            dones[agent.id], infos_from_terminal_condition[
+                agent.id] = terminal_condition(self, agent.id)
 
         # Compute reward
         rewards = dict()
         reward_fn = self.config['reward_fn']
         for agent in self.world.agents:
-            rewards[agent.id] = reward_fn(self, agent.id)
+            rewards[agent.id], _ = reward_fn(
+                self, agent.id, **infos_from_terminal_condition[agent.id])
 
         # Get info
         infos = dict()
