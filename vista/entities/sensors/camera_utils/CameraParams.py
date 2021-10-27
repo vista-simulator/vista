@@ -1,10 +1,4 @@
-"""
-The **CameraParams** object stores information pertaining to a single physical camera
-mounted on the car. It is useful for encapsulating the relevant calibration information
-for easy access in other modules.
-
-"""
-
+from typing import Optional, List, Tuple
 import numpy as np
 import os
 import xml.etree.ElementTree as ET
@@ -18,22 +12,24 @@ def ignore_case(tree):
 
 
 class CameraParams(object):
-    """ Object to store camera calibration information. """
-    def __init__(self, name, rig_path, for_synthesizer=False):
-        """ Initialize the camera object
-        Args:
-            name (str): Name of the camera identifier to initialize. Must be
-                        a valid TopicName and present inside the RIG.xml file.
-            rig_path (str): Path to RIG.xml that specifies camera parameters.
-            for_synthesizer (bool): Whether to read from xml for sensors or synthesizers.
+    """ The **CameraParams** object stores information pertaining to a single physical
+    camera mounted on the car. It is useful for encapsulating the relevant calibration
+    information for easy access in other modules.
 
-        Attributes:
-            name (str): Name of the camera.
+    Args:
+        name (str): Name of the camera identifier to initialize. Must be
+                    a valid TopicName and present inside the RIG.xml file.
+        rig_path (str): Path to RIG.xml that specifies camera parameters.
+        for_synthesizer (bool): Whether to read from xml for sensors or synthesizers.
 
-        Raises:
-            ValueError: if `name` is not found in the rig file.
+    Raises:
+        ValueError: if `name` is not found in the rig file.
 
-        """
+    """
+    def __init__(self,
+                 name: str,
+                 rig_path: str,
+                 for_synthesizer: Optional[bool] = False):
         tree = ET.parse(rig_path)
         root = ignore_case(tree.getroot())
         xml_cameras = root.findall(
@@ -43,8 +39,7 @@ class CameraParams(object):
         cameras = dict(zip(names, xml_cameras))
 
         if name not in cameras.keys():
-            raise ValueError(
-                '{} is not a valid camera within RIG.xml'.format(name))
+            raise ValueError(f'{name} is not a valid camera within RIG.xml')
 
         self.name = name
         cam = cameras[self.name]
@@ -77,16 +72,14 @@ class CameraParams(object):
 
         self.__compute_other_forms()
 
-    def resize(self, height, width):
+    def resize(self, height: int, width: int) -> None:
         """ Scales the camera object and adjusts the internal parameters such
         that it projects images of a certain size.
 
         Args:
-            height (int): new height of the camera images in pixels
-            width (int): new width of the camera images in pixels
+            height (int): New height of the camera images in pixels.
+            width (int): New width of the camera images in pixels.
 
-        Returns:
-            None
         """
 
         scale_y = float(height) / self._height
@@ -114,18 +107,16 @@ class CameraParams(object):
 
         self.__compute_other_forms()
 
-    def crop(self, i1, j1, i2, j2):
+    def crop(self, i1: int, j1: int, i2: int, j2: int) -> None:
         """ Crops a camera object to a given region of interest specified by
-        the coordinates of the top left (i1,j1) and bottom right (i2,j2) corner
+        the coordinates of the top left (i1,j1) and bottom right (i2,j2) corner.
 
         Args:
-            i1 (int): top row of ROI
-            j1 (int): left column of ROI
-            i2 (int): bottom row of ROI
-            j2 (int): right column of ROI
+            i1 (int): Top row of ROI.
+            j1 (int): Left column of ROI.
+            i2 (int): Bottom row of ROI.
+            j2 (int): Right column of ROI.
 
-        Returns:
-            None
         """
 
         # Focal length stays the same
@@ -151,98 +142,106 @@ class CameraParams(object):
 
         self.__compute_other_forms()
 
-    def get_height(self):
-        """ Get the raw pixel height of images captured by the camera
+    def get_height(self) -> int:
+        """ Get the raw pixel height of images captured by the camera.
 
         Returns:
-            int: Height in pixels
+            int: Height in pixels.
+
         """
         return self._height
 
-    def get_width(self):
-        """ Get the raw pixel width of images captured by the camera
+    def get_width(self) -> int:
+        """ Get the raw pixel width of images captured by the camera.
 
         Returns:
-            int: Width in pixels
+            int: Width in pixels.
+
         """
         return self._width
 
-    def get_K(self):
-        """ Get intrinsic calibration matrix
+    def get_K(self) -> np.ndarray:
+        """ Get intrinsic calibration matrix.
 
         Returns:
-            np.array: Intrinsic matrix (3,3)
+            np.array: Intrinsic matrix (3,3).
+
         """
         return self._K
 
-    def get_K_inv(self):
-        """ Get inverse intrinsic calibration matrix
+    def get_K_inv(self) -> np.ndarray:
+        """ Get inverse intrinsic calibration matrix.
 
         Returns:
-            np.array: Inverse intrinsic matrix (3,3)
+            np.array: Inverse intrinsic matrix (3,3).
+
         """
         return self._K_inv
 
-    def get_distortion(self):
-        """ Get the distortion coefficients of the camera
+    def get_distortion(self) -> np.ndarray:
+        """ Get the distortion coefficients of the camera.
 
         Returns:
-            np.array: Distortion coefficients (-1,)
+            np.array: Distortion coefficients (-1,).
+
         """
         return self._distortion
 
-    def get_position(self):
-        """ Get the 3D position of camera
+    def get_position(self) -> np.ndarray:
+        """ Get the 3D position of camera.
 
         Returns:
-            np.array: 3D position of camera
+            np.array: 3D position of camera.
+
         """
         return self._position
 
-    def get_quaternion(self):
-        """ Get the rotation in quaternion of camera
+    def get_quaternion(self) -> np.ndarray:
+        """ Get the rotation in quaternion of camera.
 
         Returns:
-            np.array: rotation in quaternion of camera
+            np.array: Rotation in quaternion of camera.
+
         """
         return self._quaternion
 
-    def get_yaw(self):
-        """ Get the yaw of the camera relative the frame of reference
+    def get_yaw(self) -> float:
+        """ Get the yaw of the camera relative the frame of reference.
 
         Returns:
-            int: Yaw of the camera [rads]
+            float: Yaw of the camera [rads].
+
         """
         if self._yaw is None:
             raise ValueError(
-                "camera {}, does not have a yaw in the rig file".format(
-                    self.name))
+                f'camera {self.name}, does not have a yaw in the rig file')
         return self._yaw
 
-    def get_ground_plane(self):
-        """ Get the equation of the ground plane
+    def get_ground_plane(self) -> List[float]:
+        """ Get the equation of the ground plane.
 
-        The equation of the ground plane is given by:
-            Ax + By + Cz = D
-        and is computed from the position and orientation of the camera
+        The equation of the ground plane is given by: ``Ax + By + Cz = D``
+        and is computed from the position and orientation of the camera.
 
         Returns:
-            list: Parameterization of the ground plane: [A,B,C,D]
+            List[float]: Parameterization of the ground plane: [A,B,C,D].
+
         """
         return self._ground_plane
 
-    def get_roi(self, axis='ij'):
+    def get_roi(self, axis: Optional[str] = 'ij') -> List[int]:
         """ Get the region of interest of the images captured by the camera.
 
         Args:
-            axis (str): axis order to return the coordinates in (default 'ij',
-            can also be 'xy')
+            axis (str): Axis order to return the coordinates in (default 'ij',
+            can also be 'xy').
 
         Returns:
-            list: coordinates of the ROI box
+            List[int]: Coordinates of the ROI box.
 
         Raises:
-            ValueError: if `axis` is not valid
+            ValueError: If `axis` is not valid.
+
         """
 
         if axis == 'ij':
@@ -252,29 +251,29 @@ class CameraParams(object):
         else:
             raise ValueError("invalid axis: " + axis)
 
-    def get_roi_angle(self):
+    def get_roi_angle(self) -> float:
         """ Get the angle of the region of interest.
 
         Returns:
-            angle: the rotation of the ROI box
+            float: The rotation of the ROI box.
 
         """
         return self._roi_angle
 
-    def get_roi_points(self):
+    def get_roi_points(self) -> List:
         """ Get the points of the region of interest.
 
         Returns:
-            pts: the list of points surrounding the ROI box
+            List: the list of points surrounding the ROI box
 
         """
         return self._roi_points
 
-    def get_roi_dims(self):
+    def get_roi_dims(self) -> Tuple:
         """ Get the dimensions of the region of interest.
 
         Returns:
-            dim: height width of ROI
+            Tuple: Height and width of ROI.
 
         """
         dims = (int(self._roi_height), int(self._roi_width))

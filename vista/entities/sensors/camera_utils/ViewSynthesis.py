@@ -6,7 +6,7 @@ import pyrender
 import copy
 
 from . import CameraParams
-from ....utils import transform, logging
+from ....utils import transform, logging, misc
 
 ZNEAR = 0.01
 ZFAR = 10000
@@ -19,25 +19,37 @@ class DepthModes(Enum):
 
 
 class ViewSynthesis:
+    """ A RGB synthesizer that simulates RGB image at novel viewpoint around a pre-collected
+    RGB image/video dataset. Conceptually, it (1) projects a reference 2D RGB image to 3D colored
+    mesh using camera projection matrices and (approximated) depth, (2) place virtual objects
+    in the scene, (3) render RGB image at novel viewpoint.
+
+    Args:
+        camera_param (CameraParams): Camera parameter object of the virtual camera.
+        config (Dict): Configuration of the synthesizer.
+        init_with_bg_mesh (bool): Whether to initialize with background mesh; default
+            is set to ``True``.
+
+    """
+    DEFAULT_CONFIG = {
+        'depth_mode': DepthModes.FIXED_PLANE,
+        'znear': ZNEAR,
+        'zfar': ZFAR,
+        'use_lighting': False,
+        'recoloring_factor': 0.5,
+    }
+
     def __init__(self,
                  camera_param: CameraParams,
                  config: Dict,
                  init_with_bg_mesh: Optional[bool] = True) -> None:
         # Parse configuration
         self._camera_param = camera_param
+        config = misc.merge_dict(config, self.DEFAULT_CONFIG)
         self._config = config
-        self._config['depth_mode'] = self._config.get('depth_mode',
-                                                      DepthModes.FIXED_PLANE)
         if isinstance(self._config['depth_mode'], str):
             self._config['depth_mode'] = getattr(DepthModes,
                                                  self._config['depth_mode'])
-        self._config['znear'] = self._config.get('znear', ZNEAR)
-        self._config['zfar'] = self._config.get('zfar', ZFAR)
-        self._config['use_lighting'] = self._config.get('use_lighting', True)
-        self._config['ambient_light_factor'] = self._config.get(
-            'ambient_light_factor', 0.2)
-        self._config['recoloring_factor'] = self._config.get(
-            'recoloring_factor', 0.5)
 
         # Renderer and scene
         self._renderer = pyrender.OffscreenRenderer(
@@ -82,6 +94,21 @@ class ViewSynthesis:
         imgs: Dict[str, np.ndarray],
         depth: Optional[Dict[str, np.ndarray]] = None
     ) -> Tuple[np.ndarray, np.ndarray]:
+        """ Synthesize RGB image at the novel viewpoint specified by ``trans`` and
+        ``rot`` with respect to the nominal viewpoint that corresponds to a set of
+        RGB images and depth maps.
+
+        Args:
+            trans (np.ndarray): Translation vector.
+            rot (np.ndarray): Rotation vector in Euler angle.
+            imgs (Dict[str, np.ndarray]): A set of images (potentially from multiple camera).
+            depth (Dict[str, np.ndarray]): A set of depth maps corresponding to ``imgs``.
+
+        Returns:
+            Returns a tuple (``array_1``, ``array_2``), where ``array_1`` is the
+            synthesized RGB image and ``array_2`` is the corresponding depth image.
+
+        """
 
         for name, img in imgs.items():
             # Need this otherwise will cause memory leak
@@ -125,7 +152,8 @@ class ViewSynthesis:
         # Render scene object
         self._object_scene.clear()
 
-        light = pyrender.DirectionalLight([255, 255, 255], 10)
+        light = pyrender.DirectionalLight(
+            [255, 255, 255], self.config['directional_light_intensity'])
         self._object_scene.add(light)
 
         self._object_scene.add_node(self._camera_node)
@@ -145,8 +173,9 @@ class ViewSynthesis:
             color_bg_mean = color_bg.mean(0).mean(0)
             color_objects_mean = (color_objects *
                                   mask).sum(0).sum(0) / mask.sum()
-            color_objects = color_objects + (color_bg_mean -
-                                             color_objects_mean) * 0.5
+            color_objects = color_objects + (
+                color_bg_mean -
+                color_objects_mean) * self.config['recoloring_factor']
             color_objects = np.clip(color_objects, 0, 255).astype(np.uint8)
         else:  # agent out-of-view
             pass
@@ -157,12 +186,30 @@ class ViewSynthesis:
 
     def update_object_node(self, name: str, mesh: pyrender.Mesh,
                            trans: np.ndarray, quat: np.ndarray) -> None:
+        """ Update the virtual object in the scene.
+
+        Args:
+            name (str): Name of the virtual object.
+            mesh (pyrender.Mesh): Mesh of the virtual object.
+            trans (np.ndarray): Translation vector.
+            quat (np.ndarray): Quaternion vector.
+
+        """
         self._object_nodes[name] = pyrender.Node(name=name,
                                                  mesh=mesh,
                                                  translation=trans,
                                                  rotation=quat)
 
     def add_bg_mesh(self, camera_param: CameraParams) -> None:
+        """ Add background mesh to the scene based on camera projection and the
+        initial depth. The color of the mesh will be updated at every ``synthesize``
+        call and if not using ground-plane depth approximation, the geometry of
+        the mesh will be also updated.
+
+        Args:
+            camera_param (CameraParams): Camera parameter of the virtual camera.
+
+        """
         # Projection and re-projection parameters
         K = camera_param.get_K().copy()
         logging.debug('Hacky way to handle unrectified image')
@@ -239,8 +286,15 @@ class ViewSynthesis:
 
     @property
     def bg_mesh_names(self) -> List[str]:
+        """ Names of all background meshes in the scene. """
         return self._bg_node.keys()
 
     @property
     def object_nodes(self) -> List[pyrender.Node]:
+        """ Pyrender nodes of all virtual objects added to the scene. """
         return self._object_nodes
+
+    @property
+    def config(self) -> Dict:
+        """ Configuration of the view synthesizer. """
+        return self._config

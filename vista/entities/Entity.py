@@ -2,7 +2,9 @@ import uuid
 
 
 class Entity:
-    """ Base class
+    """ Base class of all objects lives in :class:`World`, including cars, and
+    all sensors attached to the car.
+
     """
     def __init__(self):
         # Identifier for this Entity. Unique given during creation.

@@ -4,6 +4,7 @@ import numpy as np
 
 
 class Point(Enum):
+    """ Point feature, including x, y, z, intensity, depth, and mask. """
     INTENSITY = "intensity"
     DEPTH = "depth"
     MASK = "mask"
@@ -13,6 +14,14 @@ class Point(Enum):
 
 
 class Pointcloud:
+    """ A helper class that allow handling point cloud more easily with functionality
+    like transforming point cloud and extracting features/properties from point cloud.
+
+    Args:
+        xyz (np.ndarray): x, y, z position of the point cloud.
+        intensity (np.ndarray): Intensity of the point cloud.
+
+    """
     def __init__(self,
                  xyz: np.ndarray,
                  intensity: Optional[np.ndarray] = None):
@@ -28,6 +37,16 @@ class Pointcloud:
     def transform(self,
                   R: Optional[np.ndarray] = None,
                   trans: Optional[np.ndarray] = None):
+        """ Transform the point cloud.
+
+        Args:
+            R (np.ndarray): Rotation matrix with shape (3,3).
+            trans (np.ndarray): Translation vector with length 3.
+
+        Raises:
+            AssertionError: Invalid rotation matrix (3,3) or translation (3,)
+
+        """
         xyz = self.xyz
 
         if R is not None:
@@ -44,7 +63,19 @@ class Pointcloud:
         new_pcd = Pointcloud(xyz, self.intensity)
         return new_pcd
 
-    def get(self, feature: Point):
+    def get(self, feature: Point) -> np.ndarray:
+        """ Get feature (x, y, z, intensity, depth, mask) of the point cloud.
+
+        Args:
+            feature (Point): Feature to extract from the point cloud.
+
+        Returns:
+            np.ndarray: Point feature.
+
+        Raises:
+            ValueError: Unrecognized Point feature.
+
+        """
         feature = Point(feature)  # Cast to a Point if not already
         if feature == Point.X:
             return self.x
@@ -62,9 +93,6 @@ class Pointcloud:
         raise ValueError(f"Unrecognized Point feature {feature} to" +
                          " extract from pointcloud")
 
-    def num_points(self):
-        return len(self)
-
     def __getitem__(self, i):
         new_pcd = Pointcloud(self.xyz[i], self.intensity[i])
         if self._dist is not None:
@@ -75,36 +103,38 @@ class Pointcloud:
         return self.xyz.shape[0]
 
     @property
+    def num_points(self) -> int:
+        """ Number of points. """
+        return len(self)
+
+    @property
     def x(self) -> np.ndarray:
+        """ The `x` component of all points. """
         return self.xyz[:, 0]
 
     @property
     def y(self) -> np.ndarray:
+        """ The `y` component of all points. """
         return self.xyz[:, 1]
 
     @property
     def z(self) -> np.ndarray:
+        """ The `z` component of all points. """
         return self.xyz[:, 2]
 
     @property
     def xyz(self) -> np.ndarray:
+        """ `xyz` of all points. """
         return self._xyz
 
     @property
     def intensity(self) -> np.ndarray:
+        """ The intensity of all points. """
         return self._intensity
 
     @property
     def dist(self) -> np.ndarray:
+        """ Distance to the origin of all points. """
         if self._dist is None:
             self._dist = np.linalg.norm(self._xyz, ord=2, axis=1)
         return self._dist
-
-
-#
-# pcd = Pointcloud(xyz=np.random.uniform(size=(100, 3)),
-#                  intensity=np.random.uniform(size=(100, 1)))
-#
-# import pdb
-# pdb.set_trace()
-# pcd[np.array([1, 2])]

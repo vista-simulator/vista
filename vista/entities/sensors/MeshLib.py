@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import os
 import copy
 import numpy as np
@@ -9,11 +9,27 @@ from vista.utils import transform
 
 
 class MeshLib(object):
-    """Handle all meshes of actors (as opposed to scene itself) in the scene."""
+    """ Handle all meshes of actors (as opposed to scene/background itself) in the scene.
+    It basically reads in all meshes with .obj extension, calibrates the meshes such that
+    they are centered at the origin, and convert them to ``pyrender.Mesh`` for later usage.
+    Note that this class is written specifically for a set of meshes (`carpack01`) and thus
+    if there is a custom set of meshes, you would need to change how to read from the root
+    directory and to calibrate the mesh.
+
+    Args:
+        root_dirs (List[str]): A list of root directories that contains meshes.
+
+    Raises:
+        AttributeError: If there is no mesh in the directory.
+
+    In the source code, there is a ``main`` function that uses this class independently that
+    performs rendering on meshes in pyrender.
+
+    """
 
     FORMATS = ['.obj']
 
-    def __init__(self, root_dirs):
+    def __init__(self, root_dirs: List[str]):
         root_dirs = [root_dirs
                      ] if not isinstance(root_dirs, list) else root_dirs
         fpaths = []
@@ -74,7 +90,15 @@ class MeshLib(object):
         self._agents_meshes_dim = []
         self._mesh_node = pyrender.Node()
 
-    def reset(self, n_agents, random=True):
+    def reset(self, n_agents: int, random: Optional[bool] = True) -> None:
+        """ Reset agents meshes by sampling ``n_agents`` meshes from the mesh library.
+
+        Args:
+            n_agents (int): Number of agents.
+            random (bool): Whether to randomly sample ``n_agents`` meshes from
+                the entire mesh library; default is set to ``True``.
+
+        """
         idcs = np.random.choice(
             self.n_tmeshes, n_agents) if random else np.arange(self.n_tmeshes)
 
@@ -143,22 +167,27 @@ class MeshLib(object):
 
     @property
     def fpaths(self) -> List[str]:
+        """ Paths to all meshes. """
         return self._fpaths
 
     @property
     def tmeshes(self) -> List:
+        """ A list of trimesh objects. """
         return self._tmeshes
 
     @property
     def n_tmeshes(self) -> int:
+        """ Number of trimeshes. """
         return len(self._tmeshes)
 
     @property
     def agents_meshes(self) -> List[pyrender.Mesh]:
+        """ A list of meshes for all agents. """
         return self._agents_meshes
 
     @property
     def agents_meshes_dim(self) -> List[List[float]]:
+        """ The dimensions (width, length) of agents' meshes. """
         return self._agents_meshes_dim
 
 

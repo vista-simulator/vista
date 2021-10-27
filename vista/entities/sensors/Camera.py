@@ -4,21 +4,49 @@ from typing import Dict, List, Any
 import numpy as np
 import h5py
 from ffio import FFReader
+import pyrender
 
-from .camera_utils import CameraParams, ViewSynthesis
+from .camera_utils import CameraParams, ViewSynthesis, ZNEAR, ZFAR
 from .BaseSensor import BaseSensor
 from ..Entity import Entity
 from ...utils import logging, misc, transform
 
 
 class Camera(BaseSensor):
-    def __init__(self, attach_to: Entity, config: Dict) -> None:
-        """ Instantiate a Camera object.
+    """ A RGB camera sensor object that synthesizes RGB image locally around the
+    dataset given a viewpoint (potentially different from the dataset) and timestamp.
 
-        Args:
-            attach_to (Entity): a parent object to be attached to
-            config (Dict): configuration of the sensor
-        """
+    Args:
+        attach_to (Entity): A parent object (Car) to be attached to.
+        config (Dict): Configuration of the sensor. An example (default) is,
+
+            >>> DEFAULT_CONFIG = {
+                'rig_path': None,
+                'depth_mode': 'FIXED_PLANE',
+                'znear': ZNEAR,
+                'zfar': ZFAR,
+                'use_lighting': False,
+                'directional_light_intensity': 10,
+                'recoloring_factor': 0.5,
+                'use_synthesizer': True,
+            }
+
+            Check :class:`Viewsynthesis` object for more details about the configuration.
+
+    """
+    DEFAULT_CONFIG = {
+        'name': 'camera_front',
+        'rig_path': None,
+        'depth_mode': 'FIXED_PLANE',
+        'znear': ZNEAR,
+        'zfar': ZFAR,
+        'use_lighting': False,
+        'directional_light_intensity': 10,
+        'recoloring_factor': 0.5,
+        'use_synthesizer': True,
+    }
+
+    def __init__(self, attach_to: Entity, config: Dict) -> None:
         super(Camera, self).__init__(attach_to, config)
 
         self._config['rig_path'] = os.path.expanduser(self._config['rig_path'])
@@ -42,7 +70,11 @@ class Camera(BaseSensor):
             self._view_synthesis = None
 
     def reset(self) -> None:
-        logging.info('Camera ({}) reset'.format(self.id))
+        """ Reset RGB camera sensor by initiating RGB data stream based on
+        current reference pointer to the dataset.
+
+        """
+        logging.info(f'Camera ({self.id}) reset')
 
         # Close stream already open
         for stream in self.streams.values():
@@ -126,8 +158,24 @@ class Camera(BaseSensor):
                         camera_param.resize(*self._config['size'])
                     self.view_synthesis.add_bg_mesh(camera_param)
 
-    def capture(self, timestamp: float) -> np.ndarray:
-        logging.info('Camera ({}) capture'.format(self.id))
+    def capture(self, timestamp: float, **kwargs) -> np.ndarray:
+        """ Synthesize RGB image based on current timestamp and transformation
+        between the novel viewpoint to be simulated and the nominal viewpoint from
+        the pre-collected dataset. Note that if there exists optical flow data in
+        the trace directory, the :class:`Camera` object will take the optical flow
+        to interpolate across frame to the exact timestamp as opposed to retrieving
+        the RGB frame with the closest timestamp in the dataset.
+
+        Args:
+            timestamp (float): Timestamp that allows to retrieve a pointer to
+                the dataset for data-driven simulation (synthesizing RGB image
+                from real RGB video).
+
+        Returns:
+            np.ndarray: A synthesized RGB image.
+
+        """
+        logging.info(f'Camera ({self.id}) capture')
 
         # Get frame at the closest smaller timestamp from dataset
         multi_sensor = self.parent.trace.multi_sensor
@@ -206,39 +254,52 @@ class Camera(BaseSensor):
 
         return rendered_frame
 
-    def update_scene_object(self, name: str, scene_object: Any,
+    def update_scene_object(self, name: str, scene_object: pyrender.Mesh,
                             pose: Any) -> None:
+        """ Update pyrender mesh object in the scene for rendering.
+
+        Args:
+            name (str): Name of the scene object.
+            scene_object (pyrender.Mesh): The scene object.
+            pose (Any): The pose of the scene object.
+
+        """
         trans, rotvec = transform.latlongyaw2vec(pose)
         quat = transform.euler2quat(rotvec)
         self.view_synthesis.update_object_node(name, scene_object, trans, quat)
 
     @property
     def config(self) -> Dict:
+        """ Configuration of the RGB camera sensor. """
         return self._config
 
     @property
     def camera_param(self) -> CameraParams:
+        """ Camera parameters of the virtual camera. """
         return self._camera_params['synthesis']
 
     @property
     def streams(self) -> Dict[str, FFReader]:
+        """ Data stream of RGB image/video dataset to be simulated from. """
         return self._streams
 
     @property
     def flow_streams(self) -> Dict[str, List[FFReader]]:
+        """ Data stream of optical flow (if any). """
         return self._flow_streams
 
     @property
     def flow_meta(self) -> Dict[str, h5py.File]:
+        """ Meta data of optical flow (if any). """
         return self._flow_meta
 
     @property
     def view_synthesis(self) -> ViewSynthesis:
+        """ View synthesizer object. """
         return self._view_synthesis
 
     def __repr__(self) -> str:
-        return '<{} (id={})> '.format(self.__class__.__name__, self.id) + \
-               'name: {} '.format(self.name) + \
-               'size: {}x{} '.format(self.camera_param.get_height(),
-                                     self.camera_param.get_width()) + \
-               '#streams: {} '.format(len(self.streams))
+        return f'<{self.__class__.__name__} (id={self.id})> ' + \
+               f'name: {self.name} ' + \
+               f'size: {self.camera_param.get_height()}x{self.camera_param.get_width()} ' + \
+               f'#streams: {len(self.streams)} '
