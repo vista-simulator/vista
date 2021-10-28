@@ -21,7 +21,7 @@ def default_terminal_condition(task, agent_id, **kwargs):
 
     def _check_exceed_max_rot():
         maximal_rotation = np.pi / 10.
-        return np.abs(agent.relative_state.theta) > maximal_rotation
+        return np.abs(agent.relative_state.yaw) > maximal_rotation
 
     def _check_crash():
         other_agents = [_a for _a in task.world.agents if _a.id != agent_id]

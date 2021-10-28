@@ -7,7 +7,7 @@ Getting Started
     :maxdepth: 2
 
     installation
-    example
+    basic_usage
     data_format
     training_lidar_synthesizer
     custom_frame_interpolator

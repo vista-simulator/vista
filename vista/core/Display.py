@@ -83,8 +83,11 @@ class Display:
                     logging.warning(
                         'Cannot visualize sensor other than Camera')
         n_agents_with_sensors = len(self._agents_with_sensors)
-        max_n_sensors = max(
-            [len(_v.sensors) for _v in self._agents_with_sensors])
+        if n_agents_with_sensors > 0:
+            max_n_sensors = max(
+                [len(_v.sensors) for _v in self._agents_with_sensors])
+        else:
+            max_n_sensors = 1
 
         # Specify colors for agents and road
         colors = list(cm.get_cmap('Set1').colors)

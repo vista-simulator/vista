@@ -71,16 +71,16 @@ class StateDynamics:
                  steering_bound: Optional[List[float]] = [-0.75, 0.75],
                  speed_bound: Optional[List[float]] = [0., 15.],
                  wheel_base: Optional[float] = 2.8) -> None:
-        self.update(x, y, yaw, steering, speed)
-        self._steering_bound = steering_bound
-        self._speed_bound = speed_bound
-        self._wheel_base = wheel_base
-
         self._x = 0.
         self._y = 0.
         self._yaw = 0.
         self._steering = 0.
         self._speed = 0.
+
+        self.update(x, y, yaw, steering, speed)
+        self._steering_bound = steering_bound
+        self._speed_bound = speed_bound
+        self._wheel_base = wheel_base
 
     def step(self,
              steering_velocity: float,
