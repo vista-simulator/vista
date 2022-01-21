@@ -364,5 +364,10 @@ class Trace:
         """ Road width. """
         return self._config['road_width']
 
+    @property
+    def param_file(self) -> float:
+        """ Path to the sensor parameters file for this trace. """
+        return os.path.join(self._trace_path, "params.xml")
+
     def __repr__(self) -> str:
         return '<{}: {}>'.format(self.__class__.__name__, self.trace_path)

@@ -18,12 +18,12 @@ def main(args):
             'steering_ratio': 14.7,
             'lookahead_road': True
         })
-    camera_config = {
+
+    camera = car.spawn_camera(config={
         'name': 'camera_front',
-        'rig_path': './RIG.xml',
-        'size': (200, 320)
-    }
-    camera = car.spawn_camera(camera_config)
+        'width': 320,
+        'height': 200
+    })
     display = vista.Display(world)
 
     world.reset()

@@ -20,7 +20,6 @@ class CameraParams(object):
         name (str): Name of the camera identifier to initialize. Must be
                     a valid TopicName and present inside the RIG.xml file.
         rig_path (str): Path to RIG.xml that specifies camera parameters.
-        for_synthesizer (bool): Whether to read from xml for sensors or synthesizers.
 
     Raises:
         ValueError: if `name` is not found in the rig file.
@@ -28,13 +27,11 @@ class CameraParams(object):
     """
     def __init__(self,
                  name: str,
-                 rig_path: str,
-                 for_synthesizer: Optional[bool] = False):
+                 rig_path: str):
+
         tree = ET.parse(rig_path)
         root = ignore_case(tree.getroot())
-        xml_cameras = root.findall(
-            'sensors/camera') if not for_synthesizer else root.findall(
-                'synthesis/camera')
+        xml_cameras = root.findall('sensors/camera')
         names = [cam.get('name') for cam in xml_cameras]
         cameras = dict(zip(names, xml_cameras))
 

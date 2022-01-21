@@ -1,3 +1,4 @@
+import copy
 import os
 import glob
 from typing import Dict, List, Any
@@ -21,7 +22,6 @@ class Camera(BaseSensor):
         config (Dict): Configuration of the sensor. An example (default) is,
 
             >>> DEFAULT_CONFIG = {
-                'rig_path': None,
                 'depth_mode': 'FIXED_PLANE',
                 'znear': ZNEAR,
                 'zfar': ZFAR,
@@ -36,7 +36,6 @@ class Camera(BaseSensor):
     """
     DEFAULT_CONFIG = {
         'name': 'camera_front',
-        'rig_path': None,
         'depth_mode': 'FIXED_PLANE',
         'znear': ZNEAR,
         'zfar': ZFAR,
@@ -49,23 +48,26 @@ class Camera(BaseSensor):
     def __init__(self, attach_to: Entity, config: Dict) -> None:
         super(Camera, self).__init__(attach_to, config)
 
-        self._config['rig_path'] = os.path.expanduser(self._config['rig_path'])
-        self._camera_params: Dict[str, CameraParams] = {
-            'sensor':
-            CameraParams(self.name, self.config['rig_path']),
-            'synthesis':
-            CameraParams(self.name,
-                         self.config['rig_path'],
-                         for_synthesizer=True)
+        # Define the CameraParams object for each physical camera in each trace
+        self._input_cams = {
+            trace: CameraParams(self.name, trace.param_file)
+            for trace in attach_to.parent.traces
         }
-        for _cp in self._camera_params.values():
-            _cp.resize(*self.config['size'])
+        for _cp in self._input_cams.values():
+            _cp.resize(config['height'], config['width'])
+
+        # Now define the virtual camera in VISTA (defaults copied from the
+        # first trace)
+        first_trace = attach_to.parent.traces[0]
+        self._virtual_cam = copy.deepcopy(self._input_cams[first_trace])
+        self._virtual_cam.resize(config['height'], config['width'])
+
         self._streams: Dict[str, FFReader] = dict()
         self._flow_streams: Dict[str, List[FFReader]] = dict()
         self._flow_meta: Dict[str, h5py.File] = dict()
         if self._config.get('use_synthesizer', True):
             self._view_synthesis: ViewSynthesis = ViewSynthesis(
-                self._camera_params['synthesis'], self._config)
+                self._virtual_cam, self._config)
         else:
             self._view_synthesis = None
 
@@ -89,13 +91,14 @@ class Camera(BaseSensor):
         # Fetch video stream from the associated trace. All video streams are handled by the main
         # camera and shared across all cameras in an agent.
         multi_sensor = self.parent.trace.multi_sensor
+        trace_camera = self._input_cams[self.parent.trace]
         if self.name == multi_sensor.main_camera:
             for camera_name in multi_sensor.camera_names:
                 # get video stream
                 video_path = os.path.join(self.parent.trace.trace_path,
                                           camera_name + '.avi')
-                cam_h, cam_w = self._camera_params['sensor'].get_height(
-                ), self._camera_params['sensor'].get_width()
+                cam_h, cam_w = (trace_camera.get_height(),
+                                trace_camera.get_width())
                 stream = FFReader(video_path,
                                   custom_size=(cam_h, cam_w),
                                   verbose=False)
@@ -150,12 +153,9 @@ class Camera(BaseSensor):
                 if camera_name not in self.view_synthesis.bg_mesh_names:
                     if camera_name in parent_sensor_dict.keys():
                         camera_param = parent_sensor_dict[
-                            camera_name]._camera_params['sensors']
+                            camera_name]._input_cams[self.parent.trace]
                     else:
-                        camera_param = CameraParams(camera_name,
-                                                    self._config['rig_path'],
-                                                    for_synthesizer=True)
-                        camera_param.resize(*self._config['size'])
+                        camera_param = self._virtual_cam
                     self.view_synthesis.add_bg_mesh(camera_param)
 
     def capture(self, timestamp: float, **kwargs) -> np.ndarray:
@@ -276,7 +276,7 @@ class Camera(BaseSensor):
     @property
     def camera_param(self) -> CameraParams:
         """ Camera parameters of the virtual camera. """
-        return self._camera_params['synthesis']
+        return self._virtual_cam
 
     @property
     def streams(self) -> Dict[str, FFReader]:
@@ -301,5 +301,5 @@ class Camera(BaseSensor):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__} (id={self.id})> ' + \
                f'name: {self.name} ' + \
-               f'size: {self.camera_param.get_height()}x{self.camera_param.get_width()} ' + \
+               f'size: {self.virtual_cam.get_height()}x{self.virtual_cam.get_width()} ' + \
                f'#streams: {len(self.streams)} '

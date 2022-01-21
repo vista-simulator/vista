@@ -101,57 +101,57 @@ class Car(Entity):
             self._road_frame_idcs: deque[int] = deque(maxlen=road_buffer_size)
             self._road_dynamics: StateDynamics = StateDynamics()
 
-    def spawn_camera(self, cam_config: Dict) -> Camera:
+    def spawn_camera(self, config: Dict) -> Camera:
         """ Spawn and attach a camera to this car.
 
         Args:
-            cam_config (Dict): Configuration of camera and rendering. For
-                               more details, please check the doc of
-                               :class:`Camera` sensor.
+            config (Dict): Configuration of camera and rendering. For
+                           more details, please check the doc of
+                           :class:`Camera` sensor.
 
         Returns:
             Camera: a vista camera sensor object spawned.
 
         """
-        name = cam_config['name']
+        name = config['name']
         logging.info(f'Spawn a new camera {name} in car ({self.id})')
-        cam = Camera(attach_to=self, config=cam_config)
+        cam = Camera(attach_to=self, config=config)
         self._sensors.append(cam)
 
         return cam
 
-    def spawn_lidar(self, lidar_config: Dict) -> Lidar:
+    def spawn_lidar(self, config: Dict) -> Lidar:
         """ Spawn and attach a LiDAR to this car.
 
         Args:
-            lidar_config (Dict): Configuration of LiDAR. For more details,
-                                 please check the doc of :class:`Lidar` sensor.
+            config (Dict): Configuration of LiDAR. For more details,
+                           please check the doc of :class:`Lidar` sensor.
 
         Returns:
             Lidar: a vista Lidar sensor object spawned.
 
         """
-        name = lidar_config['name']
+        name = config['name']
         logging.info(f'Spawn a new lidar {name} in car ({self.id})')
-        lidar = Lidar(attach_to=self, config=lidar_config)
+        lidar = Lidar(attach_to=self, config=config)
         self._sensors.append(lidar)
 
         return lidar
 
-    def spawn_event_camera(self, event_cam_config: Dict) -> EventCamera:
+    def spawn_event_camera(self, config: Dict) -> EventCamera:
         """ Spawn and attach an event camera to this car.
 
         Args:
-            lidar_config (Dict): Configuration of event camera. For more details, 
-                                 please check the doc of :class:`EventCamera` sensor.
+            config (Dict): Configuration of event camera. For more details,
+                           please check the doc of :class:`EventCamera` sensor.
 
         Returns:
             EventCamera: a vista event camera sensor object spawned.
 
         """
-        name = event_cam_config['name']
+        name = config['name']
         logging.info(f'Spawn a new event camera {name} in car ({self.id})')
-        event_cam = EventCamera(attach_to=self, config=event_cam_config)
+        event_cam = EventCamera(attach_to=self, config=config)
         self._sensors.append(event_cam)
 
         return event_cam
