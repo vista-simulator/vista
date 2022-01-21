@@ -35,7 +35,6 @@ def main(args):
             type='camera',
             # camera params
             name='camera_front',
-            rig_path=os.path.join(examples_path, "RIG.xml"),
             size=(200, 320),
             # rendering params
             depth_mode=DepthModes.FIXED_PLANE,

@@ -113,7 +113,7 @@ class Car(Entity):
             Camera: a vista camera sensor object spawned.
 
         """
-        name = config['name']
+        name = config.get('name', None)
         logging.info(f'Spawn a new camera {name} in car ({self.id})')
         cam = Camera(attach_to=self, config=config)
         self._sensors.append(cam)
@@ -131,7 +131,7 @@ class Car(Entity):
             Lidar: a vista Lidar sensor object spawned.
 
         """
-        name = config['name']
+        name = config.get('name', None)
         logging.info(f'Spawn a new lidar {name} in car ({self.id})')
         lidar = Lidar(attach_to=self, config=config)
         self._sensors.append(lidar)
@@ -149,7 +149,7 @@ class Car(Entity):
             EventCamera: a vista event camera sensor object spawned.
 
         """
-        name = config['name']
+        name = config.get('name', None)
         logging.info(f'Spawn a new event camera {name} in car ({self.id})')
         event_cam = EventCamera(attach_to=self, config=config)
         self._sensors.append(event_cam)

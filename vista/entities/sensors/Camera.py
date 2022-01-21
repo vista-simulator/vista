@@ -54,13 +54,13 @@ class Camera(BaseSensor):
             for trace in attach_to.parent.traces
         }
         for _cp in self._input_cams.values():
-            _cp.resize(config['height'], config['width'])
+            _cp.resize(*config['size'])
 
         # Now define the virtual camera in VISTA (defaults copied from the
         # first trace)
         first_trace = attach_to.parent.traces[0]
         self._virtual_cam = copy.deepcopy(self._input_cams[first_trace])
-        self._virtual_cam.resize(config['height'], config['width'])
+        self._virtual_cam.resize(*config['size'])
 
         self._streams: Dict[str, FFReader] = dict()
         self._flow_streams: Dict[str, List[FFReader]] = dict()

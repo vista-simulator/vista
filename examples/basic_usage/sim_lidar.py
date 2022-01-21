@@ -19,7 +19,6 @@ def main(args):
             'lookahead_road': True
         })
     lidar_config = {
-        'name': 'lidar_3d',
         'yaw_res': 0.1,
         'pitch_res': 0.1,
         'yaw_fov': (-180., 180.)

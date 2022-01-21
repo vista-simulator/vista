@@ -20,9 +20,7 @@ def main(args):
         })
 
     camera = car.spawn_camera(config={
-        'name': 'camera_front',
-        'width': 320,
-        'height': 200
+        'size': (200, 320),
     })
     display = vista.Display(world)
 

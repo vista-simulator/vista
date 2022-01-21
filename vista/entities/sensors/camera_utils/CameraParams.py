@@ -19,15 +19,15 @@ class CameraParams(object):
     Args:
         name (str): Name of the camera identifier to initialize. Must be
                     a valid TopicName and present inside the RIG.xml file.
+                    Can also specify `None` to auto grab the first named camera
+                    in the RIG.xml file.
         rig_path (str): Path to RIG.xml that specifies camera parameters.
 
     Raises:
         ValueError: if `name` is not found in the rig file.
 
     """
-    def __init__(self,
-                 name: str,
-                 rig_path: str):
+    def __init__(self, name: str, rig_path: str):
 
         tree = ET.parse(rig_path)
         root = ignore_case(tree.getroot())
@@ -35,8 +35,13 @@ class CameraParams(object):
         names = [cam.get('name') for cam in xml_cameras]
         cameras = dict(zip(names, xml_cameras))
 
-        if name not in cameras.keys():
-            raise ValueError(f'{name} is not a valid camera within RIG.xml')
+        if name:
+            if name not in cameras.keys():
+                raise ValueError(f'{name} not a valid camera in {rig_path}')
+        else:
+            # default to the first camera
+            # TODO: should default to the closest camera (most overlapping FoV)
+            name = names[0]
 
         self.name = name
         cam = cameras[self.name]
