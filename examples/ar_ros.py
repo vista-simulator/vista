@@ -34,7 +34,7 @@ class VistaARNode(object):
         camera_size = (600, 960)
         rig_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                 'RIG.xml')
-        self._camera_param = CameraParams(camera_name, rig_path)
+        self._camera_param = CameraParams(rig_path, camera_name)
         self._camera_param.resize(*camera_size)
 
         self._vs_config = dict(depth_mode=DepthModes.FIXED_PLANE, )

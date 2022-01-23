@@ -50,7 +50,7 @@ class Camera(BaseSensor):
 
         # Define the CameraParams object for each physical camera in each trace
         self._input_cams = {
-            trace: CameraParams(self.name, trace.param_file)
+            trace: CameraParams(trace.param_file, self.name)
             for trace in attach_to.parent.traces
         }
         for _cp in self._input_cams.values():

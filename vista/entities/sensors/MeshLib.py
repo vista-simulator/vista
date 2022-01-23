@@ -236,7 +236,7 @@ def main():
     light = pyrender.DirectionalLight([255, 255, 255], 5)
     scene.add(light)
 
-    camera = CameraParams('camera_front', args.rig_path)
+    camera = CameraParams(args.rig_path, 'camera_front')
     camera.resize(200, 320)
     render_camera = pyrender.IntrinsicsCamera(fx=camera._fx,
                                               fy=camera._fy,

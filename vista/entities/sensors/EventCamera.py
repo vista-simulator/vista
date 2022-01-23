@@ -87,10 +87,10 @@ class EventCamera(BaseSensor):
 
         self._config['rig_path'] = os.path.expanduser(self._config['rig_path'])
         self._camera_param: CameraParams = CameraParams(
-            self.name, self._config['rig_path'])
+            self._config['rig_path'], self.name)
         self._camera_param.resize(*self._config['size'])
         self._base_camera_param: CameraParams = CameraParams(
-            self._config['base_camera_name'], self._config['rig_path'])
+            self._config['rig_path'], self._config['base_camera_name'])
         self._base_camera_param.resize(*self._config['base_size'])
         self._config['use_synthesizer'] = self._config.get(
             'use_synthesizer', True)
@@ -180,8 +180,8 @@ class EventCamera(BaseSensor):
                         camera_param = parent_sensor_dict[
                             camera_name].camera_param
                     else:
-                        camera_param = CameraParams(camera_name,
-                                                    self._config['rig_path'])
+                        camera_param = CameraParams(self._config['rig_path'],
+                                                    camera_name)
                         camera_param.resize(*self._config['base_size'])
                     self.view_synthesis.add_bg_mesh(camera_param)
 

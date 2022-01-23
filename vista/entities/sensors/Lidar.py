@@ -6,7 +6,8 @@ import h5py
 from .BaseSensor import BaseSensor
 from .lidar_utils import LidarSynthesis, Pointcloud
 from ..Entity import Entity
-from ...utils import logging
+from ...core import Trace
+from ...utils import logging, parse_params
 
 
 class Lidar(BaseSensor):
@@ -19,10 +20,8 @@ class Lidar(BaseSensor):
 
             >>> DEFAULT_CONFIG = {
                 'name': 'lidar_3d',
-                'yaw_res': 0.1,
-                'pitch_res': 0.1,
-                'yaw_fov': (-180., 180.),
-                'pitch_fov': (-21.0, 19.0),
+                'yaw_fov': None,
+                'pitch_fov': None,
                 'culling_r': 1,
                 'use_synthesizer': True,
             }
@@ -32,10 +31,8 @@ class Lidar(BaseSensor):
     """
     DEFAULT_CONFIG = {
         'name': 'lidar_3d',
-        'yaw_res': 0.1,
-        'pitch_res': 0.1,
-        'yaw_fov': (-180., 180.),
-        'pitch_fov': (-21.0, 19.0),
+        'yaw_fov': None,
+        'pitch_fov': None,
         'culling_r': 1,
         'use_synthesizer': True,
     }
@@ -48,11 +45,23 @@ class Lidar(BaseSensor):
 
         # Initialize lidar novel view synthesis object
         if self.config['use_synthesizer']:
-            self._view_synthesis = LidarSynthesis(load_model=True,
-                                                  **self.config)
+            # Make one view synthesizer for each trace within
+            # attach_to.parent.traces (different traces may have different
+            # input sensors specs). For each synthesizer, pass in the input
+            # and output lidar params. Then during synthesis, use the
+            # appropraite synthesizer.
+            self._view_synthesizers = {}
+            for trace in attach_to.parent.traces:
+                pfile = parse_params.ParamsFile(trace.param_file)
+                in_params, _ = pfile.parse_lidar(self.name)
+                self._view_synthesizers[trace] = LidarSynthesis(
+                    load_model=True,
+                    input_yaw_fov=in_params['yaw_fov'],
+                    input_pitch_fov=in_params['pitch_fov'],
+                    **self.config)
+
         else:
-            self._view_synthesis = LidarSynthesis(load_model=False,
-                                                  **self.config)
+            self._view_synthesizers = None
 
     def reset(self) -> None:
         """ Reset LiDAR sensor by initiating LiDAR data stream based on
@@ -115,19 +124,16 @@ class Lidar(BaseSensor):
             pcd = pcd[pcd.dist > 2.5]
             # TODO: when is it possible for there to be multiple (multi_sensor.lidar_names)?
 
-        # Interpolate frame at the exact timestamp
-        pass
-
         # Synthesis by rendering
-        if self.view_synthesis.load_model:
+        if self.config['use_synthesizer']:
             # self.parent.reslative_state.update(0, 0, yaw=np.sin(timestamp))
             lat, long, yaw = self.parent.relative_state.numpy()
             logging.debug(
                 f"state: {lat} {long} {yaw} \t timestamp {timestamp}")
             trans = np.array([-long, lat, 0])
             rot = np.array([0., 0, yaw])  # TODO: should yaw be Y or Z?
-            new_pcd, new_dense = self.view_synthesis.synthesize(
-                trans, rot, pcd)
+            synthesizer = self._view_synthesizers[self.parent.trace]
+            new_pcd, new_dense = synthesizer.synthesize(trans, rot, pcd)
         else:
             new_pcd = pcd
 
@@ -150,5 +156,6 @@ class Lidar(BaseSensor):
 
     @property
     def view_synthesis(self) -> LidarSynthesis:
-        """ View synthesizer object. """
-        return self._view_synthesis
+        """ Wiew synthesizer object for the first trace. """
+        first = list(self._view_synthesizers.keys())[0]
+        return self._view_synthesizers[first]

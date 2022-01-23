@@ -370,4 +370,5 @@ class Trace:
         return os.path.join(self._trace_path, "params.xml")
 
     def __repr__(self) -> str:
-        return '<{}: {}>'.format(self.__class__.__name__, self.trace_path)
+        trace_name = os.path.basename(self.trace_path)
+        return '<{}: {}>'.format(self.__class__.__name__, trace_name)

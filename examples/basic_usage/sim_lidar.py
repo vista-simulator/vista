@@ -19,9 +19,8 @@ def main(args):
             'lookahead_road': True
         })
     lidar_config = {
-        'yaw_res': 0.1,
-        'pitch_res': 0.1,
-        'yaw_fov': (-180., 180.)
+        'yaw_fov': (-180., 180.),
+        'pitch_fov': (-21.0, 14.0)
     }
     lidar = car.spawn_lidar(lidar_config)
     display = vista.Display(world)

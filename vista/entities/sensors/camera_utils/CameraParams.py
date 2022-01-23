@@ -3,12 +3,7 @@ import numpy as np
 import os
 import xml.etree.ElementTree as ET
 import pathlib
-
-
-def ignore_case(tree):
-    t = ET.tostring(tree)
-    t = t.lower()
-    return ET.fromstring(t)
+from ....utils.parse_params import ParamsFile
 
 
 class CameraParams(object):
@@ -17,60 +12,44 @@ class CameraParams(object):
     information for easy access in other modules.
 
     Args:
+        rig_path (str): Path to RIG.xml that specifies camera parameters.
         name (str): Name of the camera identifier to initialize. Must be
                     a valid TopicName and present inside the RIG.xml file.
                     Can also specify `None` to auto grab the first named camera
                     in the RIG.xml file.
-        rig_path (str): Path to RIG.xml that specifies camera parameters.
+        params (dict): Dictionary camera parameters to instantiate with. If
+                       not provided then the rig_path is used
 
     Raises:
-        ValueError: if `name` is not found in the rig file.
+        ValueError: if `name` is provided but not found in the rig file.
 
     """
-    def __init__(self, name: str, rig_path: str):
+    def __init__(self,
+                 rig_path: str = None,
+                 name: str = None,
+                 params: dict = None):
 
-        tree = ET.parse(rig_path)
-        root = ignore_case(tree.getroot())
-        xml_cameras = root.findall('sensors/camera')
-        names = [cam.get('name') for cam in xml_cameras]
-        cameras = dict(zip(names, xml_cameras))
+        assert (rig_path is not None) ^ (params is not None)
+        if rig_path is not None:
+            pfile = ParamsFile(rig_path)
+            params, self.name = pfile.parse_camera(name)
 
-        if name:
-            if name not in cameras.keys():
-                raise ValueError(f'{name} not a valid camera in {rig_path}')
-        else:
-            # default to the first camera
-            # TODO: should default to the closest camera (most overlapping FoV)
-            name = names[0]
+        self._height = int(params['height'])
+        self._width = int(params['width'])
 
-        self.name = name
-        cam = cameras[self.name]
-        xml_props = cam.findall('property')
+        self._fx = params['fx']
+        self._fy = params['fy']
 
-        pname = [p.get('name') for p in xml_props]
-        pvalue = [p.get('value') for p in xml_props]
-        props = dict(zip(pname, pvalue))
+        self._cx = params['cx']
+        self._cy = params['cy']
 
-        self._height = int(props['height'])
-        self._width = int(props['width'])
+        self._distortion = params['distortion']
+        self._quaternion = params['quaternion'].reshape(4, 1)
+        self._position = params['position'].reshape(3, 1)
+        self._yaw = params['yaw'] if 'yaw' in params else None
 
-        self._fx = float(props['fx'])
-        self._fy = float(props['fy'])
-
-        self._cx = float(props['cx'])
-        self._cy = float(props['cy'])
-
-        self._distortion = np.array(
-            [float(x) for x in props['distortion'].split(" ")])
-
-        self._quaternion = np.array(
-            [float(x) for x in props['quaternion'].split(" ")]).reshape(4, 1)
-        self._position = np.array(
-            [float(x) for x in props['position'].split(" ")]).reshape(3, 1)
-        self._yaw = float(props['yaw']) if 'yaw' in props else None
-
-        self._roi = np.array([int(x) for x in props['roi'].split(" ")])
-        self._roi_angle = float(props['roi_angle']) * np.pi / 180.
+        self._roi = params['roi'].astype(np.int)
+        self._roi_angle = params['roi_angle'] * np.pi / 180.
 
         self.__compute_other_forms()
 
