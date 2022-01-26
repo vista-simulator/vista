@@ -107,8 +107,9 @@ class Trace:
         # Compute sample probability
         timestamps = self.good_timestamps[
             self._multi_sensor.master_sensor][segment_index]
-        if self._config[
-                'reset_mode'] == 'default':  # bias toward large road curvature
+
+        if self._config['reset_mode'] == 'default':
+            # bias toward large road curvature
             n_bins = Trace.RESET_CONFIG['default']['n_bins']
             smoothing_factor = Trace.RESET_CONFIG['default'][
                 'smoothing_factor']

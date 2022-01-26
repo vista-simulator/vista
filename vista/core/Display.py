@@ -42,6 +42,7 @@ class Display:
             'gs_agent_w': 4, # grid spec width for an agent's block
             'gs_h': 6, # grid spec height
             'gui_scale': 1.0, # a global scale that determines the size of the figure
+            'vis_full_frame': False, # if Display should not crop/resize camera for visualization purposes
         }
         >>> display = Display(world, )
 
@@ -52,7 +53,8 @@ class Display:
         'gs_bev_w': 2,
         'gs_agent_w': 4,
         'gs_h': 6,
-        'gui_scale': 1.0
+        'gui_scale': 1.0,
+        'vis_full_frame': False
     }
 
     def __init__(self,
@@ -260,6 +262,14 @@ class Display:
                                               sensor.camera_param,
                                               mode='camera')
                     obs = cv2.polylines(obs, [noodle], False, (255, 0, 0), 2)
+
+                    if not self._config["vis_full_frame"]:
+                        # Black out the sides for visualization
+                        h, w = obs.shape[:2]
+                        h_, w_ = (0.65 * h, 0.65 * w)
+                        hs, ws = (int((h - h_) // 2), int((w - w_) // 2))
+                        obs = cv2.resize(obs[hs:-hs, ws:-ws], (w, h))
+
                     obs_render = fit_img_to_ax(self._fig, self._axes[ax_name],
                                                obs[:, :, ::-1])
 
