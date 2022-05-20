@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.abspath('../vista'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'vista'
-copyright = '2021, VISTA'
+project = 'VISTA Simulator'
+copyright = '2022, VISTA'
 author = 'Alexander Amini & Johnson Wang'
 
 # -- General configuration ---------------------------------------------------

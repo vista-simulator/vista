@@ -7,7 +7,7 @@ Welcome to vista's documentation!
 =================================
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    Introduction <introduction/index.rst>
    Getting Started <getting_started/index.rst>
