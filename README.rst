@@ -1,7 +1,7 @@
 VISTA Autonomous Driving Simulator
 ==================================
 
-|PyPIDownloads| |Stars| |PyPI| |Docs|
+|Docs| |PyPIDownloads| |Stars| |PyPI|
 
 .. |PyPIDownloads| image:: https://pepy.tech/badge/vista
    :target: https://pepy.tech/project/vista
@@ -12,8 +12,8 @@ VISTA Autonomous Driving Simulator
 .. |PyPI| image:: https://img.shields.io/pypi/v/vista?logo=PyPI
    :target: https://pypi.org/project/vista
 
-.. |Docs| image:: https://readthedocs.com/projects/icb-scanpy/badge/?version=latest
-   :target: https://scanpy.readthedocs.io
+.. |Docs| image:: https://assets.readthedocs.org/static/projects/badges/passing-flat.svg
+   :target: https://vista.csail.mit.edu
 
 
 .. image:: docs/source/_static/overview.png
