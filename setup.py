@@ -38,7 +38,7 @@ setup(
     packages=find_packages(include=['vista', 'vista.*']),
     setup_requires=setup_requirements,
     url='https://github.com/vista-simulator/vista',
-    download_url = 'https://github.com/vista-simulator/vista/archive/refs/tags/2.0.5.tar.gz',
-    version='2.0.5',
+    download_url = 'https://github.com/vista-simulator/vista/archive/refs/tags/2.0.6.tar.gz',
+    version='2.0.6',
     zip_safe=False,
 )

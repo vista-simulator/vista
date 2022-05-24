@@ -8,9 +8,9 @@ Acknowledgement
 
 .. note::
 
-  The VISTA simulator is a result of many contributions across many different individuals. The project has been led by `Alexander Amini <https://www.mit.edu/~amini/>`_, `Tsun-Hsun (Johnson) Wang <https://zswang666.github.io/>`_, and `Daniela Rus <https://danielarus.csail.mit.edu/>`_.
+  The VISTA simulator is a result of many contributions across many different individuals. The project has been led by `Alexander Amini <https://www.mit.edu/~amini/>`_, `Tsun-Hsuan (Johnson) Wang <https://zswang666.github.io/>`_, and `Daniela Rus <https://danielarus.csail.mit.edu/>`_.
 
-We acknowledge contributions from authors (alphabetically): Alexander Amini, Rohan Banerjee, Igor Gilitschenski, Song Han, Sertac Karaman, Zhijian Liu, Julia Moseyko, Jacob Phillips, Daniela Rus, Wilko Schwarting, Tsun-Hsun (Johnson) Wang.
+We acknowledge contributions from authors (alphabetically): Alexander Amini, Rohan Banerjee, Igor Gilitschenski, Song Han, Sertac Karaman, Zhijian Liu, Julia Moseyko, Jacob Phillips, Daniela Rus, Wilko Schwarting, Tsun-Hsuan (Johnson) Wang.
 
 We also acknowledge funding support from the National Science Foundation (NSF), Toyota Research Institute (TRI), and NVIDIA.
 
