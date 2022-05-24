@@ -6,6 +6,10 @@ Entities
 .. autoclass:: vista.entities.Entity
     :members:
 
+
+Types of Entities
++++++++++++++++++
+
 .. toctree::
     :maxdepth: 1
 

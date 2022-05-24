@@ -13,7 +13,7 @@ to the world for visualization. ::
 
     import vista
 
-    world = vista.World(trace_path, 
+    world = vista.World(trace_path,
                         trace_config={'road_width': 4})
     car = world.spawn_agent(config={'length': 5.,
                                     'width': 2.,
@@ -97,7 +97,7 @@ Synthesizing Sensory Measurement
 Then, we show how to attach sensors to a car and synthesize sensory
 measurement at every timestmap. Currently, RGB camera, LiDAR, and event
 camera are supported. Following the setup above, we simply spawn sensors
-on the ``car`` object. 
+on the ``car`` object.
 
 Spawning a RGB camera. ::
 

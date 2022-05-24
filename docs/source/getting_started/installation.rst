@@ -25,14 +25,18 @@ Installation
     * `pyrender <https://github.com/mmatl/pyrender>`_
     * `torch <https://github.com/pytorch/pytorch>`_
     * `torchvision <https://github.com/pytorch/vision>`_
-    * `tensorflow <https://github.com/tensorflow/tensorflow>`_
-    * `tensorflow-gpu <https://github.com/tensorflow/tensorflow>`_
     * `pickle5 <https://github.com/pitrou/pickle5-backport>`_
     * `h5py <https://github.com/h5py/h5py>`_
 
-4. Try to import Vista. ::
+
+4. Install VISTA from `PyPi <https://pypi.org/project/vista/>`_.::
+
+    >> pip install vista
+
+
+5. Try to import Vista. ::
 
     >> python -c "import vista"
 
-5. Download dataset from `here <https://github.com>`_. For more details, 
-   check :doc:`Data Format <./data_format>`. 
+6. Download dataset from `here <https://github.com>`_. For more details,
+   check :doc:`Data Format <./data_format>`.

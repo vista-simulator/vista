@@ -1,28 +1,7 @@
-.. vista documentation master file, created by
-   sphinx-quickstart on Mon Oct  4 15:17:55 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+VISTA Autonomous Driving Simulator
+==================================
 
-Welcome to VISTA's documentation!
-=================================
-
-
-
-.. toctree::
-   :maxdepth: 1
-
-   Introduction <introduction/index.rst>
-   Getting Started <getting_started/index.rst>
-   Advanced Usage <advanced_usage/index.rst>
-   Interface To Public Dataset <interface_to_public_dataset/index.rst>
-   API Documentation <api_documentation/index.rst>
-   FAQ <faq/index.rst>
-   Acknowledgement <acknowledgement/index.rst>
-
-
-
-.. image:: /_static/vista_logo.gif
-   :width: 300
+.. image:: /_static/overview.png
 
 `VISTA <https://vista.csail.mit.edu>`_ is a data-driven simulation engine for autonomous driving perception and control. The VISTA API provides an interface for transforming real-world datasets into virtual environments with dynamic agents, sensor suites, and task objectives.
 
@@ -40,13 +19,13 @@ Please also ensure that you have all required dependencies to successfully run V
 
 |paper1| |paper2| |paper3|
 
-.. |paper1| image:: /_static/paper1.png
+.. |paper1| image:: docs/_static/paper1.png
    :width: 31%
 
-.. |paper2| image:: /_static/paper2.png
+.. |paper2| image:: docs/_static/paper2.png
    :width: 31%
 
-.. |paper3| image:: /_static/paper3.png
+.. |paper3| image:: docs/_static/paper3.png
    :width: 31%
 
 
