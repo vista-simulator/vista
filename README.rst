@@ -1,12 +1,20 @@
 VISTA Autonomous Driving Simulator
 ==================================
 
-..
+|PyPIDownloads| |Stars| |PyPI| |Docs|
 
-  [![Stars](https://img.shields.io/github/stars/vista-simulator/vista?logo=GitHub&color=yellow)](https://github.com/vista-simulator/vista/stargazers)
-  [![PyPI](https://img.shields.io/pypi/v/vista?logo=PyPI)](https://pypi.org/project/vista)
-  [![PyPIDownloads](https://pepy.tech/badge/vista)](https://pepy.tech/project/vista)
-  [![Docs](https://readthedocs.com/projects/icb-scanpy/badge/?version=latest)](https://scanpy.readthedocs.io)
+.. |PyPIDownloads| image:: https://pepy.tech/badge/vista
+   :target: https://pepy.tech/project/vista
+
+.. |Stars| image:: https://img.shields.io/github/stars/vista-simulator/vista?logo=GitHub&color=green
+   :target: https://github.com/vista-simulator/vista/stargazers
+
+.. |PyPI| image:: https://img.shields.io/pypi/v/vista?logo=PyPI
+   :target: https://pypi.org/project/vista
+
+.. |Docs| image:: https://readthedocs.com/projects/icb-scanpy/badge/?version=latest
+   :target: https://scanpy.readthedocs.io
+
 
 .. image:: docs/source/_static/overview.png
 
