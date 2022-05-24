@@ -1,7 +1,7 @@
 VISTA Autonomous Driving Simulator
 ==================================
 
-.. image:: /_static/overview.png
+.. image:: docs/_static/overview.png
 
 `VISTA <https://vista.csail.mit.edu>`_ is a data-driven simulation engine for autonomous driving perception and control. The VISTA API provides an interface for transforming real-world datasets into virtual environments with dynamic agents, sensor suites, and task objectives.
 
@@ -14,7 +14,7 @@ VISTA can be installed into your Python 3 environment using the `PyPi package in
 
     >> pip install vista
 
-Please also ensure that you have all required dependencies to successfully run VISTA. Details on dependencies are outlined in :ref:`getting_started-installation`.
+Please also ensure that you have all required dependencies to successfully run VISTA. Details on dependencies are outlined in the `documentation <https://vista.csail.mit.edu>`_.
 
 
 |paper1| |paper2| |paper3|
@@ -32,6 +32,7 @@ Please also ensure that you have all required dependencies to successfully run V
 
 Citing VISTA
 ++++++++++++
+If VISTA is useful or relevant to your research, we ask that you recognize our contributions by citing the following three original VISTA papers in your research:
 
 .. code-block::
 
