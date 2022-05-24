@@ -34,15 +34,15 @@ Please also ensure that you have all required dependencies to successfully run V
 
 |paper1| |paper2| |paper3|
 
-.. |paper1| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper1.png
+.. |paper1| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper1.jpg
   :target: https://ieeexplore.ieee.org/document/8957584
   :width: 31%
 
-.. |paper2| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper2.png
+.. |paper2| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper2.jpg
   :target: https://arxiv.org/abs/2111.12083
   :width: 31%
 
-.. |paper3| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper3.png
+.. |paper3| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper3.jpg
   :target: https://arxiv.org/abs/2111.12137
   :width: 31%
 
