@@ -10,7 +10,7 @@ Interface to Public Datasets
     nuscene
     waymo
 
-VISTA is a data-driven simulator that can generally interface with *existing datasets* to build virtual worlds for autonomous training and testing. To ensure compatibility with VISTA, datasets must represented in a certain format. In this section, we provide a series of scripts to perform a conversion of several popular open-source datasets into a VISTA-compatible format.
+VISTA is a data-driven simulator that can generally interface with *existing datasets* to build virtual worlds for autonomous training and testing. To ensure compatibility with VISTA, datasets must be represented in a certain format. In this section, we provide a series of scripts to perform a conversion of several popular open-source datasets into a VISTA-compatible format.
 
 Custom External Data
 ++++++++++++++++++++

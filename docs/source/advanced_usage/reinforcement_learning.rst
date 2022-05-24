@@ -1,20 +1,20 @@
-.. _advanced_usage-reinforcement_learning:
+VISTA.. _advanced_usage-reinforcement_learning:
 
 Reinforcement Learning
 ======================
 
 Based on what we discussed in the previous section for guided policy learning where we actively
-generate data with off-human-trajectory initialization and privileged controller for correction,
-we can consider the further extreme of exploiting the "activeness" of applying Vista on a passive
+generate data with off-human-trajectory initialization and a privileged controller for correction,
+we can consider the further extreme of exploiting the "activeness" of applying VISTA on a passive
 dataset. This leads to reinforcement learning (RL), where an agent is allowed to interact with the
 environment, collect training data itself, and learn to achieve good task performance. Here we show
-how to use Vista to define a RL environment for learning a policy.
+how to use VISTA to define a RL environment for learning a policy.
 
-Implementation-wise, there are four major components to be defined, namely observations, environment
+Implementation-wise, there are four major components to be defined, namely the observations, environment
 dynamics, reward function, and terminal condition. Observations are simply sensor data and environment
-dynamics is how the ego-car move after applying some control commands, which is already embedded in
-vehicle states update (and collision if multi-agent scenario is considered). Thus, we need to further
-define reward function and terminal condition. For example, if we consider lane-following, ::
+dynamics is how the ego car moves after applying some control commands, which is already embedded in
+the vehicle state update (and collision if multi-agent scenario is considered). Thus, we need to further
+define the reward function and terminal conditions. For example, if we consider lane following, ::
 
     def step(self, action, dt=1 / 30.):
         # Step agent and get observation
@@ -42,9 +42,9 @@ define reward function and terminal condition. For example, if we consider lane-
         return observations, reward, done, info
 
 , where ``self.config['terminal_condition']`` can be defined as when the car is off the lane (too
-far away from the lane center) or car heading deviate too much from road curvature. Note that apart
-from being the terminal condition for lane following task, the above-mentioned two constraints
-should be satisfied since Vista only allow high-fidelity synthesis locally around the original
+far away from the lane center) or the car heading deviates too much from the road curvature. Note that apart
+from being the terminal condition for the lane following task, the above-mentioned two constraints
+should be satisfied since VISTA only allows for high-fidelity synthesis locally around the original
 passive dataset. ::
 
     def default_terminal_condition(task, agent_id, **kwargs):
@@ -69,7 +69,7 @@ passive dataset. ::
 
         return done, other_info
 
-We can define a very simple reward function that encourage survival (not going off the lane or
+We can define a very simple reward function that encourages survival (not going off the lane or
 exceeding some rotation with respect to the road curvature) by simply checking whether the current
 step is terminated. ::
 
@@ -80,6 +80,6 @@ step is terminated. ::
         return reward, {}
 
 Please check :ref:`lane_following.py <api_lane_following>` for more details. The implementation
-rougly follow `OpenAI Gym <https://gym.openai.com/>`_ interface with ``reset`` and ``step`` functions.
+roughly follows `OpenAI Gym <https://gym.openai.com/>`_ interface with ``reset`` and ``step`` functions.
 However, there are still other attributes or functions to be implemented like ``action_space``,
 ``observation_space``, ``render``, etc, which may require objects from ``gym``.

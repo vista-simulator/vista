@@ -10,7 +10,7 @@ Installation
     >> sudo apt-get install -y libglib2.0-0
     >> sudo apt-get install -y ffmpeg
 
-2. [Option A] Create a Conda environment. ::
+2. [Option A] Create a Conda environment using the provided ``environment.yaml``. ::
 
     >> conda create -n vista python=3.8
     >> conda env update --name vista --file ./environment.yaml
@@ -38,5 +38,8 @@ Installation
 
     >> python -c "import vista"
 
-6. Download dataset from `here <https://github.com>`_. For more details,
-   check :doc:`Data Format <./data_format>`.
+6. Download and extract sample dataset from `here <https://www.dropbox.com/s/62pao4mipyzk3xu/vista_traces.zip?dl=1>`_. For more details, check :doc:`Data Format <./data_format>`.
+
+.. note::
+
+  Dataset above is a small sample dataset to test functionality. Much more data and environments to come!

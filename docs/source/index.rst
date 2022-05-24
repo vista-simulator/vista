@@ -14,7 +14,7 @@ Welcome to VISTA's documentation!
    Introduction <introduction/index.rst>
    Getting Started <getting_started/index.rst>
    Advanced Usage <advanced_usage/index.rst>
-   Interface To Public Dataset <interface_to_public_dataset/index.rst>
+   Interface To Public Datasets <interface_to_public_dataset/index.rst>
    API Documentation <api_documentation/index.rst>
    FAQ <faq/index.rst>
    Acknowledgement <acknowledgement/index.rst>
@@ -25,6 +25,8 @@ Welcome to VISTA's documentation!
    :width: 300
 
 `VISTA <https://vista.csail.mit.edu>`_ is a data-driven simulation engine for autonomous driving perception and control. The VISTA API provides an interface for transforming real-world datasets into virtual environments with dynamic agents, sensor suites, and task objectives.
+
+All code is available on our `github repository <https://github.com/vista-simulator/vista>`_.
 
 
 Installation
@@ -43,15 +45,15 @@ Please also ensure that you have all required dependencies to successfully run V
 
 
 
-.. |paper1| image:: /_static/paper1.png
+.. |paper1| image:: /_static/paper1.jpg
   :target: https://ieeexplore.ieee.org/document/8957584
   :width: 31%
 
-.. |paper2| image:: /_static/paper2.png
+.. |paper2| image:: /_static/paper2.jpg
   :target: https://arxiv.org/abs/2111.12083
   :width: 31%
 
-.. |paper3| image:: /_static/paper3.png
+.. |paper3| image:: /_static/paper3.jpg
   :target: https://arxiv.org/abs/2111.12137
   :width: 31%
 

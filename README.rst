@@ -1,5 +1,7 @@
-VISTA Autonomous Driving Simulator
 ==================================
+=======
+VISTA Driving Simulator
+=======================
 
 |Docs| |PyPIDownloads| |Stars| |PyPI|
 
@@ -16,9 +18,9 @@ VISTA Autonomous Driving Simulator
    :target: https://vista.csail.mit.edu
 
 
-.. image:: docs/source/_static/overview.png
+.. image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/overview.jpg
 
-`VISTA <https://vista.csail.mit.edu>`_ is a data-driven simulation engine for autonomous driving perception and control. The VISTA API provides an interface for transforming real-world datasets into virtual environments with dynamic agents, sensor suites, and task objectives. Because VISTA is data-driven, it is side-steps many of the traditional issues of simulators, such as their lack of photorealism and ability to accurately model reality. 
+`VISTA <https://vista.csail.mit.edu>`_ is a data-driven simulation engine for autonomous driving perception and control. The VISTA API provides an interface for transforming real-world datasets into virtual environments with dynamic agents, sensor suites, and task objectives. Because VISTA is data-driven, it is side-steps many of the traditional issues of simulators, such as their lack of photorealism and ability to accurately model reality.
 
 
 Installation
@@ -34,14 +36,17 @@ Please also ensure that you have all required dependencies to successfully run V
 
 |paper1| |paper2| |paper3|
 
-.. |paper1| image:: docs/source/_static/paper1.png
-   :width: 31%
+.. |paper1| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper1.jpg
+  :target: https://ieeexplore.ieee.org/document/8957584
+  :width: 31%
 
-.. |paper2| image:: docs/source/_static/paper2.png
-   :width: 31%
+.. |paper2| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper2.jpg
+  :target: https://arxiv.org/abs/2111.12083
+  :width: 31%
 
-.. |paper3| image:: docs/source/_static/paper3.png
-   :width: 31%
+.. |paper3| image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/paper3.jpg
+  :target: https://arxiv.org/abs/2111.12137
+  :width: 31%
 
 
 

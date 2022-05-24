@@ -7,8 +7,8 @@ Simple Controller With Simulator State
 --------------------------------------
 
 We first start with simulating car motion only without synthesizing
-sensory measurement as an example of accessing vehicle state for control.
-We start with defining a world in Vista, adding a car, and attaching display
+sensory measurements, as an example of accessing vehicle state for control.
+We start with defining a world in VISTA, adding a car, and attaching display
 to the world for visualization. ::
 
     import vista
@@ -39,9 +39,9 @@ Then we reset the environment and control the car to move in the simulator. ::
         vis_img = display.render()
 
 The ``state_space_controller`` function defines a controller that takes simulator
-states as input and produce an action for the agent. In the following, we show several
-examples of how we can control the car to do lane stable with the access to Simulator
-states. The simplest controller is simply following how human drives in the dataset. ::
+states as input and produces an action for the agent. In the following, we show several
+examples of how we can control the car to do lane stable control with the access to Simulator
+states. The simplest controller is simply following how humans drive in the dataset. ::
 
     def follow_human_trajectory(agent):
         action = np.array([
@@ -91,11 +91,11 @@ Note that we should replace ``state_space_controller`` with either of the above
 controller (or other custom controller) and you will see a car doing lane following
 on the road in the dataset.
 
-Synthesizing Sensory Measurement
---------------------------------
+Synthesizing Sensory Measurements
+---------------------------------
 
 Then, we show how to attach sensors to a car and synthesize sensory
-measurement at every timestmap. Currently, RGB camera, LiDAR, and event
+measurements at every timestmap. Currently, RGB camera, LiDAR, and event
 camera are supported. Following the setup above, we simply spawn sensors
 on the ``car`` object.
 
@@ -152,7 +152,7 @@ Adding Virtual Cars
 -------------------
 
 We can also add more cars (or potentially other objects) to the simulation, where
-each car can have different set of sensors. Note that currently only RGB camera
+each car can have different sets of sensors. Note that currently only RGB camera
 supports rendering for virtual objects in the scene. ::
 
     world = vista.World(trace_path)
@@ -162,8 +162,8 @@ supports rendering for virtual objects in the scene. ::
     car2 = world.spawn_agent()
     car2.spawn_lidar()
 
-It spawns two cars, one with RGB camera and the other with LiDAR. Note that since only
-RGB camera supports rendering of virtual object for now, ``car2`` cannot see ``car1``
+It spawns two cars, one with RGB camera and the other with LiDAR. Note that, for now, since only
+RGB camera supports rendering of virtual objects, ``car2`` cannot see ``car1``
 with its LiDAR measurement. Note that there are still two major functions to be implemented
 to make it a reasonable simulation, including initialization of virtual objects and collision
 check/dynamics across objects. For more details, check ``vista/task/multi_agent_base.py``.
