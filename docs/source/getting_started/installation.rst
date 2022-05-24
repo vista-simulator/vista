@@ -38,8 +38,7 @@ Installation
 
     >> python -c "import vista"
 
-6. Download and extract sample dataset from `here https://www.dropbox.com/s/62pao4mipyzk3xu/vista_traces.zip?dl=1`_. For more details,
-   check :doc:`Data Format <./data_format>`.
+6. Download and extract sample dataset from `here <https://www.dropbox.com/s/62pao4mipyzk3xu/vista_traces.zip?dl=1>`_. For more details, check :doc:`Data Format <./data_format>`.
 
 .. note::
 
