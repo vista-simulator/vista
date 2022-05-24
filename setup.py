@@ -4,8 +4,8 @@
 
 from setuptools import setup, find_packages
 
-# with open('README.rst') as readme_file:
-#     readme = readme_file.read()
+with open('README.rst') as readme_file:
+    readme = readme_file.read()
 
 requirements = [ ]
 
@@ -29,6 +29,7 @@ setup(
         'Programming Language :: Python :: 3.8',
     ],
     description="Data-driven simulation for training and evaluating full-scale autonomous vehicles",
+    long_description=readme,
     install_requires=requirements,
     license="MIT license",
     include_package_data=True,
@@ -36,7 +37,8 @@ setup(
     name='vista',
     packages=find_packages(include=['vista', 'vista.*']),
     setup_requires=setup_requirements,
-    url='https://github.com/aamini/vista',
-    version='0.1.0',
+    url='https://github.com/vista-simulator/vista',
+    download_url = 'https://github.com/vista-simulator/vista/archive/v2.0.1.tar.gz',
+    version='2.0.1',
     zip_safe=False,
 )
