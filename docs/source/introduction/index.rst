@@ -27,13 +27,13 @@ Goals of VISTA
 
 * **Closed-loop (active) testing:** Passive evaluation on pre-collected datasets provides a mediocre evaluation metric for control. VISTA aims to convert offline (open-loop) datasets into closed-loop testbeds, for faithful evaluations.
 
-* **New applications and benchmarks:** VISTA has enabled many new advances on the algorithmic and applicaitons side. We are excited to see even more advances brought due to photorealistic data-driven simulation including: policy learning, testing and verification, augmented reality.
+* **New applications and benchmarks:** VISTA has enabled many new advances on the algorithmic and applications side. We are excited to see even more advances brought to photorealistic data-driven simulation including: policy learning, testing and verification, augmented reality.
 
 
 The Simulator
 +++++++++++++
 
-The VISTA API provides a modular framework for defining environments, spawning agents with perception sensors, and constructing task objectives for learning and evaluating. The components below provide a high-level overview of the different pieces that VISTA is built on.
+The VISTA API provides a modular framework for defining environments, spawning agents with perception sensors, and constructing task objectives for learning and evaluation. The components below provide a high-level overview of the different pieces that VISTA is built on.
 
 
 ``vista.World``
@@ -48,7 +48,7 @@ To construct a ``World`` users must provide the paths to the desired traces. Aft
 
 ``vista.Trace``
 ***************
-A ``Trace`` is an object that represents a single dataset log from the real-world. Traces are stored on the hard-drive and streamed into memory as needed by VISTA. The format of a trace on disk must be compatible with VISTA to be represented as a ``Trace`` object.
+A ``Trace`` is an object that represents a single dataset log from the real world. Traces are stored on the hard drive and streamed into memory as needed by VISTA. The format of a trace on disk must be compatible with VISTA to be represented as a ``Trace`` object.
 
 Traces can be annotated to remove segments which should not be used within VISTA (e.g., if segments contain noisy or non-stable driving behavior).
 

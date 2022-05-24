@@ -19,7 +19,7 @@ Citing VISTA
 ++++++++++++
 If VISTA is useful or relevant to your research, we ask that you recognize our contributions by citing the following three original VISTA papers in your research:
 
-VISTA 1.0: Sim-to-real RL
+`VISTA 1.0: Sim-to-real RL <https://ieeexplore.ieee.org/document/8957584>`_
 *************************
 
 .. code-block::
@@ -32,7 +32,7 @@ VISTA 1.0: Sim-to-real RL
         publisher={IEEE}
     }
 
-VISTA 2.0: Multi-sensor
+`VISTA 2.0: Multi-sensor <https://arxiv.org/abs/2111.12083>`_
 ***********************
 
 .. code-block::
@@ -46,7 +46,7 @@ VISTA 2.0: Multi-sensor
     }
 
 
-VISTA 2.0: Multi-agent
+`VISTA 2.0: Multi-agent <https://arxiv.org/abs/2111.12137>`_
 ***********************
 
 .. code-block::
