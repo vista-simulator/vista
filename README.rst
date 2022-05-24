@@ -16,7 +16,7 @@ VISTA Autonomous Driving Simulator
    :target: https://vista.csail.mit.edu
 
 
-.. image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/overview.png
+.. image:: https://raw.githubusercontent.com/vista-simulator/vista/main/docs/source/_static/overview.jpg
 
 `VISTA <https://vista.csail.mit.edu>`_ is a data-driven simulation engine for autonomous driving perception and control. The VISTA API provides an interface for transforming real-world datasets into virtual environments with dynamic agents, sensor suites, and task objectives. Because VISTA is data-driven, it is side-steps many of the traditional issues of simulators, such as their lack of photorealism and ability to accurately model reality.
 

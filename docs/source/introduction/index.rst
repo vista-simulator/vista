@@ -13,7 +13,7 @@ VISTA is fundamentally different in that it is a `data-driven` simulation engine
 VISTA provides a flexible interface for taking large datasets and building entire virtual worlds. Within these worlds, virtual agents can be spawned, perception data rendered, new tasks and objectives defined, as agents move and interact with each other and the surrounding environment.
 
 
-.. image:: /_static/overview.png
+.. image:: /_static/overview.jpg
 
 
 Goals of VISTA
