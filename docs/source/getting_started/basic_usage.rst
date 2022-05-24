@@ -92,7 +92,7 @@ controller (or other custom controller) and you will see a car doing lane follow
 on the road in the dataset.
 
 Synthesizing Sensory Measurements
---------------------------------
+---------------------------------
 
 Then, we show how to attach sensors to a car and synthesize sensory
 measurements at every timestmap. Currently, RGB camera, LiDAR, and event
