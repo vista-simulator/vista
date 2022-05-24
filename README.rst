@@ -1,5 +1,5 @@
-VISTA Autonomous Driving Simulator
-==================================
+VISTA Driving Simulator
+=======================
 
 |Docs| |PyPIDownloads| |Stars| |PyPI|
 
