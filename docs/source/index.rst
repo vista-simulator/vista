@@ -38,16 +38,22 @@ VISTA can be installed into your Python 3 environment using the `PyPi package in
 Please also ensure that you have all required dependencies to successfully run VISTA. Details on dependencies are outlined in :ref:`getting_started-installation`.
 
 
+
 |paper1| |paper2| |paper3|
 
+
+
 .. |paper1| image:: /_static/paper1.png
-   :width: 31%
+  :target: https://ieeexplore.ieee.org/document/8957584
+  :width: 31%
 
 .. |paper2| image:: /_static/paper2.png
-   :width: 31%
+  :target: https://arxiv.org/abs/2111.12083
+  :width: 31%
 
 .. |paper3| image:: /_static/paper3.png
-   :width: 31%
+  :target: https://arxiv.org/abs/2111.12137
+  :width: 31%
 
 
 

@@ -10,7 +10,7 @@ test*.png
 *.mp4
 
 # Docs
-docs/source/_static/
+# docs/source/_static/
 docs/source/_templates/
 
 

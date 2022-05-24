@@ -1,7 +1,14 @@
 VISTA Autonomous Driving Simulator
 ==================================
 
-.. image:: docs/_static/overview.png
+..
+
+  [![Stars](https://img.shields.io/github/stars/vista-simulator/vista?logo=GitHub&color=yellow)](https://github.com/vista-simulator/vista/stargazers)
+  [![PyPI](https://img.shields.io/pypi/v/vista?logo=PyPI)](https://pypi.org/project/vista)
+  [![PyPIDownloads](https://pepy.tech/badge/vista)](https://pepy.tech/project/vista)
+  [![Docs](https://readthedocs.com/projects/icb-scanpy/badge/?version=latest)](https://scanpy.readthedocs.io)
+
+.. image:: docs/source/_static/overview.png
 
 `VISTA <https://vista.csail.mit.edu>`_ is a data-driven simulation engine for autonomous driving perception and control. The VISTA API provides an interface for transforming real-world datasets into virtual environments with dynamic agents, sensor suites, and task objectives.
 
@@ -19,13 +26,13 @@ Please also ensure that you have all required dependencies to successfully run V
 
 |paper1| |paper2| |paper3|
 
-.. |paper1| image:: docs/_static/paper1.png
+.. |paper1| image:: docs/source/_static/paper1.png
    :width: 31%
 
-.. |paper2| image:: docs/_static/paper2.png
+.. |paper2| image:: docs/source/_static/paper2.png
    :width: 31%
 
-.. |paper3| image:: docs/_static/paper3.png
+.. |paper3| image:: docs/source/_static/paper3.png
    :width: 31%
 
 

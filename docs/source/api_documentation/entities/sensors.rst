@@ -27,7 +27,7 @@ RGB Camera
     :inherited-members:
 
 3D LiDAR
------
+--------
 
 .. autoclass:: vista.entities.sensors.Lidar.Lidar
     :members:
