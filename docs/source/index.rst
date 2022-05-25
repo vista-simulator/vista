@@ -31,7 +31,7 @@ All code is available on our `github repository <https://github.com/vista-simula
 
 Installation
 ++++++++++++
-VISTA can be installed into your python 3 environment using the `PyPi package interface <https://pypi.org/project/vista/>`_.
+VISTA can be installed into your python 3 environment using the `PyPi package interface <https://pypi.org/project/vista/>`_. 
 
 ::
 
