@@ -2,7 +2,7 @@
 <DRIVEWORKS ver="1.0">
    <VEHICLE> <!-- Not used -->
       <PROPERTY Name="Height" Value="1.455"/>
-      <PROPERTY Name="Length" Value="4.915"/>Z
+      <PROPERTY Name="Length" Value="4.915"/>
       <PROPERTY Name="Width" Value="1.874"/>
       <PROPERTY Name="Wheelbase" Value="2.912"/>
       <PROPERTY Name="Front axlebase" Value="1.627"/>
