@@ -56,7 +56,7 @@ class MeshLib(object):
         tmeshes = dict()
         for i, fpath in enumerate(fpaths):
             try:
-                tm = trimesh.load(fpath)
+                tm = trimesh.load(fpath, force='scene')
                 tm = list(
                     tm.geometry.values())  # convert from scene to trimesh
                 tm, mesh_dim = self._calibrate_tm(tm)
