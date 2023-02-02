@@ -6,6 +6,7 @@ import cv2
 import vista
 from vista.utils import transform
 from vista.entities.agents.Dynamics import tireangle2curvature
+import matplotlib.pyplot as plt
 
 
 def main(args):
@@ -31,8 +32,7 @@ def main(args):
         car.step_dynamics(action)
 
         vis_img = display.render()
-        cv2.imshow('Visualize control', vis_img[:, :, ::-1])
-        cv2.waitKey(20)
+        plt.pause(0.05)
 
 
 def follow_human_trajectory(agent):
