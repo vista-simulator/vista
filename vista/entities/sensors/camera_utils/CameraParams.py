@@ -48,7 +48,7 @@ class CameraParams(object):
         self._position = params['position'].reshape(3, 1)
         self._yaw = params['yaw'] if 'yaw' in params else None
 
-        self._roi = params['roi'].astype(np.int)
+        self._roi = params['roi'].astype('int')
         self._roi_angle = params['roi_angle'] * np.pi / 180.
 
         self.__compute_other_forms()

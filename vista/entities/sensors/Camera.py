@@ -301,5 +301,5 @@ class Camera(BaseSensor):
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__} (id={self.id})> ' + \
                f'name: {self.name} ' + \
-               f'size: {self.virtual_cam.get_height()}x{self.virtual_cam.get_width()} ' + \
+               f'size: {self._virtual_cam.get_height()}x{self._virtual_cam.get_width()} ' + \
                f'#streams: {len(self.streams)} '
